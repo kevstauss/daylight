@@ -31,6 +31,9 @@ export function originFromRequest(req: Request): string {
 export const CONTACT =
   process.env.DAYLIGHT_CONTACT?.trim() || `${configuredSiteUrl()}/methods`;
 
+/** Where the public sends tips / watchlist submissions. */
+export const TIPS_EMAIL = process.env.DAYLIGHT_TIPS?.trim() || "tips@daylight.watch";
+
 export const USER_AGENT = `DaylightBot/0.4 (+${configuredSiteUrl()}/methods; observational; public-data-only)`;
 
 export const CREDIT_LINE =

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { CONTACT, CREDIT_LINE, DATA_SOURCES, USER_AGENT } from "@/lib/site";
 import { Panel, SourceLink } from "@/components/ui";
@@ -57,6 +58,14 @@ export default function MethodsPage() {
       </p>
       <p>
         Contact: <a href={CONTACT.startsWith("http") ? CONTACT : `mailto:${CONTACT}`}>{CONTACT}</a>
+      </p>
+
+      <h2>What we watch closely</h2>
+      <p>
+        Everything Daylight records is public regardless, but a curated{" "}
+        <Link href="/watchlist">watchlist</Link> decides which identities — organizations, domains,
+        and security contacts — get the loudest, highest-severity flag. It&rsquo;s open to
+        suggestions; the watchlist page has a submission link.
       </p>
 
       <h2>Data sources</h2>

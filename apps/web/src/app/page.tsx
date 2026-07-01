@@ -2,6 +2,7 @@ import Link from "next/link";
 import { changeCount, domainCount, globalChanges } from "@/lib/data";
 import { flags } from "@/lib/flags";
 import { EmptyState, Eyebrow, InternalLink, Panel, SeverityBadge, Timestamp } from "@/components/ui";
+import { ModuleIcon } from "@/components/module-icon";
 
 export const dynamic = "force-dynamic";
 
@@ -55,12 +56,16 @@ export default function Home() {
               <Link
                 key={m.key}
                 href={m.href}
-                className="group flex items-baseline justify-between gap-4 px-4 py-3.5 transition-colors hover:bg-raised"
+                className="group flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-raised sm:gap-4"
               >
-                <div className="min-w-0">
-                  <span className="text-[15px] font-semibold text-ink">{m.name}</span>
-                  <span className="ml-2.5 text-sm text-muted">{m.blurb}</span>
-                </div>
+                <ModuleIcon
+                  name={m.key}
+                  className="h-5 w-5 shrink-0 text-faint transition-colors group-hover:text-ink"
+                />
+                <span className="w-[4.75rem] shrink-0 text-[15px] font-semibold text-ink sm:w-24">
+                  {m.name}
+                </span>
+                <span className="min-w-0 flex-1 text-sm text-muted">{m.blurb}</span>
                 <span className="shrink-0 font-mono text-xs text-faint transition-colors group-hover:text-alarm">→</span>
               </Link>
             ))}

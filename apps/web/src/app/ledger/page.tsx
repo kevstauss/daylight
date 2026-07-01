@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { FLAG_TYPES, type FlagKind, classifyChangeFlag } from "@daylight/core";
 import { synthesizeTitle } from "@daylight/feeds";
-import { type ChangeRow, ledgerChangeCount, ledgerChanges } from "@/lib/data";
+import { type ChangeRow, ledgerChanges, ledgerFlagCounts } from "@/lib/data";
 import { flags } from "@/lib/flags";
 import { Eyebrow, InternalLink, Panel, SeverityBadge, Timestamp } from "@/components/ui";
 import { LedgerTabs } from "@/components/ledger-tabs";
@@ -35,11 +35,12 @@ export default async function LedgerPage({
   const flag: FlagKind | undefined = isFlag(flagParam) ? flagParam : undefined;
 
   const rows = safe(() => ledgerChanges({ severity: severity || undefined, flag, limit: 200 }), []);
-  const total = safe(() => ledgerChangeCount({ severity: severity || undefined }), 0);
-  const flagCounts = new Map<FlagKind, number>();
-  for (const ft of FLAG_TYPES) {
-    flagCounts.set(ft.kind, safe(() => ledgerChangeCount({ severity: severity || undefined, flag: ft.kind }), 0));
-  }
+  const counts = safe(
+    () => ledgerFlagCounts({ severity: severity || undefined }),
+    {} as Record<FlagKind, number>,
+  );
+  const flagCounts = new Map<FlagKind, number>(FLAG_TYPES.map((ft) => [ft.kind, counts[ft.kind] ?? 0]));
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
   // Build a filter href preserving the other axis.
   const href = (next: { severity?: string; flag?: string }): string => {
@@ -86,6 +87,11 @@ export default async function LedgerPage({
           </Chip>
         ))}
       </div>
+
+      <p className="text-xs text-faint">
+        &ldquo;Watchlist hit&rdquo; flags reflect the identities on the{" "}
+        <InternalLink href="/watchlist">Watchlist</InternalLink> — curated, and open to suggestions.
+      </p>
 
       {rows.length === 0 ? (
         <Panel className="px-4 py-6">

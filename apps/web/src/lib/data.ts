@@ -40,6 +40,10 @@ export function ledgerChangeCount(opts: { severity?: string; flag?: FlagKind } =
   return getDb().countChanges({ module: "ledger", severity: opts.severity, flag: opts.flag });
 }
 
+export function ledgerFlagCounts(opts: { severity?: string } = {}): Record<FlagKind, number> {
+  return getDb().countChangesByFlag({ module: "ledger", severity: opts.severity });
+}
+
 export function toFeedEntries(rows: ChangeRow[]): FeedEntry[] {
   return rows.map((r) => changeToEntry(r));
 }

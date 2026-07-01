@@ -37,11 +37,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const f = flags();
   const nav = [
     ...(f.registry ? [{ href: "/registry", label: "Ledger" }] : []),
-    ...(f.registry ? [{ href: "/ledger", label: "Activity" }] : []),
     ...(f.lookout ? [{ href: "/lookout", label: "Lookout" }] : []),
     ...(f.floodlight ? [{ href: "/floodlight", label: "Floodlight" }] : []),
     ...(f.receipts ? [{ href: "/receipts", label: "Receipts" }] : []),
     ...(f.redtape ? [{ href: "/redtape", label: "Redtape" }] : []),
+    { href: "/watchlist", label: "Watchlist" },
     { href: "/methods", label: "Methods" },
     { href: "/status", label: "Status" },
   ];

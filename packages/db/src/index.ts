@@ -234,6 +234,54 @@ export class DaylightDb {
       .all(params) as ChangeRow[];
   }
 
+  /**
+   * Count changes bucketed by flag type in ONE pass — the /ledger chips need all seven counts,
+   * and 7 separate COUNT+LIKE scans per page load are the visible latency there. The CASE
+   * mirrors classifyChangeFlag / flagSqlPredicate precedence (verified equal in tests).
+   */
+  countChangesByFlag(f: { module?: string; severity?: string; since?: string } = {}): Record<FlagKind, number> {
+    const clauses: string[] = [];
+    const params: Record<string, string> = {};
+    if (f.since) {
+      params.since = f.since;
+      clauses.push(`detected_at >= @since`);
+    }
+    if (f.severity) {
+      params.severity = f.severity;
+      clauses.push(`severity = @severity`);
+    }
+    if (f.module) {
+      params.module = f.module;
+      clauses.push(`module = @module`);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    const rows = this.sql
+      .prepare(
+        `SELECT CASE
+           WHEN lower(reason) LIKE '%foreign to%' THEN 'contact-mismatch'
+           WHEN lower(reason) LIKE '%watched%' THEN 'watchlist'
+           WHEN kind = 'added' THEN 'new-domain'
+           WHEN kind = 'removed' THEN 'removed'
+           WHEN kind = 'modified' AND field = 'securityContactEmail' THEN 'contact-change'
+           WHEN kind = 'modified' AND field IN ('org','suborg','domainType') THEN 'owner-change'
+           ELSE 'other'
+         END AS bucket, COUNT(*) AS c
+         FROM changes ${where} GROUP BY bucket`,
+      )
+      .all(params) as { bucket: FlagKind; c: number }[];
+    const out: Record<FlagKind, number> = {
+      "contact-mismatch": 0,
+      watchlist: 0,
+      "new-domain": 0,
+      removed: 0,
+      "contact-change": 0,
+      "owner-change": 0,
+      other: 0,
+    };
+    for (const r of rows) out[r.bucket] = r.c;
+    return out;
+  }
+
   /** Count changes matching a filter (same clauses as listChanges) — for filter-chip totals. */
   countChanges(f: ChangeFilter = {}): number {
     const clauses: string[] = [];

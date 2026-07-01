@@ -78,12 +78,14 @@ describe("change flag filter — SQL predicate matches the JS classifier", () =>
   it("every flag filter returns exactly the rows the classifier assigns to it", () => {
     for (const s of samples) db.insertChange(s);
     const rows = db.listChanges({ module: "ledger", limit: 1000 });
+    const byFlag = db.countChangesByFlag({ module: "ledger" });
     for (const ft of FLAG_TYPES) {
       const expected = rows.filter((r) => classifyChangeFlag(r) === ft.kind).length;
       const got = db.listChanges({ module: "ledger", flag: ft.kind, limit: 1000 });
       expect(got.length, ft.kind).toBe(expected);
       expect(got.every((r) => classifyChangeFlag(r) === ft.kind), ft.kind).toBe(true);
       expect(db.countChanges({ module: "ledger", flag: ft.kind }), ft.kind).toBe(expected);
+      expect(byFlag[ft.kind], ft.kind).toBe(expected); // single-query CASE matches too
     }
     // Every row lands in exactly one bucket (partition check).
     const sum = FLAG_TYPES.reduce((n, ft) => n + db.countChanges({ module: "ledger", flag: ft.kind }), 0);
