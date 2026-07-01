@@ -31,6 +31,10 @@ primary_region = "iad"
   # Receipts (Phase 4): removal-ledger engine is live; the ledger fills once the live
   # snapshot capture + Wayback push are enabled (pending a scheduler/host decision).
   FLAG_RECEIPTS = "1"
+  # Redtape (Phase 5): gap-finder + human gate are live. The public /redtape list only ever
+  # shows human-reviewed + published rows (gate enforced in the DB layer). Wiring the AI
+  # researcher needs ANTHROPIC_API_KEY + DAYLIGHT_REDTAPE_MODEL and a review workflow.
+  FLAG_REDTAPE = "1"
 
 [[mounts]]
   source = "daylight_data"

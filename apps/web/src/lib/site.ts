@@ -66,8 +66,8 @@ export const DATA_SOURCES: { name: string; url: string; use: string; phase: stri
   {
     name: "Federal Register API",
     url: "https://www.federalregister.gov/developers/documentation/api/v1",
-    use: "Public SORN (System of Records Notice) search — used to check for required privacy filings.",
-    phase: "Redtape (planned)",
+    use: "Public SORN (System of Records Notice) search — used to check for required privacy filings. Redtape's gap findings are human-reviewed before publication and never assert illegality.",
+    phase: "Redtape (gap-finder + human gate live)",
   },
 ];
 

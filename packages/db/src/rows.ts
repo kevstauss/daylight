@@ -101,6 +101,26 @@ export interface SnapshotRow {
   wayback_url: string | null;
 }
 
+export interface GapRow {
+  id: number;
+  domain: string;
+  url: string | null;
+  collects_pii_evidence_json: string | null;
+  pia_found: number | null;
+  pia_refs_json: string | null;
+  sorn_found: number | null;
+  sorn_refs_json: string | null;
+  queries_run_json: string | null;
+  sources_checked_json: string | null;
+  gap_assessment: string | null;
+  confidence: number | null;
+  fact_vs_inference_notes: string | null;
+  human_reviewed: number | null;
+  reviewer_note: string | null;
+  published: number | null;
+  created_at: string;
+}
+
 /** Map a persisted domains row back to the normalized DomainRecord contract. */
 export function rowToDomainRecord(row: DomainRow): DomainRecord {
   return {

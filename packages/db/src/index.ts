@@ -5,6 +5,7 @@ import type {
   AlertRow,
   ChangeRow,
   DomainRow,
+  GapRow,
   ObservationRow,
   ScanRow,
   ScorecardRow,
@@ -473,9 +474,94 @@ export class DaylightDb {
       .all() as ChangeRow[];
   }
 
+  // ---- gaps (Redtape / Phase 5) -------------------------------------------
+
+  insertGap(gap: GapInput): number {
+    const info = this.sql
+      .prepare(
+        `INSERT INTO gaps
+           (domain, url, collects_pii_evidence_json, pia_found, pia_refs_json, sorn_found,
+            sorn_refs_json, queries_run_json, sources_checked_json, gap_assessment, confidence,
+            fact_vs_inference_notes, human_reviewed, reviewer_note, published, created_at)
+         VALUES
+           (@domain, @url, @collectsPiiEvidenceJson, @piaFound, @piaRefsJson, @sornFound,
+            @sornRefsJson, @queriesRunJson, @sourcesCheckedJson, @gapAssessment, @confidence,
+            @factVsInferenceNotes, 0, NULL, 0, @createdAt)`,
+      )
+      .run({
+        domain: gap.domain,
+        url: gap.url ?? null,
+        collectsPiiEvidenceJson: JSON.stringify(gap.collectsPiiEvidence ?? []),
+        piaFound: gap.piaFound === null || gap.piaFound === undefined ? null : gap.piaFound ? 1 : 0,
+        piaRefsJson: JSON.stringify(gap.piaRefs ?? []),
+        sornFound: gap.sornFound === null || gap.sornFound === undefined ? null : gap.sornFound ? 1 : 0,
+        sornRefsJson: JSON.stringify(gap.sornRefs ?? []),
+        queriesRunJson: JSON.stringify(gap.queriesRun ?? []),
+        sourcesCheckedJson: JSON.stringify(gap.sourcesChecked ?? []),
+        gapAssessment: gap.gapAssessment,
+        confidence: gap.confidence ?? null,
+        factVsInferenceNotes: gap.factVsInferenceNotes ?? null,
+        createdAt: gap.createdAt,
+      });
+    return Number(info.lastInsertRowid);
+  }
+
+  getGap(id: number): GapRow | null {
+    const row = this.sql.prepare(`SELECT * FROM gaps WHERE id = ?`).get(id) as GapRow | undefined;
+    return row ?? null;
+  }
+
+  /**
+   * PUBLIC read path for Redtape — the human gate, enforced at the data layer (spec §4.3/§8).
+   * ONLY rows a human reviewed AND published are ever returned. Do not add a public path
+   * that bypasses this.
+   */
+  publicGaps(limit = 100): GapRow[] {
+    const n = Math.max(1, Math.min(limit, 1000));
+    return this.sql
+      .prepare(
+        `SELECT * FROM gaps WHERE human_reviewed = 1 AND published = 1
+         ORDER BY created_at DESC, id DESC LIMIT ${n}`,
+      )
+      .all() as GapRow[];
+  }
+
+  /** Internal review queue — unreviewed rows (never a public path). */
+  reviewQueueGaps(limit = 200): GapRow[] {
+    const n = Math.max(1, Math.min(limit, 1000));
+    return this.sql
+      .prepare(`SELECT * FROM gaps WHERE human_reviewed = 0 ORDER BY created_at ASC LIMIT ${n}`)
+      .all() as GapRow[];
+  }
+
+  /** Human review action — approve/reject + optional publish. */
+  reviewGap(id: number, r: { published: boolean; reviewerNote?: string | null }): void {
+    this.sql
+      .prepare(
+        `UPDATE gaps SET human_reviewed = 1, published = @published, reviewer_note = @note WHERE id = @id`,
+      )
+      .run({ id, published: r.published ? 1 : 0, note: r.reviewerNote ?? null });
+  }
+
   close(): void {
     this.sql.close();
   }
+}
+
+export interface GapInput {
+  domain: string;
+  url?: string | null;
+  collectsPiiEvidence?: string[];
+  piaFound?: boolean | null;
+  piaRefs?: string[];
+  sornFound?: boolean | null;
+  sornRefs?: string[];
+  queriesRun?: string[];
+  sourcesChecked?: string[];
+  gapAssessment: string;
+  confidence?: number | null;
+  factVsInferenceNotes?: string | null;
+  createdAt: string;
 }
 
 export interface SnapshotInput {

@@ -17,6 +17,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     ...(f.lookout ? [{ href: "/lookout", label: "Lookout" }] : []),
     ...(f.floodlight ? [{ href: "/floodlight", label: "Floodlight" }] : []),
     ...(f.receipts ? [{ href: "/receipts", label: "Receipts" }] : []),
+    ...(f.redtape ? [{ href: "/redtape", label: "Redtape" }] : []),
     { href: "/methods", label: "Methods" },
     { href: "/status", label: "Status" },
     { href: "/changelog", label: "Changelog" },

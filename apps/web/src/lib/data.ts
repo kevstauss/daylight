@@ -6,13 +6,14 @@ import {
   type ChangeRow,
   type DomainRow,
   type ScanRow,
+  type GapRow,
   type ScorecardRow,
   type SearchFilter,
   type SubdomainRow,
 } from "@daylight/db";
 import { changeToEntry, type FeedEntry } from "@daylight/feeds";
 
-export type { ChangeRow, DomainRow, ScanRow, ScorecardRow, SubdomainRow } from "@daylight/db";
+export type { ChangeRow, DomainRow, GapRow, ScanRow, ScorecardRow, SubdomainRow } from "@daylight/db";
 
 export function statusRows(): ScanRow[] {
   return getDb().getStatus();
@@ -99,4 +100,30 @@ export function receiptsChanges(opts: { severity?: string; limit?: number } = {}
 export function snapshotCount(): number {
   const row = getDb().sql.prepare(`SELECT COUNT(*) AS n FROM snapshots`).get() as { n: number };
   return row.n;
+}
+
+// ---- Redtape (Phase 5) — public read-path goes through the human gate ------
+
+/** ONLY human-reviewed + published gaps (the gate lives in @daylight/db.publicGaps). */
+export function publicGaps(limit = 100): GapRow[] {
+  return getDb().publicGaps(limit);
+}
+
+export function gapToFeedEntry(g: GapRow): FeedEntry {
+  const severity = g.gap_assessment === "no_filing" ? "high" : g.gap_assessment === "incomplete_filing" ? "notable" : "info";
+  const date = g.created_at.slice(0, 10);
+  const label =
+    g.gap_assessment === "no_filing"
+      ? `No published PIA or SORN found for ${g.domain} as of ${date}`
+      : g.gap_assessment === "incomplete_filing"
+        ? `Filing appears incomplete for ${g.domain} as of ${date}`
+        : `Filing status recorded for ${g.domain} as of ${date}`;
+  return {
+    id: g.id,
+    domain: g.domain,
+    detectedAt: g.created_at,
+    severity,
+    title: label,
+    summary: g.fact_vs_inference_notes ?? undefined,
+  };
 }

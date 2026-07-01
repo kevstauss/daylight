@@ -119,4 +119,27 @@ CREATE TABLE IF NOT EXISTS snapshots (
   wayback_url TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_snap_url ON snapshots(url, captured_at DESC);
+
+-- Redtape (Phase 5): PIA/SORN gap assessments. HARD RULE: only rows with
+-- human_reviewed=1 AND published=1 are ever served publicly (enforced in the query layer).
+CREATE TABLE IF NOT EXISTS gaps (
+  id INTEGER PRIMARY KEY,
+  domain TEXT NOT NULL,
+  url TEXT,
+  collects_pii_evidence_json TEXT,
+  pia_found INTEGER,
+  pia_refs_json TEXT,
+  sorn_found INTEGER,
+  sorn_refs_json TEXT,
+  queries_run_json TEXT,               -- exact searches — makes the NEGATIVE checkable
+  sources_checked_json TEXT,
+  gap_assessment TEXT,                 -- 'no_filing' | 'incomplete_filing' | 'covered' | 'manual'
+  confidence REAL,
+  fact_vs_inference_notes TEXT,
+  human_reviewed INTEGER DEFAULT 0,
+  reviewer_note TEXT,
+  published INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_gaps_domain ON gaps(domain, created_at DESC);
 `;

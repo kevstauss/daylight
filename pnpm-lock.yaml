@@ -197,6 +197,18 @@ importers:
         specifier: workspace:*
         version: link:../../packages/redact
 
+  workers/redtape:
+    dependencies:
+      '@daylight/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@daylight/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@daylight/feeds':
+        specifier: workspace:*
+        version: link:../../packages/feeds
+
 packages:
 
   '@alloc/quick-lru@5.2.0':

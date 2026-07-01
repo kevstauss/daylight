@@ -14,6 +14,8 @@ export interface Flags {
   floodlight: boolean;
   /** Phase 4 — /receipts removal ledger + snapshot history. */
   receipts: boolean;
+  /** Phase 5 — /redtape human-reviewed PIA/SORN gap list. */
+  redtape: boolean;
 }
 
 export function flags(): Flags {
@@ -24,5 +26,6 @@ export function flags(): Flags {
     lookout: flag("FLAG_LOOKOUT"),
     floodlight: flag("FLAG_FLOODLIGHT"),
     receipts: flag("FLAG_RECEIPTS"),
+    redtape: flag("FLAG_REDTAPE"),
   };
 }

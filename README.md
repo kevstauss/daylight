@@ -22,7 +22,7 @@ Same lane as the EFF, The Markup, and EPIC.
 | 2 | Lookout | New-subdomain feed + flag scoring + Ledger-owner enrichment | 🔨 core on `main` — certstream + Postgres pending a hosting decision |
 | 3 | Floodlight | Tracker & session-replay scorecards | 🔨 engine on `main` — live Playwright capture pending a scheduler/host decision |
 | 4 | Receipts | Snapshot archive + removal ledger | 🔨 removal-ledger engine on `main` — live snapshot + Wayback push pending the same decision |
-| 5 | Redtape | PIA/SORN gap-finder (human-gated) | ◻︎ planned |
+| 5 | Redtape | PIA/SORN gap-finder (human-gated) | 🔨 gap-finder + human gate on `main` — live AI researcher (API key) + review UI pending |
 | 6 | Daylight | Unified per-domain dashboard | ◻︎ planned |
 
 All modules are fixture-tested and reuse `packages/{core,db,feeds,redact}` behind their

@@ -16,6 +16,7 @@ export default defineConfig({
       "@daylight/fingerprints": r("./packages/fingerprints/src/index.ts"),
       "@daylight/floodlight": r("./workers/floodlight/src/index.ts"),
       "@daylight/receipts": r("./workers/receipts/src/index.ts"),
+      "@daylight/redtape": r("./workers/redtape/src/index.ts"),
     },
   },
   test: {

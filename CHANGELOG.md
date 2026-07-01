@@ -65,6 +65,28 @@ Deferred (needs the scan-scheduler/host decision, shared with Floodlight): the l
 Playwright snapshot + screenshot capture and the live Wayback push. The diff engine that
 consumes them is built and fixture-tested.
 
+**Redtape gap-finder + human gate (Phase 5 core, toward `v0.6`).** Automates the exact
+finding experts pointed at — sites collecting PII with no published PIA/SORN — with an AI
+research agent behind a mandatory human-approval gate:
+
+- **Human gate enforced at the data layer:** `publicGaps()` returns ONLY rows a human
+  reviewed AND published. Nothing agent-generated ever reaches the public path — tested
+  directly, not just in the UI.
+- **Model-agnostic agent:** the researcher is an interface (mocked in CI; a real Claude
+  implementation via `DAYLIGHT_REDTAPE_MODEL` is wired but deferred). Output is parsed as
+  strict JSON with one retry, then routed to a manual queue — malformed output never
+  crashes and never publishes.
+- **Distinguishes** `no_filing` from `incomplete_filing` (a SORN that exists but omits the
+  analytics processor — the Trump Accounts case) from `covered`.
+- **Negative-search trail:** every gap carries the exact `queries_run` + `sources_checked`
+  so a stranger can re-verify the absence. Federal Register API client included.
+- **`/redtape`** (behind `FLAG_REDTAPE`) shows reviewed gaps with maximally careful, dated,
+  evidence-linked copy — "no published PIA found as of {date}; searches below," never
+  "illegal."
+
+Deferred: the auth-gated internal `/review` queue UI + wiring the live researcher (needs an
+API key + a reviewer). The pipeline, the gate, and the parsing are built and fixture-tested.
+
 ## v0.2 — Ledger (the first phase you can use)
 
 **The registry, now watched over time.** Daylight reads the public federal `.gov`
