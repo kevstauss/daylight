@@ -7,6 +7,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./sweep": {
+      "types": "./src/sweep.ts",
+      "default": "./src/sweep.ts"
     }
   },
   "types": "./src/index.ts",

@@ -17,7 +17,11 @@ primary_region = "iad"
   DAYLIGHT_DB_PATH = "/data/daylight.db"
   DAYLIGHT_SITE_URL = "https://daylight.watch"
   DAYLIGHT_CONTACT = "contact@daylight.watch"
-  DAYLIGHT_LEDGER_CRON = "17 0 * * *"
+  # Scheduled sweeps (UTC), staggered to spread load on the single machine:
+  DAYLIGHT_LEDGER_CRON = "17 0 * * *"      # daily 00:17 — CISA registry updates ~daily
+  DAYLIGHT_LOOKOUT_CRON = "40 1 * * *"     # daily 01:40 — new certs/subdomains appear continuously
+  DAYLIGHT_FLOODLIGHT_CRON = "0 3 * * 1"   # weekly Mon 03:00 — tracker setups change slowly (browser-heavy)
+  DAYLIGHT_RECEIPTS_CRON = "0 4 * * 1,4"   # Mon+Thu 04:00 — takedowns are time-sensitive, so 2x/week
   # Ledger increments — live as of v0.2.
   FLAG_LEDGER_REGISTRY = "1"
   FLAG_LEDGER_FEED = "1"

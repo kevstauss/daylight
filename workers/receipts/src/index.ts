@@ -11,3 +11,5 @@ export {
   type RunReceiptsOptions,
   type RunReceiptsResult,
 } from "./run.js";
+// NOTE: runReceiptsSweep / captureAndSnapshot live in the "./sweep" subpath (they pull the
+// Playwright capture chain) so importing the package index stays browser-free for tests.

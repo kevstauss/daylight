@@ -4,6 +4,7 @@
 export { analyzeCapture, trackerKey, ENGINE_VERSION } from "./analyze.js";
 export { isPostHogShape, isAutoMonitorShape, looksProxiedAnalytics } from "./shapes.js";
 export { runFloodlightScan, type RunFloodlightResult } from "./scan.js";
+export { CURATED_GOV, runFloodlightSweep, type FloodlightSweepResult } from "./sweep.js";
 export type {
   PageCapture,
   CapturedRequest,

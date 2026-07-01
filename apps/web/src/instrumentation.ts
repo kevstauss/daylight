@@ -7,16 +7,22 @@ export async function register(): Promise<void> {
 
   const ledgerCron = process.env.DAYLIGHT_LEDGER_CRON?.trim();
   const lookoutCron = process.env.DAYLIGHT_LOOKOUT_CRON?.trim();
-  if (!ledgerCron && !lookoutCron) return;
+  const floodlightCron = process.env.DAYLIGHT_FLOODLIGHT_CRON?.trim();
+  const receiptsCron = process.env.DAYLIGHT_RECEIPTS_CRON?.trim();
+  if (!ledgerCron && !lookoutCron && !floodlightCron && !receiptsCron) return;
 
-  const [{ default: cron }, core, db, ledger, lookout, repo] = await Promise.all([
-    import("node-cron"),
-    import("@daylight/core"),
-    import("@daylight/db"),
-    import("@daylight/ledger"),
-    import("@daylight/lookout"),
-    import("./lib/repoFile"),
-  ]);
+  const [{ default: cron }, core, db, ledger, lookout, floodlight, receipts, receiptsSweep, repo] =
+    await Promise.all([
+      import("node-cron"),
+      import("@daylight/core"),
+      import("@daylight/db"),
+      import("@daylight/ledger"),
+      import("@daylight/lookout"),
+      import("@daylight/floodlight"),
+      import("@daylight/receipts"),
+      import("@daylight/receipts/sweep"),
+      import("./lib/repoFile"),
+    ]);
 
   const findWatchlist = (): string | null =>
     process.env.DAYLIGHT_WATCHLIST?.trim() || repo.findRepoFile("config/watchlist.yaml");
@@ -95,6 +101,63 @@ export async function register(): Promise<void> {
       console.log(`[lookout:cron] scheduled '${lookoutCron}' (UTC)`);
     } else {
       console.warn(`[lookout] invalid DAYLIGHT_LOOKOUT_CRON: ${lookoutCron}`);
+    }
+  }
+
+  const channel = process.env.DAYLIGHT_BROWSER_CHANNEL;
+  const sweepHosts = (): string[] | null => {
+    const wl = loadWl();
+    if (!wl) return null;
+    return [...floodlight.CURATED_GOV, ...wl.apexDomains, ...wl.subdomainApexes];
+  };
+
+  // ---- Floodlight sweep (live capture; public .gov homepages, load-only) ----
+  const runFloodlight = async (): Promise<void> => {
+    const hosts = sweepHosts();
+    if (!hosts) return;
+    const database = db.createDb(db.resolveDbPath());
+    try {
+      const r = await floodlight.runFloodlightSweep(database, hosts, { channel });
+      console.log(`[floodlight:cron] sweep — ${r.scanned} scanned, ${r.gated} gated, ${r.flagged} flagged`);
+    } catch (err) {
+      console.error("[floodlight] sweep error", err);
+    } finally {
+      database.close();
+    }
+  };
+
+  // ---- Receipts sweep (snapshot + removal diff of the same public .gov homepages) ----
+  const runReceipts = async (): Promise<void> => {
+    const hosts = sweepHosts();
+    if (!hosts) return;
+    const wayback =
+      process.env.DAYLIGHT_WAYBACK === "1" ? (u: string) => receipts.saveToWayback(u) : undefined;
+    const database = db.createDb(db.resolveDbPath());
+    try {
+      const r = await receiptsSweep.runReceiptsSweep(database, hosts, { channel, waybackSave: wayback });
+      console.log(`[receipts:cron] sweep — ${r.captured} captured, ${r.gated} gated, ${r.removals} removals`);
+    } catch (err) {
+      console.error("[receipts] sweep error", err);
+    } finally {
+      database.close();
+    }
+  };
+
+  if (floodlightCron) {
+    if (cron.validate(floodlightCron)) {
+      cron.schedule(floodlightCron, () => void runFloodlight(), { timezone: "UTC" });
+      console.log(`[floodlight:cron] scheduled '${floodlightCron}' (UTC)`);
+    } else {
+      console.warn(`[floodlight] invalid DAYLIGHT_FLOODLIGHT_CRON: ${floodlightCron}`);
+    }
+  }
+
+  if (receiptsCron) {
+    if (cron.validate(receiptsCron)) {
+      cron.schedule(receiptsCron, () => void runReceipts(), { timezone: "UTC" });
+      console.log(`[receipts:cron] scheduled '${receiptsCron}' (UTC)`);
+    } else {
+      console.warn(`[receipts] invalid DAYLIGHT_RECEIPTS_CRON: ${receiptsCron}`);
     }
   }
 }

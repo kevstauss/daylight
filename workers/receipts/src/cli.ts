@@ -8,7 +8,8 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { loadWatchlist } from "@daylight/core";
 import { createDb, resolveDbPath } from "@daylight/db";
-import { captureAndSnapshot } from "./live.js";
+import { CURATED_GOV } from "@daylight/floodlight";
+import { runReceiptsSweep } from "./sweep.js";
 import { saveToWayback } from "./wayback.js";
 
 function findWatchlist(): string {
@@ -25,26 +26,17 @@ function findWatchlist(): string {
   throw new Error("config/watchlist.yaml not found (set DAYLIGHT_WATCHLIST)");
 }
 
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-
 async function main(): Promise<void> {
   const wl = loadWatchlist(findWatchlist());
   const db = createDb(resolveDbPath());
   const wayback = process.env.DAYLIGHT_WAYBACK === "1" ? (u: string) => saveToWayback(u) : undefined;
   const channel = process.env.DAYLIGHT_BROWSER_CHANNEL;
-  const targets = wl.apexDomains.map((d) => `https://${d}/`);
+  const hosts = [...CURATED_GOV, ...wl.apexDomains, ...wl.subdomainApexes];
   try {
-    for (const url of targets) {
-      const r = await captureAndSnapshot(db, url, { channel, waybackSave: wayback });
-      const status = r.gated
-        ? "gated (not entered)"
-        : r.ok
-          ? `ok — ${r.removed?.length ?? 0} removals`
-          : `error: ${r.error}`;
-      // eslint-disable-next-line no-console
-      console.log(`[receipts] ${url}: ${status}`);
-      await sleep(3000); // be gentle
-    }
+    // eslint-disable-next-line no-console
+    const r = await runReceiptsSweep(db, hosts, { channel, waybackSave: wayback, log: (m) => console.log(m) });
+    // eslint-disable-next-line no-console
+    console.log(`[receipts] sweep complete — ${r.captured} captured, ${r.gated} gated, ${r.removals} removals`);
   } finally {
     db.close();
   }
