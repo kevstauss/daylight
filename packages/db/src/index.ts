@@ -415,6 +415,12 @@ export class DaylightDb {
     return row ?? null;
   }
 
+  scorecardsByDomain(domain: string): ScorecardRow[] {
+    return this.sql
+      .prepare(`SELECT * FROM scorecards WHERE domain = ? ORDER BY scanned_at DESC`)
+      .all(domain.trim().toLowerCase()) as ScorecardRow[];
+  }
+
   listScorecards(f: { severity?: string; limit?: number } = {}): ScorecardRow[] {
     const where = f.severity ? `WHERE severity = @severity` : "";
     const limit = Math.max(1, Math.min(f.limit ?? 100, 1000));
@@ -461,6 +467,12 @@ export class DaylightDb {
     return this.sql
       .prepare(`SELECT * FROM snapshots WHERE url = ? ORDER BY captured_at DESC, id DESC`)
       .all(url) as SnapshotRow[];
+  }
+
+  snapshotsByDomain(domain: string): SnapshotRow[] {
+    return this.sql
+      .prepare(`SELECT * FROM snapshots WHERE domain = ? ORDER BY captured_at DESC, id DESC`)
+      .all(domain.trim().toLowerCase()) as SnapshotRow[];
   }
 
   /** The removal ledger: high-severity `removed` change events from Receipts. */

@@ -21,3 +21,5 @@ export function ownerLabel(owner: ApexOwner | null): string | null {
   const parts = [owner.org, owner.suborg].filter((s): s is string => !!s && s.trim().length > 0);
   return parts.length ? parts.join(" / ") : null;
 }
+
+export { domainComposite, type DomainComposite } from "./composite.js";

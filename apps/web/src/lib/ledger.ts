@@ -21,3 +21,14 @@ export function domainFlag(row: DomainRow, orgOf?: OrgResolver): ContactMismatch
 }
 
 export type { ContactMismatch } from "@daylight/ledger";
+
+// ---- Phase 6 composite (per-domain, all modules) --------------------------
+
+import { domainComposite, type DomainComposite } from "@daylight/enrich";
+
+export type { DomainComposite } from "@daylight/enrich";
+
+/** Compose the full per-domain dashboard (Ledger+Lookout+Floodlight+Receipts+Redtape). */
+export function composite(domain: string): DomainComposite {
+  return domainComposite(getDb(), domain);
+}

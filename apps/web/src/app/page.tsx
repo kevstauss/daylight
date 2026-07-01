@@ -57,6 +57,30 @@ export default function Home() {
       </section>
 
       <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Explore</h2>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {[
+            f.registry && { href: "/registry", title: "Ledger", blurb: "Who owns each federal .gov, and every ownership change." },
+            f.lookout && { href: "/lookout", title: "Lookout", blurb: "New subdomains from certificate transparency logs." },
+            f.floodlight && { href: "/floodlight", title: "Floodlight", blurb: "Is this gov site tracking you? Tracker scorecards." },
+            f.receipts && { href: "/receipts", title: "Receipts", blurb: "The removal ledger — what quietly disappeared." },
+            f.redtape && { href: "/redtape", title: "Redtape", blurb: "Reviewed PIA/SORN filing gaps, with evidence." },
+          ]
+            .filter((m): m is { href: string; title: string; blurb: string } => Boolean(m))
+            .map((m) => (
+              <Link
+                key={m.href}
+                href={m.href}
+                className="rounded-lg border border-edge bg-panel px-4 py-3 hover:border-signal"
+              >
+                <div className="text-sm font-semibold text-ink">{m.title}</div>
+                <div className="mt-0.5 text-xs text-muted">{m.blurb}</div>
+              </Link>
+            ))}
+        </div>
+      </section>
+
+      <section className="space-y-3">
         <div className="flex items-baseline justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
             Recent activity

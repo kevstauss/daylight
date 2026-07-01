@@ -6,6 +6,23 @@ Rendered publicly at `/changelog`.
 Everything Daylight does is **observational and built on already-public data**. See
 `/methods` for every source, the bot's contact, and the observational-only scope.
 
+## Unreleased — Daylight dashboard (Phase 6, composition toward `v1.0`)
+
+**The front door.** Type any federal `.gov` and see everything Daylight knows about it,
+composed on one page — with a source link and a "last checked" timestamp on every claim:
+
+- **Composite `/domain/{name}`** joins all five modules — ownership + contact-mismatch
+  flag (Ledger), CT subdomains + function-mimic flags (Lookout), the tracker scorecard
+  (Floodlight), snapshots + the removal ledger (Receipts), and reviewed privacy-filing gaps
+  (Redtape). Each section **degrades gracefully** to "not yet scanned / not yet watching."
+- **Scope gate is composed in:** the dashboard reads Redtape through the human gate
+  (`publicGaps`), so an unreviewed gap can never surface — tested at the data layer.
+- **Home is now the front door:** an Explore grid of the live modules plus recent activity.
+- **The global `/feed.xml` + `/feed.json` merge every module's change events**, newest first.
+
+The composition itself is complete and tested; the sections fill with data as each module's
+deferred live ingest (certstream, Playwright capture, the Redtape researcher) is enabled.
+
 ## Unreleased — Lookout (Phase 2, in progress toward `v0.3`)
 
 **Certificate Transparency watcher.** Daylight now reads public CT logs so a new `.gov`

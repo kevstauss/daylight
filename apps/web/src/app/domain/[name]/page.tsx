@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { synthesizeTitle } from "@daylight/feeds";
 import { domainHistoryRows, domainRow, subdomainsForApex, type SubdomainRow } from "@/lib/data";
-import { domainFlag } from "@/lib/ledger";
+import { composite, domainFlag } from "@/lib/ledger";
 import { flags } from "@/lib/flags";
 import { EmptyState, Panel, SeverityBadge, SourceLink, Timestamp } from "@/components/ui";
 
@@ -39,7 +39,9 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
   }
 
   const flag = safe(() => domainFlag(row), null);
-  const subdomains = flags().lookout ? safe(() => subdomainsForApex(domain), []) : [];
+  const f = flags();
+  const subdomains = f.lookout ? safe(() => subdomainsForApex(domain), []) : [];
+  const comp = safe(() => composite(domain), null);
 
   return (
     <div className="space-y-6">
@@ -105,7 +107,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
         )}
       </section>
 
-      {flags().lookout ? (
+      {f.lookout ? (
         <section className="space-y-3">
           <div className="flex items-baseline justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
@@ -141,6 +143,92 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
               All new subdomains →
             </Link>
           </p>
+        </section>
+      ) : null}
+
+      {f.floodlight ? (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Tracker scorecard</h2>
+          {comp && comp.scorecards.length > 0 ? (
+            <Panel>
+              <ul className="divide-y divide-edge">
+                {comp.scorecards.map((s) => (
+                  <li key={s.url} className="flex items-start gap-3 px-4 py-2.5">
+                    <SeverityBadge severity={s.severity ?? "info"} />
+                    <div className="min-w-0 flex-1">
+                      <span className="truncate font-mono text-sm text-ink">{s.url}</span>
+                      <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted">
+                        <span>{s.tracker_count ?? 0} trackers</span>
+                        <span>session replay {s.session_replay ? "on" : "off"}</span>
+                        <span>reverse-proxy {s.first_party_proxied ? "detected" : "no"}</span>
+                        <span>privacy notice {s.privacy_notice_url ? "present" : "absent"}</span>
+                      </div>
+                    </div>
+                    <Timestamp iso={s.scanned_at} />
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          ) : (
+            <EmptyState title="Not yet scanned by Floodlight." />
+          )}
+        </section>
+      ) : null}
+
+      {f.receipts ? (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Snapshots &amp; removals</h2>
+          {comp && comp.removals.length > 0 ? (
+            <Panel>
+              <ul className="divide-y divide-edge">
+                {comp.removals.map((c) => (
+                  <li key={c.id} className="flex items-start gap-3 px-4 py-2.5">
+                    <SeverityBadge severity={c.severity} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-ink">{c.reason ?? `${c.field ?? "item"} removed`}</p>
+                    </div>
+                    <Timestamp iso={c.detected_at} />
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          ) : (
+            <EmptyState
+              title={comp && comp.snapshots.length > 0 ? "Snapshots on file; no removals detected." : "Not yet snapshotted by Receipts."}
+            />
+          )}
+        </section>
+      ) : null}
+
+      {f.redtape ? (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Privacy filings</h2>
+          {comp && comp.gaps.length > 0 ? (
+            <Panel>
+              <ul className="divide-y divide-edge">
+                {comp.gaps.map((g) => (
+                  <li key={g.id} className="px-4 py-2.5">
+                    <p className="text-sm text-ink">
+                      {g.gap_assessment === "no_filing"
+                        ? "No published PIA/SORN found"
+                        : g.gap_assessment === "incomplete_filing"
+                          ? "Filing appears incomplete"
+                          : "Filing found"}{" "}
+                      <span className="text-faint">as of {g.created_at.slice(0, 10)}</span>
+                    </p>
+                    {g.fact_vs_inference_notes ? (
+                      <p className="mt-0.5 text-xs text-muted">{g.fact_vs_inference_notes}</p>
+                    ) : null}
+                    <Link href="/redtape" className="text-xs text-signal hover:text-ink">
+                      evidence + search trail →
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          ) : (
+            <EmptyState title="No reviewed privacy-filing gaps for this domain." />
+          )}
         </section>
       ) : null}
     </div>
