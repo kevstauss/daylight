@@ -1,19 +1,17 @@
-import type { Change, DomainRecord, Severity, Watchlist, WatchSubscription } from "@daylight/core";
+import type { Change, DomainRecord, Watchlist, WatchSubscription } from "@daylight/core";
 import { nowIso, sha256, watchSubscriptions } from "@daylight/core";
 import { type DaylightDb, rowToDomainRecord } from "@daylight/db";
 import { redact } from "@daylight/redact";
 import { EXPECTED_HEADER } from "./csv.js";
 import { diff } from "./diff.js";
-import { classifyChange, type OrgResolver } from "./heuristics.js";
+import { resolveChange } from "./emit.js";
+import type { OrgResolver } from "./heuristics.js";
 import { canonicalHash, normalizeCsv, recordsToMap } from "./normalize.js";
 import { DEFAULT_SOURCE_URL, fetchCsv } from "./fetch.js";
-import { evaluateWatches } from "./watches.js";
 
 // Sentinel "domain" used only to store the whole-file hash as an observation, so the
 // run-level short-circuit costs no schema change and reuses observation idempotency.
 export const FILE_SENTINEL = "__ledger_file__";
-
-const SEV_ORDER: Record<Severity, number> = { info: 0, notable: 1, high: 2 };
 
 export interface RunLedgerOptions {
   db: DaylightDb;
@@ -118,25 +116,10 @@ export async function runLedger(opts: RunLedgerOptions): Promise<RunLedgerResult
       if (emit) {
         for (const raw of rawChanges) {
           const rec = current.get(raw.domain);
-          let severity: Severity;
-          let reason: string | undefined;
-          if (rec) {
-            ({ severity, reason } = classifyChange(raw, rec, watchlist, orgOf));
-          } else {
-            severity = raw.severity; // 'removed' — no record to classify
-            reason = raw.reason;
-          }
-
-          // Watches (person/org/suborg) evaluate against the change event, so each fires
-          // once when its value first appears. A person-watch match routes to `high` (§5.7).
-          const hits = rec ? evaluateWatches({ ...raw, severity, reason }, rec, subs) : [];
-          if (hits.some((h) => h.kind === "person") && SEV_ORDER[severity] < SEV_ORDER.high) {
-            severity = "high";
-            reason =
-              reason ?? `a watched identity appears as the security contact for ${raw.domain}`;
-          }
-
-          const change: Change = { ...raw, severity, reason: reason ?? raw.reason };
+          // 'removed' has no current record to classify; emit it as-is.
+          const { change, hits } = rec
+            ? resolveChange(raw, rec, watchlist, orgOf, subs)
+            : { change: raw, hits: [] as WatchSubscription[] };
           const id = db.insertChange(change);
           changeIds.push(id);
           changesEmitted++;

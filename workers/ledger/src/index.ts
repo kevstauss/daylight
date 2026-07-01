@@ -25,3 +25,12 @@ export {
   type RunLedgerOptions,
   type RunLedgerResult,
 } from "./run.js";
+export { resolveChange } from "./emit.js";
+export {
+  backfillHistory,
+  listCsvCommits,
+  fetchCsvAtCommit,
+  type HistoryCommit,
+  type BackfillHistoryOptions,
+  type BackfillHistoryResult,
+} from "./history.js";

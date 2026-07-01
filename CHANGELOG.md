@@ -6,6 +6,19 @@ Rendered publicly at `/changelog`.
 Everything Daylight does is **observational and built on already-public data**. See
 `/methods` for every source, the bot's contact, and the observational-only scope.
 
+## Unreleased — Ledger git-history backfill
+
+**We launched late, but the record didn't start today.** The CISA registry is a git repo, so
+Daylight can replay it: `pnpm ledger:history` lists the ~489 commits that touched
+`current-federal.csv` (Feb 2019 → today), fetches each revision, and diffs them — emitting
+every ownership and security-contact change **dated to its actual commit**, run through the
+same heuristics and watches as the daily pass. So the site launches with *years* of real,
+dated changes it "missed" by not watching live — including new-EOP-domain and contact-mismatch
+flags on past events. The first commit is a silent baseline (no "added" flood for the ~1,300
+domains that predate us); it's idempotent (a completion marker makes a re-run a no-op); and it
+reads only the public repo. Verified on live data — a 10-commit run recovered dated contact
+changes and caught `fraud.gov` appearing as a new Executive-Office-of-the-President domain.
+
 ## Unreleased — Daylight dashboard (Phase 6, composition toward `v1.0`)
 
 **The front door.** Type any federal `.gov` and see everything Daylight knows about it,
