@@ -2,8 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Daylight — the cool, institutional light record. */
 :root {
   color-scheme: light;
+  --c-paper: 231 234 236;
+  --c-panel: 247 248 249;
+  --c-raised: 255 255 255;
+  --c-edge: 211 216 221;
+  --c-edge-strong: 183 192 199;
+  --c-ink: 20 23 26;
+  --c-muted: 79 87 95;
+  --c-faint: 130 139 147;
+  --c-accent: 28 74 103;
+  --c-alarm: 156 42 36;
+  --c-signal: 138 100 18;
+  --c-calm: 47 107 79;
+}
+
+/* After dark — a warm, lamplit charcoal with paper-cream ink (the darkroom, not neon).
+ * The same oxblood-stamp system, lifted just enough to read on dark. Applied by OS
+ * preference unless the reader has explicitly chosen light, and by the manual toggle. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --c-paper: 23 22 20;
+    --c-panel: 32 30 27;
+    --c-raised: 40 37 33;
+    --c-edge: 50 46 41;
+    --c-edge-strong: 71 66 59;
+    --c-ink: 233 228 216;
+    --c-muted: 168 159 146;
+    --c-faint: 124 115 101;
+    --c-accent: 111 166 196;
+    --c-alarm: 207 90 78;
+    --c-signal: 203 154 76;
+    --c-calm: 111 174 134;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --c-paper: 23 22 20;
+  --c-panel: 32 30 27;
+  --c-raised: 40 37 33;
+  --c-edge: 50 46 41;
+  --c-edge-strong: 71 66 59;
+  --c-ink: 233 228 216;
+  --c-muted: 168 159 146;
+  --c-faint: 124 115 101;
+  --c-accent: 111 166 196;
+  --c-alarm: 207 90 78;
+  --c-signal: 203 154 76;
+  --c-calm: 111 174 134;
 }
 
 html,
@@ -20,7 +69,7 @@ body {
 }
 
 ::selection {
-  background: rgba(156, 42, 36, 0.16); /* oxblood tint */
+  background: rgb(var(--c-alarm) / 0.22); /* oxblood tint */
 }
 
 /* Data reads in mono, with tabular figures so columns of timestamps/counts line up. */

@@ -8,19 +8,21 @@ const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      // Tokens resolve to CSS variables (channels in globals.css), so light ↔ dark is a
+      // pure value swap — every component inherits both modes with no per-file changes.
       colors: {
-        paper: "#e7eaec", // daylight-gray page
-        panel: "#f7f8f9", // near-white record surface
-        raised: "#ffffff", // brightest surface (input, active row)
-        edge: "#d3d8dd", // hairline rule
-        edgeStrong: "#b7c0c7",
-        ink: "#14171a", // cool near-black
-        muted: "#4f575f", // secondary text
-        faint: "#828b93", // meta / timestamps
-        accent: "#1c4a67", // deep institutional blue — interactive
-        alarm: "#9c2a24", // HIGH — oxblood stamp
-        signal: "#8a6412", // NOTABLE — dark ochre
-        calm: "#2f6b4f", // OK / low — pine
+        paper: "rgb(var(--c-paper) / <alpha-value>)", // page
+        panel: "rgb(var(--c-panel) / <alpha-value>)", // record surface
+        raised: "rgb(var(--c-raised) / <alpha-value>)", // lifted surface (input, active row)
+        edge: "rgb(var(--c-edge) / <alpha-value>)", // hairline rule
+        edgeStrong: "rgb(var(--c-edge-strong) / <alpha-value>)",
+        ink: "rgb(var(--c-ink) / <alpha-value>)", // primary text
+        muted: "rgb(var(--c-muted) / <alpha-value>)", // secondary text
+        faint: "rgb(var(--c-faint) / <alpha-value>)", // meta / timestamps
+        accent: "rgb(var(--c-accent) / <alpha-value>)", // interactive
+        alarm: "rgb(var(--c-alarm) / <alpha-value>)", // HIGH — oxblood stamp
+        signal: "rgb(var(--c-signal) / <alpha-value>)", // NOTABLE — ochre
+        calm: "rgb(var(--c-calm) / <alpha-value>)", // OK / low — pine
       },
       fontFamily: {
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],

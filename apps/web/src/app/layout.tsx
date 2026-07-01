@@ -3,8 +3,12 @@ import { IBM_Plex_Mono, Public_Sans } from "next/font/google";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { flags } from "@/lib/flags";
 import { CREDIT_LINE, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
+
+// Applies a saved theme choice before first paint (no flash). System pref is the default.
+const NO_FLASH = `(function(){try{var t=localStorage.getItem('daylight-theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`;
 
 // Public Sans — the US federal government's own typeface (USWDS). On-theme by design.
 const sans = Public_Sans({
@@ -39,8 +43,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   ];
 
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <body className="min-h-screen bg-paper font-sans text-ink antialiased">
+        <script dangerouslySetInnerHTML={{ __html: NO_FLASH }} />
         <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-5 sm:px-8">
           <header className="border-b border-edgeStrong">
             <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 py-4">
@@ -66,6 +71,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 >
                   RSS
                 </Link>
+                <ThemeToggle />
               </nav>
             </div>
             <div className="flex items-center gap-2 pb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-faint">

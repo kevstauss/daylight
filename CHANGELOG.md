@@ -33,6 +33,12 @@ ledger line — severity stamp, plain statement, mono identifier, UTC timestamp 
 section carries a module-path eyebrow (`ledger · ownership`) so the structure of the shared
 observation/change spine is legible on the surface. Underlined-ink links flag oxblood on hover.
 
+A **dark mode** — the darkroom to daylight — inverts the palette to a warm, lamplit charcoal
+with paper-cream ink (not near-black + neon), keeping the exact same stamp system, lifted just
+enough to read. It follows the OS preference by default, with a system/light/dark toggle in the
+masthead that persists and applies before first paint (no flash). Implemented as a CSS-variable
+token swap, so every surface inherits both modes with no per-component change.
+
 ## Unreleased — Lookout (Phase 2, in progress toward `v0.3`)
 
 **Certificate Transparency watcher.** Daylight now reads public CT logs so a new `.gov`
