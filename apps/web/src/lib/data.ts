@@ -12,8 +12,10 @@ import {
   type SubdomainRow,
 } from "@daylight/db";
 import { changeToEntry, type FeedEntry } from "@daylight/feeds";
+import type { FlagKind } from "@daylight/core";
 
 export type { ChangeRow, DomainRow, GapRow, ScanRow, ScorecardRow, SubdomainRow } from "@daylight/db";
+export type { FlagKind } from "@daylight/core";
 
 export function statusRows(): ScanRow[] {
   return getDb().getStatus();
@@ -23,8 +25,19 @@ export function globalChanges(limit = 50): ChangeRow[] {
   return getDb().listChanges({ limit });
 }
 
-export function ledgerChanges(opts: { severity?: string; limit?: number } = {}): ChangeRow[] {
-  return getDb().listChanges({ module: "ledger", severity: opts.severity, limit: opts.limit ?? 50 });
+export function ledgerChanges(
+  opts: { severity?: string; flag?: FlagKind; limit?: number } = {},
+): ChangeRow[] {
+  return getDb().listChanges({
+    module: "ledger",
+    severity: opts.severity,
+    flag: opts.flag,
+    limit: opts.limit ?? 100,
+  });
+}
+
+export function ledgerChangeCount(opts: { severity?: string; flag?: FlagKind } = {}): number {
+  return getDb().countChanges({ module: "ledger", severity: opts.severity, flag: opts.flag });
 }
 
 export function toFeedEntries(rows: ChangeRow[]): FeedEntry[] {

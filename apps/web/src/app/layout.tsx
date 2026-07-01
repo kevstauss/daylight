@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Public_Sans } from "next/font/google";
+import { headers } from "next/headers";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { Mark } from "@/components/mark";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { flags } from "@/lib/flags";
 import { CREDIT_LINE, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
@@ -30,10 +32,12 @@ export const metadata: Metadata = {
   description: SITE_TAGLINE,
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   const f = flags();
   const nav = [
     ...(f.registry ? [{ href: "/registry", label: "Ledger" }] : []),
+    ...(f.registry ? [{ href: "/ledger", label: "Activity" }] : []),
     ...(f.lookout ? [{ href: "/lookout", label: "Lookout" }] : []),
     ...(f.floodlight ? [{ href: "/floodlight", label: "Floodlight" }] : []),
     ...(f.receipts ? [{ href: "/receipts", label: "Receipts" }] : []),
@@ -45,11 +49,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <body className="min-h-screen bg-paper font-sans text-ink antialiased">
-        <script dangerouslySetInnerHTML={{ __html: NO_FLASH }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: NO_FLASH }} />
         <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-5 sm:px-8">
           <header className="border-b border-edgeStrong">
             <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 py-4">
-              <Link href="/" className="group flex items-baseline gap-3">
+              <Link href="/" className="group flex items-center gap-2.5">
+                <Mark className="h-6 w-6 shrink-0 text-ink" />
                 <span className="text-[22px] font-extrabold leading-none tracking-[-0.02em] text-ink">
                   Daylight
                 </span>

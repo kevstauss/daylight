@@ -34,7 +34,10 @@ async function getText(
   let lastErr: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const res = await f(url, { headers: { "user-agent": ua, accept: "application/json,text/html,*/*" } });
+      const res = await f(url, {
+        headers: { "user-agent": ua, accept: "application/json,text/html,*/*" },
+        signal: AbortSignal.timeout(20000), // crt.sh hangs under load — don't stall the backfill
+      });
       if (!res.ok) throw new Error(`GET ${url} → ${res.status}`);
       return await res.text();
     } catch (err) {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { getDb } from "@daylight/db";
 import { captureAndScore } from "@daylight/floodlight/capture";
@@ -10,9 +11,29 @@ export const metadata: Metadata = { title: "Scan a URL" };
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Single-flight + a small rolling window keep the browser from piling up (one machine).
+// Throttle the browser-spawning scan: one at a time (single-flight), a per-IP rolling window
+// so no one client can hog it, and a global cap so the one machine can't be piled onto.
+const WINDOW_MS = 5 * 60 * 1000;
+const PER_IP_MAX = 5;
+const GLOBAL_MAX = 20;
 let scanning = false;
-let recent: number[] = [];
+let globalHits: number[] = [];
+const perIp = new Map<string, number[]>();
+
+async function clientIp(): Promise<string> {
+  const h = await headers();
+  const fwd = (h.get("x-forwarded-for") ?? "").split(",")[0]?.trim();
+  return h.get("fly-client-ip") || fwd || "unknown";
+}
+
+function prune(now: number): void {
+  if (perIp.size < 2000) return; // opportunistic cleanup so the map can't grow unbounded
+  for (const [ip, hits] of perIp) {
+    const live = hits.filter((t) => now - t < WINDOW_MS);
+    if (live.length === 0) perIp.delete(ip);
+    else perIp.set(ip, live);
+  }
+}
 
 async function runScan(formData: FormData): Promise<void> {
   "use server";
@@ -26,12 +47,18 @@ async function runScan(formData: FormData): Promise<void> {
   if (!/^https?:\/\//i.test(url)) back("Enter a full URL starting with http:// or https://");
 
   const now = Date.now();
-  recent = recent.filter((t) => now - t < 5 * 60 * 1000);
+  const ip = await clientIp();
+  prune(now);
+  globalHits = globalHits.filter((t) => now - t < WINDOW_MS);
+  const ipHits = (perIp.get(ip) ?? []).filter((t) => now - t < WINDOW_MS);
   if (scanning) back("A scan is already running — give it a few seconds.");
-  if (recent.length >= 12) back("Scan limit reached for now. Try again in a few minutes.");
+  if (ipHits.length >= PER_IP_MAX) back("You've reached the scan limit — try again in a few minutes.");
+  if (globalHits.length >= GLOBAL_MAX) back("The scanner is busy right now — try again shortly.");
 
   scanning = true;
-  recent.push(now);
+  globalHits.push(now);
+  ipHits.push(now);
+  perIp.set(ip, ipHits);
   let result;
   try {
     result = await captureAndScore(getDb(), url, { channel: process.env.DAYLIGHT_BROWSER_CHANNEL });

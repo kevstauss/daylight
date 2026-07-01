@@ -1,5 +1,5 @@
-import type { Change, DomainRecord, Observation } from "@daylight/core";
-import { nowIso } from "@daylight/core";
+import type { Change, DomainRecord, FlagKind, Observation } from "@daylight/core";
+import { flagSqlPredicate, nowIso } from "@daylight/core";
 import { openConnection, resolveDbPath, type Sqlite } from "./client.js";
 import type {
   AlertRow,
@@ -29,6 +29,7 @@ export interface ChangeFilter {
   since?: string;
   severity?: string;
   module?: string;
+  flag?: FlagKind;
   limit?: number;
 }
 
@@ -220,6 +221,10 @@ export class DaylightDb {
       params.module = f.module;
       clauses.push(`module = @module`);
     }
+    if (f.flag) {
+      // Static predicate keyed by the validated flag enum — no user text reaches the SQL.
+      clauses.push(`(${flagSqlPredicate(f.flag)})`);
+    }
     const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
     const limit = Math.max(1, Math.min(f.limit ?? 100, 1000));
     return this.sql
@@ -227,6 +232,30 @@ export class DaylightDb {
         `SELECT * FROM changes ${where} ORDER BY detected_at DESC, id DESC LIMIT ${limit}`,
       )
       .all(params) as ChangeRow[];
+  }
+
+  /** Count changes matching a filter (same clauses as listChanges) — for filter-chip totals. */
+  countChanges(f: ChangeFilter = {}): number {
+    const clauses: string[] = [];
+    const params: Record<string, string> = {};
+    if (f.since) {
+      params.since = f.since;
+      clauses.push(`detected_at >= @since`);
+    }
+    if (f.severity) {
+      params.severity = f.severity;
+      clauses.push(`severity = @severity`);
+    }
+    if (f.module) {
+      params.module = f.module;
+      clauses.push(`module = @module`);
+    }
+    if (f.flag) clauses.push(`(${flagSqlPredicate(f.flag)})`);
+    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    const row = this.sql.prepare(`SELECT COUNT(*) AS c FROM changes ${where}`).get(params) as {
+      c: number;
+    };
+    return row.c;
   }
 
   domainHistory(name: string): ChangeRow[] {

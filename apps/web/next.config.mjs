@@ -45,6 +45,10 @@ const nextConfig = {
   },
   // Workspace packages use ESM-correct ".js" import specifiers that point at ".ts"
   // source. Teach webpack to resolve them (tsc/vitest/tsx already do).
+  // The CSP middleware runs in the Node.js runtime (see middleware.ts). This app already runs
+  // its schedulers in-process (instrumentation.ts) on a Node server, so there's no benefit to an
+  // edge runtime — and edge would try to bundle the node-only scheduler/DB graph and fail.
+  experimental: { nodeMiddleware: true },
   webpack: (config) => {
     config.resolve.extensionAlias = {
       ".js": [".ts", ".tsx", ".js"],

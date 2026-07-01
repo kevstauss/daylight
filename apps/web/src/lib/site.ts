@@ -31,7 +31,7 @@ export function originFromRequest(req: Request): string {
 export const CONTACT =
   process.env.DAYLIGHT_CONTACT?.trim() || `${configuredSiteUrl()}/methods`;
 
-export const USER_AGENT = `DaylightBot/0.2 (+${configuredSiteUrl()}/methods; observational; public-data-only)`;
+export const USER_AGENT = `DaylightBot/0.4 (+${configuredSiteUrl()}/methods; observational; public-data-only)`;
 
 export const CREDIT_LINE =
   "Built with Claude Code. Research assisted by Claude (Anthropic).";
