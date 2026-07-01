@@ -6,6 +6,13 @@ import net from "node:net";
 
 export interface UrlGuardOptions {
   allowPrivate?: boolean; // tests only — allow localhost fixtures
+  govOnly?: boolean; // restrict the target to a federal .gov host (public scan box)
+}
+
+/** True if a hostname is a federal `.gov` (or a subdomain of one). */
+export function isGovHost(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/\.$/, "");
+  return h === "gov" ? false : h.endsWith(".gov");
 }
 
 /** True if an IP is loopback / private / link-local / reserved (blocks SSRF + metadata). */
@@ -56,6 +63,12 @@ export async function assertScannableUrl(url: string, opts: UrlGuardOptions = {}
   }
   if (u.protocol !== "http:" && u.protocol !== "https:") {
     throw new Error("only http(s) URLs may be scanned");
+  }
+  // .gov restriction is the primary SSRF control for the public scan box: an attacker can't
+  // register a .gov, and a .gov name can't be a raw internal IP or a rebinding host they own,
+  // so the target space is bounded to real federal sites. The IP/redirect checks still apply.
+  if (opts.govOnly && !isGovHost(u.hostname)) {
+    throw new Error("this scanner only accepts federal .gov pages");
   }
   if (opts.allowPrivate) return;
   if (!(await hostAllowed(u.hostname, opts))) {

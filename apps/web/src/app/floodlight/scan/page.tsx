@@ -45,6 +45,16 @@ async function runScan(formData: FormData): Promise<void> {
   const back = (msg: string) => redirect(`/floodlight/scan?error=${encodeURIComponent(msg)}`);
   if (!url) back("Enter a public URL to scan.");
   if (!/^https?:\/\//i.test(url)) back("Enter a full URL starting with http:// or https://");
+  // .gov-only — friendly pre-check before spawning a browser; capture enforces it again.
+  let host = "";
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/\.$/, "");
+  } catch {
+    back("Enter a valid URL.");
+  }
+  if (!host.endsWith(".gov") || host === "gov") {
+    back("This scanner only accepts federal .gov pages (e.g. https://vote.gov).");
+  }
 
   const now = Date.now();
   const ip = await clientIp();
@@ -61,7 +71,10 @@ async function runScan(formData: FormData): Promise<void> {
   perIp.set(ip, ipHits);
   let result;
   try {
-    result = await captureAndScore(getDb(), url, { channel: process.env.DAYLIGHT_BROWSER_CHANNEL });
+    result = await captureAndScore(getDb(), url, {
+      channel: process.env.DAYLIGHT_BROWSER_CHANNEL,
+      govOnly: true,
+    });
   } finally {
     scanning = false;
   }
@@ -85,13 +98,14 @@ export default async function ScanPage({
     <div className="max-w-measure space-y-6">
       <div>
         <Eyebrow>floodlight · scan a url</Eyebrow>
-        <h1 className="text-2xl font-semibold tracking-tight">Scan a public page</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Scan a federal .gov page</h1>
         <p className="mt-1 text-sm text-muted">
-          Load any public <code className="font-mono text-ink">.gov</code> (or other public) page
-          and see what it loads on its own — third-party trackers, session-replay tools, the
-          reverse-proxy disguise trick, and whether it links a privacy notice. We load the page
-          once, capture what it requests, and stop. No forms are submitted, nothing is clicked, and
-          an access-gated page is noted but never entered.
+          Load a public federal <code className="font-mono text-ink">.gov</code> page and see what
+          it loads on its own — third-party trackers, session-replay tools, the reverse-proxy
+          disguise trick, and whether it links a privacy notice. We load the page once, capture
+          what it requests, and stop. No forms are submitted, nothing is clicked, and an
+          access-gated page is noted but never entered. Scanning is restricted to{" "}
+          <code className="font-mono text-ink">.gov</code> hosts.
         </p>
       </div>
 

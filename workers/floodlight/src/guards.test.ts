@@ -4,6 +4,7 @@ import {
   isAllowedByRobots,
   isBlockedIp,
   isGatedNavigation,
+  isGovHost,
   looksGated,
   robotsAllows,
 } from "./guards.js";
@@ -23,6 +24,26 @@ describe("SSRF guard — only public http(s) is scannable", () => {
     await expect(assertScannableUrl("ftp://example.gov/")).rejects.toThrow();
     await expect(assertScannableUrl("http://127.0.0.1/")).rejects.toThrow(/non-public/i);
     await expect(assertScannableUrl("http://169.254.169.254/latest/meta-data/")).rejects.toThrow();
+  });
+});
+
+describe(".gov-only scan restriction (public scan box)", () => {
+  it("isGovHost accepts federal .gov, rejects everything else", () => {
+    for (const h of ["vote.gov", "www.vote.gov", "analytics.infra.ndstudio.gov"]) {
+      expect(isGovHost(h)).toBe(true);
+    }
+    for (const h of ["evil.com", "vote.gov.evil.com", "gov", "169.254.169.254", "notgov"]) {
+      expect(isGovHost(h)).toBe(false);
+    }
+  });
+
+  it("assertScannableUrl govOnly refuses non-.gov before any network work", async () => {
+    await expect(assertScannableUrl("https://evil.com/", { govOnly: true })).rejects.toThrow(/\.gov/i);
+    await expect(assertScannableUrl("http://169.254.169.254/", { govOnly: true })).rejects.toThrow(/\.gov/i);
+    // a .gov target passes the gov gate (allowPrivate skips the DNS check in this unit test)
+    await expect(
+      assertScannableUrl("https://vote.gov/", { govOnly: true, allowPrivate: true }),
+    ).resolves.toBeUndefined();
   });
 });
 

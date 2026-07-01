@@ -15,7 +15,8 @@ primary_region = "iad"
 
 [env]
   DAYLIGHT_DB_PATH = "/data/daylight.db"
-  DAYLIGHT_SITE_URL = "https://daylight-watchdog.fly.dev"
+  DAYLIGHT_SITE_URL = "https://daylight.watch"
+  DAYLIGHT_CONTACT = "contact@daylight.watch"
   DAYLIGHT_LEDGER_CRON = "17 0 * * *"
   # Ledger increments — live as of v0.2.
   FLAG_LEDGER_REGISTRY = "1"

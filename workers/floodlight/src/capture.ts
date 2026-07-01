@@ -40,6 +40,8 @@ export interface CaptureOptions {
   channel?: string;
   /** Default true — skip when robots.txt disallows. */
   respectRobots?: boolean;
+  /** Restrict the target to a federal .gov host (the public scan box sets this). */
+  govOnly?: boolean;
 }
 
 export interface LiveCapture {
@@ -58,7 +60,7 @@ export interface LiveCapture {
  * clicking, no crawling, and never followed past an access gate (PRD §5).
  */
 export async function capturePage(url: string, opts: CaptureOptions = {}): Promise<LiveCapture> {
-  await assertScannableUrl(url, { allowPrivate: opts.allowPrivate });
+  await assertScannableUrl(url, { allowPrivate: opts.allowPrivate, govOnly: opts.govOnly });
   const ua = userAgent();
   if (opts.respectRobots !== false && !opts.allowPrivate) {
     if (!(await isAllowedByRobots(url, ua, { allowPrivate: opts.allowPrivate }))) {
