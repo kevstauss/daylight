@@ -5,6 +5,7 @@ import type { GapRow } from "@/lib/data";
 import { publicGaps } from "@/lib/data";
 import { flags } from "@/lib/flags";
 import { EmptyState, Panel, SeverityBadge } from "@/components/ui";
+import { ModuleIcon } from "@/components/module-icon";
 
 export const metadata: Metadata = { title: "Redtape — filing gaps" };
 export const dynamic = "force-dynamic";
@@ -37,7 +38,7 @@ export default function RedtapePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Filing gaps</h1>
+        <div className="flex items-center gap-2.5"><ModuleIcon name="redtape" className="h-6 w-6 shrink-0 text-ink" /><h1 className="text-2xl font-semibold tracking-tight">Filing gaps</h1></div>
         <p className="mt-1 max-w-2xl text-sm text-muted">
           Federal sites that collect personal information are required to publish a Privacy Impact
           Assessment (E-Gov Act §208) and, for a system of records, a System of Records Notice

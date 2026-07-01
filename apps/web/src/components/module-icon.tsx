@@ -53,14 +53,14 @@ export function ModuleIcon({ name, className }: { name: string; className?: stri
           <line x1="9" y1="11.5" x2="15" y2="11.5" />
         </svg>
       );
-    // Redtape — a filing with an official stamp.
+    // Redtape — an official filing/form (clipboard) with a clip and ruled lines.
     case "redtape":
       return (
         <svg {...common}>
-          <path d="M5.5 3.5 h9 v17 h-9 z" />
-          <line x1="8" y1="8" x2="12" y2="8" />
-          <line x1="8" y1="11.5" x2="12" y2="11.5" />
-          <circle cx="16" cy="16.5" r="4" />
+          <rect x="5" y="5" width="14" height="16" rx="1.6" />
+          <path d="M9.2 5 V4 a2.8 2.8 0 0 1 5.6 0 V5" />
+          <line x1="8.5" y1="11" x2="15.5" y2="11" />
+          <line x1="8.5" y1="14.5" x2="13.5" y2="14.5" />
         </svg>
       );
     default:

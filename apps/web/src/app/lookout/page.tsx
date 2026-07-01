@@ -5,6 +5,7 @@ import type { SubdomainRow } from "@/lib/data";
 import { searchSubdomains, subdomainCount } from "@/lib/data";
 import { flags } from "@/lib/flags";
 import { EmptyState, Panel, SeverityBadge, Timestamp } from "@/components/ui";
+import { ModuleIcon } from "@/components/module-icon";
 
 export const metadata: Metadata = { title: "Lookout" };
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export default async function LookoutPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Lookout</h1>
+        <div className="flex items-center gap-2.5"><ModuleIcon name="lookout" className="h-6 w-6 shrink-0 text-ink" /><h1 className="text-2xl font-semibold tracking-tight">Lookout</h1></div>
         <p className="mt-1 max-w-2xl text-sm text-muted">
           New <code className="font-mono text-ink">.gov</code> subdomains as they appear in public
           Certificate Transparency logs — flagged when a name looks like a preview/staging/infra

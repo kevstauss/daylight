@@ -5,6 +5,7 @@ import type { ScorecardRow } from "@/lib/data";
 import { floodlightScorecards, scorecardCount } from "@/lib/data";
 import { flags } from "@/lib/flags";
 import { EmptyState, Panel, SeverityBadge, Timestamp } from "@/components/ui";
+import { ModuleIcon } from "@/components/module-icon";
 
 export const metadata: Metadata = { title: "Floodlight" };
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export default async function FloodlightPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Floodlight</h1>
+        <div className="flex items-center gap-2.5"><ModuleIcon name="floodlight" className="h-6 w-6 shrink-0 text-ink" /><h1 className="text-2xl font-semibold tracking-tight">Floodlight</h1></div>
         <p className="mt-1 max-w-2xl text-sm text-muted">
           &ldquo;Is this gov site tracking me?&rdquo; — a scorecard of third-party trackers,
           session-replay tools, the reverse-proxy disguise trick, and whether the page even has a

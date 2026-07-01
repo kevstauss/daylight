@@ -6,6 +6,7 @@ import { flags } from "@/lib/flags";
 import { domainCount, searchRegistry } from "@/lib/data";
 import { domainFlag, orgResolver } from "@/lib/ledger";
 import { EmptyState, Panel } from "@/components/ui";
+import { ModuleIcon } from "@/components/module-icon";
 import { LedgerTabs } from "@/components/ledger-tabs";
 
 export const metadata: Metadata = { title: "Registry" };
@@ -39,7 +40,7 @@ export default async function RegistryPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Registry</h1>
+        <div className="flex items-center gap-2.5"><ModuleIcon name="registry" className="h-6 w-6 shrink-0 text-ink" /><h1 className="text-2xl font-semibold tracking-tight">Registry</h1></div>
         <p className="mt-1 max-w-2xl text-sm text-muted">
           Who owns each federal <code className="font-mono text-ink">.gov</code> apex domain, and
           the published security contact. Searching {total.toLocaleString()} domains from CISA&rsquo;s

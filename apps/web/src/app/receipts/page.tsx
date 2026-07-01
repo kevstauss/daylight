@@ -4,6 +4,7 @@ import Link from "next/link";
 import { removalLedgerRows, snapshotCount } from "@/lib/data";
 import { flags } from "@/lib/flags";
 import { EmptyState, Panel, SeverityBadge, Timestamp } from "@/components/ui";
+import { ModuleIcon } from "@/components/module-icon";
 
 export const metadata: Metadata = { title: "Receipts — removal ledger" };
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export default function ReceiptsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Removal ledger</h1>
+        <div className="flex items-center gap-2.5"><ModuleIcon name="receipts" className="h-6 w-6 shrink-0 text-ink" /><h1 className="text-2xl font-semibold tracking-tight">Removal ledger</h1></div>
         <p className="mt-1 max-w-2xl text-sm text-muted">
           Screenshot before they delete it. When a watched page quietly drops a tracker, a privacy
           notice, or an agency seal, Receipts captures it — dated, with an independent archived copy.

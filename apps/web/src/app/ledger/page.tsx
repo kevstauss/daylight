@@ -6,6 +6,7 @@ import { synthesizeTitle } from "@daylight/feeds";
 import { type ChangeRow, ledgerChanges, ledgerFlagCounts } from "@/lib/data";
 import { flags } from "@/lib/flags";
 import { Eyebrow, InternalLink, Panel, SeverityBadge, Timestamp } from "@/components/ui";
+import { ModuleIcon } from "@/components/module-icon";
 import { LedgerTabs } from "@/components/ledger-tabs";
 
 export const metadata: Metadata = { title: "Ledger activity" };
@@ -57,7 +58,7 @@ export default async function LedgerPage({
     <div className="space-y-6">
       <div>
         <Eyebrow>ledger · activity</Eyebrow>
-        <h1 className="text-2xl font-semibold tracking-tight">Ledger activity</h1>
+        <div className="flex items-center gap-2.5"><ModuleIcon name="registry" className="h-6 w-6 shrink-0 text-ink" /><h1 className="text-2xl font-semibold tracking-tight">Ledger activity</h1></div>
         <p className="mt-1 max-w-measure text-sm text-muted">
           Every ownership and security-contact change across the federal <span className="font-mono">.gov</span>{" "}
           registry, newest first — filter by severity and flag. Each row links to its domain and

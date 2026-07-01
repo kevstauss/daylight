@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { Mark } from "@/components/mark";
+import { MainNav } from "@/components/main-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { flags } from "@/lib/flags";
 import { CREDIT_LINE, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
@@ -36,7 +37,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   const f = flags();
   const nav = [
-    ...(f.registry ? [{ href: "/registry", label: "Ledger" }] : []),
+    ...(f.registry ? [{ href: "/registry", label: "Ledger", owns: ["/ledger", "/domain"] }] : []),
     ...(f.lookout ? [{ href: "/lookout", label: "Lookout" }] : []),
     ...(f.floodlight ? [{ href: "/floodlight", label: "Floodlight" }] : []),
     ...(f.receipts ? [{ href: "/receipts", label: "Receipts" }] : []),
@@ -60,24 +61,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                 </span>
                 <span className="kicker hidden sm:inline">federal .gov watch</span>
               </Link>
-              <nav className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                {nav.map((n) => (
-                  <Link
-                    key={n.href}
-                    href={n.href}
-                    className="text-muted underline decoration-transparent underline-offset-[5px] transition-colors hover:text-ink hover:decoration-edgeStrong"
-                  >
-                    {n.label}
-                  </Link>
-                ))}
-                <Link
-                  href={f.feed ? "/ledger/feed.xml" : "/feed.xml"}
-                  className="rounded-sm border border-edgeStrong px-2 py-0.5 font-mono text-[11px] text-muted transition-colors hover:border-ink hover:text-ink"
-                >
-                  RSS
-                </Link>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <MainNav items={nav} rssHref={f.feed ? "/ledger/feed.xml" : "/feed.xml"} />
                 <ThemeToggle />
-              </nav>
+              </div>
             </div>
             <div className="flex items-center gap-2 pb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
               <span className="inline-block h-[7px] w-[7px] shrink-0 rounded-full border border-alarm bg-alarm/60" />
