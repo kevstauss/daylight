@@ -10,8 +10,13 @@ export function configuredSiteUrl(): string {
   return (raw && raw.length > 0 ? raw : "http://localhost:3000").replace(/\/+$/, "");
 }
 
-/** Derive the absolute origin for a request (honors proxy headers on Fly). */
+/** Derive the absolute origin for a request. When DAYLIGHT_SITE_URL is configured (prod) it
+ *  wins outright — feed/canonical URLs must not be derived from a client-controlled Host or
+ *  X-Forwarded-Host header (cache-poisoning). Only when unset (local dev) do we read the
+ *  request origin as a convenience. */
 export function originFromRequest(req: Request): string {
+  const configured = process.env.DAYLIGHT_SITE_URL?.trim();
+  if (configured) return configured.replace(/\/+$/, "");
   try {
     const url = new URL(req.url);
     const proto = req.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "");

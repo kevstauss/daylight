@@ -36,6 +36,13 @@ primary_region = "iad"
   # researcher needs ANTHROPIC_API_KEY + DAYLIGHT_REDTAPE_MODEL and a review workflow.
   FLAG_REDTAPE = "1"
 
+[[vm]]
+  # Pin the guest for reproducibility + headroom. 512MB is comfortable for the Next.js
+  # read-path plus the ~1,300-row federal seed. Bump to "1gb" only if the (currently
+  # commented-out) Floodlight/Receipts browser capture path is enabled in the Dockerfile.
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
 [[mounts]]
   source = "daylight_data"
   destination = "/data"

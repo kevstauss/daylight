@@ -23,6 +23,17 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // Zero-downside defense-in-depth on every route. (No CSP yet: the no-flash theme
+        // script is inline, so a strict CSP needs a nonce via middleware — deferred.)
+        source: "/(.*)",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
+      },
+      {
         source: "/review",
         headers: [
           { key: "Referrer-Policy", value: "no-referrer" },

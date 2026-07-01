@@ -23,6 +23,12 @@ export function runFloodlightScan(db: DaylightDb, capture: PageCapture, now?: st
   const scannedAt = now ?? nowIso();
   const scorecard = analyzeCapture(capture);
 
+  // Redact the page URL ONCE and use it everywhere the URL is stored or shown — the scorecard
+  // row (its PK), the observation, the content hash, and change reasons. A scanned URL can
+  // carry PII in its query string (?email=…); nothing public may show it un-redacted. redactText
+  // is idempotent for a clean URL, so the scorecard key stays stable across rescans.
+  const redactedUrl = rt(scorecard.url);
+
   const redactedTrackers: Tracker[] = scorecard.trackers.map((t) => ({
     ...t,
     host: rt(t.host),
@@ -46,7 +52,7 @@ export function runFloodlightScan(db: DaylightDb, capture: PageCapture, now?: st
 
   try {
     db.sql.transaction(() => {
-      const prev = db.getScorecard(scorecard.url);
+      const prev = db.getScorecard(redactedUrl);
       const prevTrackers: Tracker[] = prev?.trackers_json
         ? (JSON.parse(prev.trackers_json) as Tracker[])
         : [];
@@ -55,7 +61,7 @@ export function runFloodlightScan(db: DaylightDb, capture: PageCapture, now?: st
 
       const contentHash = sha256(
         JSON.stringify([
-          scorecard.url,
+          redactedUrl,
           [...currKeys].sort(),
           scorecard.sessionReplay,
           scorecard.firstPartyProxied,
@@ -66,7 +72,7 @@ export function runFloodlightScan(db: DaylightDb, capture: PageCapture, now?: st
         module: "floodlight",
         domain: scorecard.domain,
         observedAt: scannedAt,
-        sourceUrl: rt(scorecard.url),
+        sourceUrl: redactedUrl,
         contentHash,
         payload: redactedCapture,
       });
@@ -81,22 +87,22 @@ export function runFloodlightScan(db: DaylightDb, capture: PageCapture, now?: st
         const k = trackerKey(t);
         if (!prevKeys.has(k)) {
           added.push(k);
-          if (prev) emit("added", t.firstPartyProxied ? "high" : "notable", `tracker added on ${rt(scorecard.url)}: ${k}`);
+          if (prev) emit("added", t.firstPartyProxied ? "high" : "notable", `tracker added on ${redactedUrl}: ${k}`);
         }
       }
       for (const k of prevKeys) {
         if (!currKeys.has(k)) {
           removed.push(k);
-          emit("removed", "notable", `tracker removed on ${rt(scorecard.url)}: ${k}`);
+          emit("removed", "notable", `tracker removed on ${redactedUrl}: ${k}`);
         }
       }
       if (!prev && scorecard.severity === "high") {
-        emit("added", "high", `high-risk scorecard for ${rt(scorecard.url)}: ${redactedReasons.join("; ")}`);
+        emit("added", "high", `high-risk scorecard for ${redactedUrl}: ${redactedReasons.join("; ")}`);
       }
 
       db.upsertScorecard(
         {
-          url: scorecard.url,
+          url: redactedUrl,
           domain: scorecard.domain,
           trackerCount: scorecard.trackerCount,
           sessionReplay: scorecard.sessionReplay,
@@ -128,7 +134,7 @@ export function runFloodlightScan(db: DaylightDb, capture: PageCapture, now?: st
   }
 
   return {
-    scorecard: { ...scorecard, trackers: redactedTrackers, reasons: redactedReasons },
+    scorecard: { ...scorecard, url: redactedUrl, trackers: redactedTrackers, reasons: redactedReasons },
     changeIds,
     added,
     removed,

@@ -149,6 +149,20 @@ describe("§7 rescan diff + redaction", () => {
     expect(obs!.payload_json).not.toContain("leak@example.com");
     expect(obs!.payload_json).toContain("[redacted:email]");
   });
+
+  it("redacts PII from the scorecard URL (its primary key + public display), not just the observation", () => {
+    const leak = capture(
+      "https://realfood.gov/apply?email=leak@example.com",
+      [{ url: "https://www.google-analytics.com/collect", method: "GET", resourceType: "image" }],
+      dom({ privacyNoticeUrl: "https://realfood.gov/privacy" }),
+    );
+    const res = runFloodlightScan(db, leak, NOW);
+    expect(res.scorecard.url).not.toContain("leak@example.com");
+    const cards = db.scorecardsByDomain("realfood.gov");
+    expect(cards.length).toBeGreaterThan(0);
+    expect(cards.every((c) => !c.url.includes("leak@example.com"))).toBe(true);
+    expect(cards[0]!.url).toContain("[redacted:email]");
+  });
 });
 
 describe("§7 reverse-proxy disguise — precision (no false HIGH on content pages)", () => {
