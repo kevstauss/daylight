@@ -19,7 +19,8 @@
     "ledger": "pnpm --filter @daylight/ledger start",
     "ledger:seed": "pnpm --filter @daylight/ledger seed",
     "ledger:history": "pnpm --filter @daylight/ledger history",
-    "ci": "pnpm typecheck && pnpm test"
+    "ci": "pnpm typecheck && pnpm test",
+    "redtape:assess": "pnpm --filter @daylight/redtape assess"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

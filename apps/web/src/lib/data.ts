@@ -109,6 +109,15 @@ export function publicGaps(limit = 100): GapRow[] {
   return getDb().publicGaps(limit);
 }
 
+/** Internal only — unreviewed gaps awaiting a human decision. Never a public path. */
+export function reviewQueue(limit = 200): GapRow[] {
+  return getDb().reviewQueueGaps(limit);
+}
+
+export function reviewGap(id: number, opts: { published: boolean; reviewerNote?: string | null }): void {
+  getDb().reviewGap(id, opts);
+}
+
 export function gapToFeedEntry(g: GapRow): FeedEntry {
   const severity = g.gap_assessment === "no_filing" ? "high" : g.gap_assessment === "incomplete_filing" ? "notable" : "info";
   const date = g.created_at.slice(0, 10);
