@@ -135,12 +135,15 @@ research agent behind a mandatory human-approval gate:
   evidence-linked copy — "no published PIA found as of {date}; searches below," never
   "illegal."
 
-The **internal review queue is now built**: `/review` (token-gated via `DAYLIGHT_REVIEW_TOKEN`,
-`noindex`, 404 without the right token) lists unreviewed gaps with their evidence + search
-trail and **Publish / Hold / Reject** controls. Publish is the only path to the public
+The **internal review queue is now built**: `/review` (gated by `DAYLIGHT_REVIEW_TOKEN`,
+`noindex`, 404 when no token is configured) lists unreviewed gaps with their evidence +
+search trail and **Publish / Hold / Reject** controls. Publish is the only path to the public
 `/redtape` — and the gate is enforced in the data layer, so an unreviewed gap can never leak
-(verified end-to-end: the queue shows it, the public page and feed do not). A `redtape:assess`
-CLI turns Floodlight collection evidence into queued gaps via the researcher.
+(verified end-to-end: the queue shows it, the public page and feed do not). Reviewer sign-in
+sets an **HttpOnly, Secure, SameSite=Strict cookie** — the token is never carried in the URL or
+a form field, so it can't leak through server logs or a `Referer` header — and the route is
+served `no-referrer` / `no-store` / `noindex`. A `redtape:assess` CLI turns Floodlight
+collection evidence into queued gaps via the researcher.
 
 Deferred: wiring the live researcher (needs `ANTHROPIC_API_KEY` + a reviewer). The pipeline,
 the gate, the parsing, the queue, and the model-agnostic researcher interface are all built.

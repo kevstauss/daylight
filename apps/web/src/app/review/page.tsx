@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
+import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { GapRow } from "@/lib/data";
 import { reviewGap, reviewQueue } from "@/lib/data";
@@ -9,16 +10,27 @@ import { Eyebrow, Panel } from "@/components/ui";
 export const metadata: Metadata = { title: "Review queue", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
-/** Constant-time token check. If DAYLIGHT_REVIEW_TOKEN is unset, the queue does not exist. */
+const COOKIE = "daylight_review";
+
+function reviewSecret(): string {
+  return process.env.DAYLIGHT_REVIEW_TOKEN?.trim() || "";
+}
+
+/** Constant-time token check against DAYLIGHT_REVIEW_TOKEN. */
 function tokenOk(provided: string): boolean {
-  const secret = process.env.DAYLIGHT_REVIEW_TOKEN?.trim() || "";
+  const secret = reviewSecret();
   if (!secret || !provided) return false;
   const a = Buffer.from(provided);
   const b = Buffer.from(secret);
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-const str = (v: string | string[] | undefined): string => (Array.isArray(v) ? v[0] : v) ?? "";
+/** Auth from an HttpOnly cookie — never from the URL, so the token can't leak via logs/Referer. */
+async function authed(): Promise<boolean> {
+  const store = await cookies();
+  return tokenOk(store.get(COOKIE)?.value ?? "");
+}
+
 const parse = (json: string | null): string[] => {
   try {
     return JSON.parse(json ?? "[]") as string[];
@@ -27,9 +39,31 @@ const parse = (json: string | null): string[] => {
   }
 };
 
+async function login(formData: FormData): Promise<void> {
+  "use server";
+  const token = String(formData.get("token") ?? "");
+  if (tokenOk(token)) {
+    const store = await cookies();
+    store.set(COOKIE, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/review",
+      maxAge: 60 * 60 * 8,
+    });
+  }
+  redirect("/review");
+}
+
+async function logout(): Promise<void> {
+  "use server";
+  (await cookies()).delete(COOKIE);
+  redirect("/review");
+}
+
 async function actReview(formData: FormData): Promise<void> {
   "use server";
-  if (!tokenOk(String(formData.get("token") ?? ""))) return; // silent no-op on bad token
+  if (!(await authed())) return; // cookie-based auth; no token in the form
   const id = Number(formData.get("id"));
   const decision = String(formData.get("decision") ?? "");
   const note = String(formData.get("note") ?? "").trim() || null;
@@ -39,28 +73,54 @@ async function actReview(formData: FormData): Promise<void> {
   revalidatePath("/review");
 }
 
-export default async function ReviewPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ [k: string]: string | string[] | undefined }>;
-}) {
-  const sp = await searchParams;
-  const token = str(sp.token);
-  if (!tokenOk(token)) notFound();
+export default async function ReviewPage() {
+  if (!reviewSecret()) notFound(); // feature disabled unless a token is configured
+
+  if (!(await authed())) {
+    return (
+      <div className="max-w-sm space-y-4">
+        <Eyebrow>redtape · internal review</Eyebrow>
+        <h1 className="text-2xl font-semibold tracking-tight">Review queue</h1>
+        <p className="text-sm text-muted">Reviewer access only.</p>
+        <form action={login} className="space-y-2">
+          <input
+            type="password"
+            name="token"
+            autoComplete="off"
+            placeholder="Review token"
+            className="w-full rounded border border-edge bg-panel px-3 py-2 font-mono text-sm text-ink placeholder:text-faint focus:border-accent focus:outline-none"
+          />
+          <button
+            type="submit"
+            className="rounded border border-edgeStrong bg-panel px-4 py-2 font-mono text-xs text-ink transition-colors hover:border-ink"
+          >
+            Enter →
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   const queue = safe(() => reviewQueue(200), [] as GapRow[]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <Eyebrow>redtape · internal review</Eyebrow>
-        <h1 className="text-2xl font-semibold tracking-tight">Review queue</h1>
-        <p className="mt-1 max-w-measure text-sm text-muted">
-          Agent-generated filing assessments awaiting a human decision. Nothing here is public.
-          Only <span className="font-mono">Publish</span> makes an item visible on{" "}
-          <span className="font-mono">/redtape</span> — the gate is enforced in the data layer,
-          not just this screen. Read the evidence and the search trail before deciding.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <Eyebrow>redtape · internal review</Eyebrow>
+          <h1 className="text-2xl font-semibold tracking-tight">Review queue</h1>
+          <p className="mt-1 max-w-measure text-sm text-muted">
+            Agent-generated filing assessments awaiting a human decision. Nothing here is public.
+            Only <span className="font-mono">Publish</span> makes an item visible on{" "}
+            <span className="font-mono">/redtape</span> — the gate is enforced in the data layer,
+            not just this screen. Read the evidence and the search trail before deciding.
+          </p>
+        </div>
+        <form action={logout}>
+          <button type="submit" className="font-mono text-xs text-faint hover:text-ink">
+            sign out
+          </button>
+        </form>
       </div>
 
       {queue.length === 0 ? (
@@ -90,7 +150,6 @@ export default async function ReviewPage({
 
               <form action={actReview} className="mt-3 space-y-2 border-t border-edge pt-3">
                 <input type="hidden" name="id" value={g.id} />
-                <input type="hidden" name="token" value={token} />
                 <textarea
                   name="note"
                   rows={2}
