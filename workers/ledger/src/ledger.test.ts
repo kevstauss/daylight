@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { DomainRecord, Watchlist } from "@daylight/core";
+import type { Change, DomainRecord, Watchlist } from "@daylight/core";
 import { loadWatchlist } from "@daylight/core";
 import { createDb } from "@daylight/db";
 import { changeToEntry, renderRss } from "@daylight/feeds";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  classifyChange,
   contactDomainMismatch,
   diff,
   normalizeCsv,
@@ -76,17 +77,25 @@ describe("§5.10.2 H1 flagship — usadf flagged high, no person-watch needed", 
   });
 });
 
-describe("§5.10.3 person-watch — fires exactly once, dedups on re-run", () => {
-  it("@ndstudio.gov fires one high alert for usadf, zero on identical re-run", async () => {
+describe("§5.10.3 person-watch — fires exactly once, dedups via change-event evaluation", () => {
+  it("@ndstudio.gov fires one high alert for usadf; a byte-different-but-usadf-unchanged re-run fires zero new", async () => {
     const db = createDb(":memory:");
     await runLedger({ db, watchlist: wl, csvText: read("before.csv"), now: NOW, emitChanges: false });
 
     await runLedger({ db, watchlist: wl, csvText: read("after.csv"), now: NOW });
     expect(usadfHighAlerts(db)).toHaveLength(1);
-
     const totalAlerts = db.countAlerts();
-    const rerun = await runLedger({ db, watchlist: wl, csvText: read("after.csv"), now: NOW });
-    expect(rerun.changesEmitted).toBe(0);
+
+    // Re-run a file whose bytes differ (a benign city edit — not a change event) so the
+    // whole-file short-circuit is BYPASSED and diff() actually runs. This proves the
+    // non-re-fire comes from change-event evaluation, not merely the file hash.
+    const rerunCsv = read("after.csv").replace(
+      "ndstudio.gov,Federal - Executive,Executive Office of the President,White House Office,Washington,DC",
+      "ndstudio.gov,Federal - Executive,Executive Office of the President,White House Office,Reston,VA",
+    );
+    const rerun = await runLedger({ db, watchlist: wl, csvText: rerunCsv, now: NOW });
+    expect(rerun.shortCircuited).toBe(false); // short-circuit bypassed
+    expect(rerun.changesEmitted).toBe(0); // usadf row unchanged → no change event
     expect(db.countAlerts()).toBe(totalAlerts); // no new alerts
     expect(usadfHighAlerts(db)).toHaveLength(1);
   });
@@ -186,6 +195,21 @@ describe("§5.10.6 feed — high change surfaces with a working deep link", () =
     expect(entries.some((e) => e.domain === "usadf.gov" && e.severity === "high")).toBe(true);
     expect(xml).toContain("https://daylight.example/domain/usadf.gov");
     expect(xml).toContain("<category>high</category>");
+    // The severity filter must return ONLY high rows (not a pass-through of everything).
+    expect(highRows.length).toBeGreaterThan(0);
+    expect(highRows.every((r) => r.severity === "high")).toBe(true);
+  });
+
+  it("the severity filter returns only matching rows (not a tautology)", () => {
+    const db = createDb(":memory:");
+    const mk = (severity: "info" | "notable" | "high", domain: string) =>
+      db.insertChange({ module: "ledger", domain, detectedAt: NOW, kind: "added", severity });
+    mk("info", "a.gov");
+    mk("notable", "b.gov");
+    mk("high", "c.gov");
+    const highs = db.listChanges({ module: "ledger", severity: "high" });
+    expect(highs.map((r) => r.domain)).toEqual(["c.gov"]);
+    expect(db.listChanges({ module: "ledger" })).toHaveLength(3);
   });
 });
 
@@ -199,6 +223,95 @@ describe("§6.1 verify-the-header guardrail", () => {
     const status = db.getStatus().find((s) => s.module === "ledger");
     expect(status?.ok).toBe(0);
     expect(status?.error).toBeTruthy();
+    // ...and the diff is actually SKIPPED — no state written (not just a failure signal).
+    expect(r.changesEmitted).toBe(0);
+    expect(r.itemsSeen).toBe(0);
+    expect(db.allDomains()).toHaveLength(0);
+  });
+});
+
+describe("review hardening — removals, H4 isolation, person-watch elevation, H3 scope", () => {
+  const mkRec = (over: Partial<DomainRecord>): DomainRecord => ({
+    domain: "x.gov",
+    domainType: "Federal - Executive",
+    org: "",
+    suborg: null,
+    city: null,
+    state: null,
+    securityContactEmail: null,
+    ...over,
+  });
+
+  it("diff() emits a `removed` change for a domain present before but not after (§5.4)", () => {
+    const a = mkRec({ domain: "a.gov", org: "A" });
+    const b = mkRec({ domain: "b.gov", org: "B" });
+    const changes = diff(recordsToMap([a, b]), recordsToMap([a]), NOW);
+    expect(changes.filter((c) => c.kind === "removed").map((c) => c.domain)).toEqual(["b.gov"]);
+    expect(changes.filter((c) => c.kind !== "removed")).toHaveLength(0);
+  });
+
+  it("runLedger emits `removed` exactly once, even across later byte-different runs", async () => {
+    const db = createDb(":memory:");
+    // Baseline has usadf.gov (after.csv); the next file (before.csv) drops it.
+    await runLedger({ db, watchlist: wl, csvText: read("after.csv"), now: NOW, emitChanges: false });
+    await runLedger({ db, watchlist: wl, csvText: read("before.csv"), now: NOW });
+    const removedFirst = db.domainHistory("usadf.gov").filter((c) => c.kind === "removed");
+    expect(removedFirst).toHaveLength(1);
+    expect(db.getDomain("usadf.gov")).toBeNull(); // dropped from the current snapshot
+
+    // A later file that still lacks usadf (byte-different so no short-circuit) must NOT re-fire.
+    const beforeVariant = read("before.csv").replace(
+      "freedom.gov,Federal - Executive,Executive Office of the President,White House Office,Washington,DC",
+      "freedom.gov,Federal - Executive,Executive Office of the President,White House Office,Reston,VA",
+    );
+    await runLedger({ db, watchlist: wl, csvText: beforeVariant, now: NOW });
+    expect(db.domainHistory("usadf.gov").filter((c) => c.kind === "removed")).toHaveLength(1);
+  });
+
+  it("H4: a same-org contact change on a watched domain is `notable`, not `high` (person-watch aside)", () => {
+    const orgOf = (d: string): string | null =>
+      d === "ndstudio.gov" ? "Executive Office of the President" : null;
+    const trumprx = mkRec({
+      domain: "trumprx.gov",
+      org: "Executive Office of the President",
+      securityContactEmail: "someone@ndstudio.gov",
+    });
+    const change: Change = {
+      module: "ledger",
+      domain: "trumprx.gov",
+      detectedAt: NOW,
+      kind: "modified",
+      field: "securityContactEmail",
+      oldValue: null,
+      newValue: "someone@ndstudio.gov",
+      severity: "info",
+    };
+    const { severity } = classifyChange(change, trumprx, wl, orgOf);
+    expect(severity).toBe("notable"); // H1 same-org cleared → H4 notable
+  });
+
+  it("person-watch match elevates the change to `high` in the run (§5.7)", async () => {
+    const db = createDb(":memory:");
+    await runLedger({ db, watchlist: wl, csvText: read("before.csv"), now: NOW, emitChanges: false });
+    await runLedger({ db, watchlist: wl, csvText: read("after.csv"), now: NOW });
+    // trumprx's contact became someone@ndstudio.gov → person-watch hit → elevated to high.
+    const h = db.domainHistory("trumprx.gov").find((c) => c.field === "securityContactEmail");
+    expect(h?.severity).toBe("high");
+    expect(db.listAlerts(h?.id).some((a) => a.subscription_pattern === "@ndstudio.gov")).toBe(true);
+  });
+
+  it("H3 fires only for `Federal - Executive`, not other federal branches", () => {
+    const exec = mkRec({ domain: "e.gov", domainType: "Federal - Executive", org: "E" });
+    const jud = mkRec({ domain: "j.gov", domainType: "Federal - Judicial", org: "J" });
+    const added = (rec: DomainRecord): Change => ({
+      module: "ledger",
+      domain: rec.domain,
+      detectedAt: NOW,
+      kind: "added",
+      severity: "info",
+    });
+    expect(classifyChange(added(exec), exec, wl).severity).toBe("notable");
+    expect(classifyChange(added(jud), jud, wl).severity).toBe("info");
   });
 });
 

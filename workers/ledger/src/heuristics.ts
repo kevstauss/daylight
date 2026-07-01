@@ -77,8 +77,8 @@ export function classifyChange(
   const candidates: Candidate[] = [];
   const isContactChange = change.kind === "modified" && change.field === "securityContactEmail";
 
-  // H3 — new federal domain.
-  if (change.kind === "added" && /^federal/i.test(rec.domainType)) {
+  // H3 — new federal *executive* domain (exact type per §5.5; excludes Legislative/Judicial).
+  if (change.kind === "added" && rec.domainType.trim().toLowerCase() === "federal - executive") {
     candidates.push({
       severity: "notable",
       reason: `new federal domain: ${rec.domain} (${rec.org || "unknown organization"})`,

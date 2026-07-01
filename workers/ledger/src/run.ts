@@ -1,6 +1,7 @@
-import type { Change, DomainRecord, Watchlist, WatchSubscription } from "@daylight/core";
+import type { Change, DomainRecord, Severity, Watchlist, WatchSubscription } from "@daylight/core";
 import { nowIso, sha256, watchSubscriptions } from "@daylight/core";
 import { type DaylightDb, rowToDomainRecord } from "@daylight/db";
+import { redact } from "@daylight/redact";
 import { EXPECTED_HEADER } from "./csv.js";
 import { diff } from "./diff.js";
 import { classifyChange, type OrgResolver } from "./heuristics.js";
@@ -11,6 +12,8 @@ import { evaluateWatches } from "./watches.js";
 // Sentinel "domain" used only to store the whole-file hash as an observation, so the
 // run-level short-circuit costs no schema change and reuses observation idempotency.
 export const FILE_SENTINEL = "__ledger_file__";
+
+const SEV_ORDER: Record<Severity, number> = { info: 0, notable: 1, high: 2 };
 
 export interface RunLedgerOptions {
   db: DaylightDb;
@@ -48,7 +51,8 @@ export async function runLedger(opts: RunLedgerOptions): Promise<RunLedgerResult
     const csvText = opts.csvText ?? (await fetchCsv(sourceUrl));
     const parsed = normalizeCsv(csvText);
 
-    // §6.1 — verify the header before diffing; fail loudly to /status on drift.
+    // §6.1 — verify the header before diffing; fail loudly to /status on drift and skip
+    // the diff (no state written) rather than silently mis-mapping.
     if (!parsed.headerOk) {
       const error = `CISA CSV header drift — expected [${EXPECTED_HEADER.join(
         ", ",
@@ -59,62 +63,85 @@ export async function runLedger(opts: RunLedgerOptions): Promise<RunLedgerResult
 
     const records = parsed.records;
     const itemsSeen = records.length;
-
-    // Whole-file short-circuit: if we've already processed this exact file, do nothing.
     const fileHash = sha256(records.map(canonicalHash).sort().join("\n"));
-    const sentinel = db.insertObservation({
-      module: "ledger",
-      domain: FILE_SENTINEL,
-      observedAt: now,
-      sourceUrl,
-      contentHash: fileHash,
-      payload: { rows: itemsSeen },
-    });
-    if (!sentinel.inserted) {
-      db.recordScanFinish(scanId, { ok: true, itemsSeen, changesEmitted: 0 });
-      return { ...blank({ ok: true, headerOk: true }), shortCircuited: true, itemsSeen };
-    }
 
-    // Previous state = the domains table BEFORE this run's upserts.
-    const previous = new Map<string, DomainRecord>();
-    for (const row of db.allDomains()) previous.set(row.domain, rowToDomainRecord(row));
-    const current = recordsToMap(records);
-    const rawChanges = diff(previous, current, now);
-
-    // Org resolver for H1 same-org clearing: prefer this file's view, fall back to prior.
-    const orgOf: OrgResolver = (domain) =>
-      current.get(domain)?.org ?? previous.get(domain)?.org ?? null;
-
-    // Persist current state (idempotent per row via content_hash).
-    for (const rec of records) {
-      db.upsertDomain(rec, now);
-      db.insertObservation({
+    // All DB writes happen atomically: the whole-file sentinel is only durable once the
+    // changes/alerts are, so an interrupted run rolls back and is re-processable.
+    const out = db.sql.transaction((): Omit<RunLedgerResult, "ok" | "headerOk" | "itemsSeen"> => {
+      const sentinel = db.insertObservation({
         module: "ledger",
-        domain: rec.domain,
+        domain: FILE_SENTINEL,
         observedAt: now,
         sourceUrl,
-        contentHash: canonicalHash(rec),
-        payload: rec,
+        contentHash: fileHash,
+        payload: { rows: itemsSeen },
       });
-    }
+      if (!sentinel.inserted) {
+        return { shortCircuited: true, changesEmitted: 0, alertsFired: 0, changeIds: [] };
+      }
 
-    let changesEmitted = 0;
-    let alertsFired = 0;
-    const changeIds: number[] = [];
+      // Previous state = the domains table BEFORE this run's writes. The table is kept
+      // equal to the last snapshot (removed domains are deleted below), so `removed` is
+      // computed against the prior snapshot, not the cumulative all-time set.
+      const previous = new Map<string, DomainRecord>();
+      for (const row of db.allDomains()) previous.set(row.domain, rowToDomainRecord(row));
+      const current = recordsToMap(records);
+      const rawChanges = diff(previous, current, now);
+      const orgOf: OrgResolver = (d) =>
+        current.get(d)?.org ?? previous.get(d)?.org ?? null;
 
-    if (emit) {
-      for (const raw of rawChanges) {
-        const rec = current.get(raw.domain);
-        const { severity, reason } = rec
-          ? classifyChange(raw, rec, watchlist, orgOf)
-          : { severity: raw.severity, reason: raw.reason };
-        const change: Change = { ...raw, severity, reason: reason ?? raw.reason };
-        const id = db.insertChange(change);
-        changeIds.push(id);
-        changesEmitted++;
+      // Persist current state through the redact seam (pass-through for public CSV data;
+      // withhold anything flagged from the servable store — never happens for this source).
+      for (const rec of records) {
+        const red = redact(rec);
+        if (red.flagged) continue;
+        db.upsertDomain(red.value, now);
+        db.insertObservation({
+          module: "ledger",
+          domain: rec.domain,
+          observedAt: now,
+          sourceUrl,
+          contentHash: canonicalHash(red.value),
+          payload: red.value,
+        });
+      }
+      // Reconcile removals: drop domains absent from the current snapshot so a `removed`
+      // event fires exactly once. History is preserved in the changes table.
+      for (const domain of previous.keys()) {
+        if (!current.has(domain)) db.deleteDomain(domain);
+      }
 
-        if (rec) {
-          for (const s of evaluateWatches(change, rec, subs)) {
+      let changesEmitted = 0;
+      let alertsFired = 0;
+      const changeIds: number[] = [];
+
+      if (emit) {
+        for (const raw of rawChanges) {
+          const rec = current.get(raw.domain);
+          let severity: Severity;
+          let reason: string | undefined;
+          if (rec) {
+            ({ severity, reason } = classifyChange(raw, rec, watchlist, orgOf));
+          } else {
+            severity = raw.severity; // 'removed' — no record to classify
+            reason = raw.reason;
+          }
+
+          // Watches (person/org/suborg) evaluate against the change event, so each fires
+          // once when its value first appears. A person-watch match routes to `high` (§5.7).
+          const hits = rec ? evaluateWatches({ ...raw, severity, reason }, rec, subs) : [];
+          if (hits.some((h) => h.kind === "person") && SEV_ORDER[severity] < SEV_ORDER.high) {
+            severity = "high";
+            reason =
+              reason ?? `a watched identity appears as the security contact for ${raw.domain}`;
+          }
+
+          const change: Change = { ...raw, severity, reason: reason ?? raw.reason };
+          const id = db.insertChange(change);
+          changeIds.push(id);
+          changesEmitted++;
+
+          for (const s of hits) {
             db.insertAlert({
               changeId: id,
               subscriptionPattern: s.pattern,
@@ -125,18 +152,12 @@ export async function runLedger(opts: RunLedgerOptions): Promise<RunLedgerResult
           }
         }
       }
-    }
 
-    db.recordScanFinish(scanId, { ok: true, itemsSeen, changesEmitted });
-    return {
-      ok: true,
-      headerOk: true,
-      shortCircuited: false,
-      itemsSeen,
-      changesEmitted,
-      alertsFired,
-      changeIds,
-    };
+      return { shortCircuited: false, changesEmitted, alertsFired, changeIds };
+    })();
+
+    db.recordScanFinish(scanId, { ok: true, itemsSeen, changesEmitted: out.changesEmitted });
+    return { ok: true, headerOk: true, itemsSeen, ...out };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     db.recordScanFinish(scanId, { ok: false, error, itemsSeen: 0, changesEmitted: 0 });

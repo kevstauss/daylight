@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { synthesizeTitle } from "@daylight/feeds";
 import { domainHistoryRows, domainRow } from "@/lib/data";
 import { domainFlag } from "@/lib/ledger";
-import { flags } from "@/lib/flags";
 import { EmptyState, Panel, SeverityBadge, SourceLink, Timestamp } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +19,6 @@ export async function generateMetadata({
 }
 
 export default async function DomainPage({ params }: { params: Promise<{ name: string }> }) {
-  if (!flags().registry) notFound();
   const { name } = await params;
   const domain = decodeURIComponent(name).trim().toLowerCase();
   const row = safe(() => domainRow(domain), null);

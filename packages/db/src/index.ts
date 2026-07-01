@@ -94,6 +94,11 @@ export class DaylightDb {
     return this.sql.prepare(`SELECT * FROM domains ORDER BY domain ASC`).all() as DomainRow[];
   }
 
+  /** Remove a domain from the current-snapshot table (its history stays in `changes`). */
+  deleteDomain(name: string): void {
+    this.sql.prepare(`DELETE FROM domains WHERE domain = ?`).run(name.trim().toLowerCase());
+  }
+
   searchDomains(f: SearchFilter = {}): DomainRow[] {
     const clauses: string[] = [];
     const params: Record<string, string> = {};

@@ -1,17 +1,14 @@
-import { marked } from "marked";
+import { Marked } from "marked";
 
-/**
- * Render our own repo-committed markdown (CHANGELOG.md, methods copy) to HTML.
- * The input is trusted (only maintainers can commit it), but we still strip the
- * dangerous constructs as defense-in-depth so a rendering surface never becomes an
- * XSS vector even if the source of the markdown ever widens.
- */
+// Drop raw HTML at the token level (our markdown never contains any), so a rendering
+// surface can never become an XSS vector even if the markdown source ever widens. This
+// is robust where a regex pass is not (unquoted handlers, unclosed tags, tag-splitting).
+const marked = new Marked({ gfm: true });
+marked.use({ renderer: { html: () => "" } });
+
+/** Render our own repo-committed markdown (CHANGELOG.md) to HTML, HTML-stripped. */
 export function renderTrustedMarkdown(md: string): string {
-  const html = marked.parse(md, { async: false, gfm: true }) as string;
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
-    .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
-    .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "")
-    .replace(/javascript:/gi, "");
+  const html = marked.parse(md, { async: false }) as string;
+  // Belt-and-suspenders: neutralize any javascript: URL that survived in a link.
+  return html.replace(/javascript:/gi, "");
 }

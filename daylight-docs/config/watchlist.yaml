@@ -39,6 +39,7 @@ central_security_allowlist:
   - omb.eop.gov
   - gsa.gov
   - cisa.gov
+  - hq.dhs.gov
 
 # Lookout subdomain-flag scoring (labels left of the apex)
 subdomain_flags:

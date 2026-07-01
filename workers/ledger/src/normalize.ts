@@ -37,6 +37,10 @@ export function normalizeCsv(text: string): NormalizedCsv {
   return { header, headerOk, records };
 }
 
+// A separator that cannot occur in CSV field values, so the join stays injective and a
+// field-boundary shift (e.g. "Homeland"+"Security" vs "HomelandSecurity"+"") never collides.
+const FIELD_SEP = String.fromCharCode(31); // ASCII Unit Separator (0x1F)
+
 /** Stable content hash over the normalized fields (idempotency key). */
 export function canonicalHash(rec: DomainRecord): string {
   return sha256(
@@ -48,7 +52,7 @@ export function canonicalHash(rec: DomainRecord): string {
       rec.city ?? "",
       rec.state ?? "",
       rec.securityContactEmail ?? "",
-    ].join(""),
+    ].join(FIELD_SEP),
   );
 }
 

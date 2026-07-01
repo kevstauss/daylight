@@ -3,6 +3,9 @@ import { CONTACT, CREDIT_LINE, DATA_SOURCES, USER_AGENT } from "@/lib/site";
 import { Panel, SourceLink } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Methods" };
+// Render at request time so the runtime origin (User-Agent/contact) and flag-gated nav
+// are correct in production, not baked from build-time env.
+export const dynamic = "force-dynamic";
 
 export default function MethodsPage() {
   return (
