@@ -84,6 +84,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               </Link>
               .
             </p>
+            <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+              <Link href="/methods" className="link">Methods</Link>
+              <Link href="/watchlist" className="link">Watchlist</Link>
+              <Link href="/changelog" className="link">Changelog</Link>
+              <Link href="/feed.xml" className="link">Global feed</Link>
+              <a href="https://github.com/kevstauss/daylight" className="link">Source</a>
+            </p>
             <p className="mt-2.5 font-mono">{CREDIT_LINE}</p>
           </footer>
         </div>

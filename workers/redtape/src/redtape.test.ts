@@ -1,6 +1,6 @@
 import { createDb, type DaylightDb, type GapRow } from "@daylight/db";
 import { beforeEach, describe, expect, it } from "vitest";
-import { runRedtapeAssessment, searchSorns } from "./index.js";
+import { claudeResearcher, parseAgentJson, runRedtapeAssessment, searchSorns } from "./index.js";
 import type { Researcher, ResearcherInput } from "./types.js";
 
 const NOW = "2026-07-01T12:00:00.000Z";
@@ -152,6 +152,63 @@ describe("§7.6 a blank trail is not a documented negative", () => {
     const r = await runRedtapeAssessment({ db, candidate, researcher: malformed, now: NOW }); // manual, []
     db.reviewGap(r.gapId, { published: true }); // a reviewer publishes a trail-less manual gap
     expect(db.publicGaps()).toHaveLength(0); // still withheld — no re-checkable negative
+  });
+});
+
+describe("tool-use researcher actually searches before concluding", () => {
+  it("runs the Federal Register tool, feeds results back, and returns the model's final JSON", async () => {
+    const searches: string[] = [];
+    let call = 0;
+    const fetchImpl = async (): Promise<Response> => {
+      call++;
+      if (call === 1) {
+        // Model asks to search.
+        return new Response(
+          JSON.stringify({
+            stop_reason: "tool_use",
+            content: [
+              { type: "text", text: "Let me search." },
+              { type: "tool_use", id: "t1", name: "search_federal_register", input: { query: "trumpaccounts SORN" } },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      // Model concludes with JSON after seeing the tool result.
+      return new Response(
+        JSON.stringify({
+          stop_reason: "end_turn",
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                pia_found: false,
+                pia_refs: [],
+                sorn_found: true,
+                sorn_refs: ["FR 2026-Treasury"],
+                gap_assessment: "incomplete_filing",
+                confidence: 0.7,
+                queries_run: ["trumpaccounts SORN"],
+                sources_checked: ["federalregister.gov/api"],
+                fact_vs_inference_notes: "SORN found but omits the analytics processor (inference).",
+              }),
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    };
+    const researcher = claudeResearcher({
+      apiKey: "test-key",
+      fetchImpl,
+      search: async (q) => {
+        searches.push(q);
+        return [{ documentNumber: "2026-1", title: "SORN — Treasury", url: "https://fr/d/2026-1", publicationDate: "2026-01-01" }];
+      },
+    });
+    const raw = await researcher({ domain: "trumpaccounts.gov", url: null, collectsPiiEvidence: ["email input"] });
+    expect(searches).toContain("trumpaccounts SORN"); // it really searched
+    expect(parseAgentJson(raw)?.gap_assessment).toBe("incomplete_filing");
   });
 });
 

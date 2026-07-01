@@ -1,6 +1,10 @@
-// Tracker & session-replay fingerprints. Seeded from DuckDuckGo Tracker Radar categories
-// + EasyPrivacy + the session-replay vendor list (PRD Appendix B). The robust signal is
-// host + payload shape, not a single hardcoded path — see @daylight/floodlight/analyze.
+// Tracker & session-replay fingerprints. This is a CURATED set — the vendors that actually
+// turn up on federal .gov sites (Google Analytics/GA4, Google Tag Manager, the federal Digital
+// Analytics Program, Adobe, Qualtrics, Foresee/Verint, Tealium, New Relic) plus the common
+// analytics / ad / session-replay vendors — NOT a full import of DuckDuckGo Tracker Radar or
+// EasyPrivacy (those are thousands of hosts; this is the high-signal subset, easy to audit and
+// extend). The robust signal is host + payload shape, not a single hardcoded path — see
+// @daylight/floodlight/analyze. Add vendors here as they're observed in the wild.
 
 export type TrackerCategory =
   | "analytics"
@@ -37,6 +41,41 @@ export const FINGERPRINTS: Fingerprint[] = [
   { vendor: "Heap", category: "analytics", hosts: ["heap.io", "heapanalytics.com"] },
   { vendor: "Segment", category: "analytics", hosts: ["segment.com", "segment.io", "cdn.segment.com", "api.segment.io"] },
   { vendor: "Mixpanel", category: "analytics", hosts: ["mixpanel.com", "api.mixpanel.com"] },
+  // --- Common on federal .gov sites ---
+  { vendor: "Digital Analytics Program (DAP)", category: "analytics", hosts: ["dap.digitalgov.gov"] },
+  { vendor: "Adobe Analytics", category: "analytics", hosts: ["omtrdc.net", "2o7.net", "demdex.net", "everesttech.net"] },
+  { vendor: "Adobe DTM / Launch", category: "tag-manager", hosts: ["adobedtm.com", "assets.adobedtm.com"] },
+  { vendor: "Qualtrics", category: "analytics", hosts: ["qualtrics.com", "siteintercept.qualtrics.com"] },
+  { vendor: "Verint / Foresee", category: "session-replay", hosts: ["foresee.com", "foreseeresults.com", "answerscloud.com"], sessionReplay: true },
+  { vendor: "Tealium", category: "tag-manager", hosts: ["tiqcdn.com", "tealiumiq.com"] },
+  { vendor: "New Relic", category: "analytics", hosts: ["nr-data.net", "js-agent.newrelic.com", "newrelic.com"] },
+  { vendor: "Optimizely", category: "analytics", hosts: ["optimizely.com", "optimizelyapis.com"] },
+  { vendor: "Matomo", category: "analytics", hosts: ["matomo.cloud", "matomo.org"] },
+  { vendor: "Chartbeat", category: "analytics", hosts: ["chartbeat.com", "static.chartbeat.com"] },
+  { vendor: "Plausible", category: "analytics", hosts: ["plausible.io"] },
+  { vendor: "Cloudflare Web Analytics", category: "analytics", hosts: ["cloudflareinsights.com"] },
+  { vendor: "HubSpot", category: "analytics", hosts: ["hs-analytics.net", "hs-scripts.com", "hubspot.com"] },
+  // --- Session replay ---
+  { vendor: "Glassbox", category: "session-replay", hosts: ["glassbox.com", "glassboxdigital.io"], sessionReplay: true },
+  { vendor: "Medallia / Decibel", category: "session-replay", hosts: ["decibelinsight.net", "media.nl"], sessionReplay: true },
+  { vendor: "Inspectlet", category: "session-replay", hosts: ["inspectlet.com"], sessionReplay: true },
+  { vendor: "Lucky Orange", category: "session-replay", hosts: ["luckyorange.com", "luckyorange.net"], sessionReplay: true },
+  { vendor: "UserZoom", category: "session-replay", hosts: ["userzoom.com"], sessionReplay: true },
+  // --- Advertising / social ---
+  { vendor: "Microsoft Advertising (UET)", category: "advertising", hosts: ["bat.bing.com"] },
+  { vendor: "X / Twitter Ads", category: "advertising", hosts: ["ads-twitter.com", "analytics.twitter.com", "static.ads-twitter.com"] },
+  { vendor: "LinkedIn Insight", category: "advertising", hosts: ["snap.licdn.com", "px.ads.linkedin.com"] },
+  { vendor: "TikTok Pixel", category: "advertising", hosts: ["analytics.tiktok.com"] },
+  { vendor: "Pinterest Tag", category: "advertising", hosts: ["ct.pinterest.com"] },
+  { vendor: "Snapchat Pixel", category: "advertising", hosts: ["tr.snapchat.com", "sc-static.net"] },
+  { vendor: "Criteo", category: "advertising", hosts: ["criteo.com", "criteo.net"] },
+  { vendor: "Taboola", category: "advertising", hosts: ["taboola.com"] },
+  { vendor: "Outbrain", category: "advertising", hosts: ["outbrain.com"] },
+  { vendor: "Amazon Advertising", category: "advertising", hosts: ["amazon-adsystem.com"] },
+  { vendor: "Quantcast", category: "advertising", hosts: ["quantserve.com", "quantcount.com"] },
+  { vendor: "comScore / ScorecardResearch", category: "advertising", hosts: ["scorecardresearch.com"] },
+  { vendor: "AddThis", category: "social", hosts: ["addthis.com"] },
+  { vendor: "ShareThis", category: "social", hosts: ["sharethis.com"] },
 ];
 
 // Multi-label public suffixes in this watchdog's realistic scope. A naive "last two labels"

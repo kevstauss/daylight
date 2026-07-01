@@ -3,9 +3,52 @@ import { join } from "node:path";
 import { nowIso, sha256 } from "@daylight/core";
 import type { DaylightDb } from "@daylight/db";
 import { capturePage, type CaptureOptions } from "@daylight/floodlight/capture";
+import { hostAllowed, isGovHost } from "@daylight/floodlight/guards";
+import { redactText } from "@daylight/redact";
 import { runReceiptsSnapshot } from "./run.js";
 import { snapshotFromLiveCapture } from "./snapshot-map.js";
 import type { WaybackSaver } from "./wayback.js";
+
+function ua(): string {
+  const site = (process.env.DAYLIGHT_SITE_URL?.trim() || "http://localhost:3000").replace(/\/+$/, "");
+  return `DaylightBot/0.5 (+${site}/methods; observational; public-data-only)`;
+}
+
+/**
+ * Hash the privacy policy's actual TEXT (not just its URL), so an edited/gutted policy at the
+ * same link is detected as a change. Light guarded fetch: .gov only, SSRF-checked, timeout,
+ * no redirect-following, redacted. Returns null on any failure → caller keeps the URL hash.
+ */
+async function privacyTextHash(privacyUrl: string, allowPrivate?: boolean): Promise<string | null> {
+  let u: URL;
+  try {
+    u = new URL(privacyUrl);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+  if (!isGovHost(u.hostname)) return null;
+  if (!(await hostAllowed(u.hostname, { allowPrivate }))) return null;
+  try {
+    const res = await fetch(privacyUrl, {
+      headers: { "user-agent": ua() },
+      redirect: "manual",
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) return null;
+    const text = (await res.text())
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+    if (!text) return null;
+    return sha256(redactText(text.slice(0, 200000)).value);
+  } catch {
+    return null;
+  }
+}
 
 /** The raw store — screenshots + DOM live here and are NEVER served publicly (PRD §5/§8). */
 function rawDir(): string {
@@ -58,6 +101,12 @@ export async function captureAndSnapshot(
   const capturedAt = opts.now ?? nowIso();
   const screenshotRef = storeScreenshot(live.screenshotPng, sha256(url + capturedAt));
   const snapshot = snapshotFromLiveCapture(url, live, capturedAt, screenshotRef);
+  // Prefer the policy's TEXT hash over its URL hash, so a same-link-but-changed policy is caught.
+  const pUrl = live.capture.dom.privacyNoticeUrl;
+  if (pUrl) {
+    const h = await privacyTextHash(pUrl, opts.allowPrivate);
+    if (h) snapshot.privacyTextHash = h;
+  }
   const r = await runReceiptsSnapshot({ db, snapshot, now: capturedAt, waybackSave: opts.waybackSave });
   return {
     ok: true,
