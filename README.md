@@ -15,15 +15,20 @@ Same lane as the EFF, The Markup, and EPIC.
 
 ## Status
 
-| Phase | Module | Ships as | Tag |
-|------:|--------|----------|-----|
-| 0 | Foundation | Walking skeleton: site shell, feeds, `/methods`, `/status` | `v0.1` |
-| 1 | **Ledger** | Searchable owner registry + change feed + person/org watches | `v0.2` |
-| 2 | Lookout | New-cert / new-subdomain feed + per-domain cert timelines | `v0.3` |
-| 3 | Floodlight | Tracker & session-replay scorecards | `v0.4` |
-| 4 | Receipts | Snapshot archive + removal ledger | `v0.5` |
-| 5 | Redtape | PIA/SORN gap-finder (human-gated) | `v0.6` |
-| 6 | Daylight | Unified per-domain dashboard | `v1.0` |
+| Phase | Module | Ships as | State |
+|------:|--------|----------|-------|
+| 0 | Foundation | Walking skeleton: site shell, feeds, `/methods`, `/status` | ✅ tagged `v0.1` |
+| 1 | **Ledger** | Searchable owner registry + change feed + person/org watches | ✅ tagged `v0.2` (reviewed) |
+| 2 | Lookout | New-subdomain feed + flag scoring + Ledger-owner enrichment | 🔨 core on `main` — certstream + Postgres pending a hosting decision |
+| 3 | Floodlight | Tracker & session-replay scorecards | 🔨 engine on `main` — live Playwright capture pending a scheduler/host decision |
+| 4 | Receipts | Snapshot archive + removal ledger | ◻︎ planned |
+| 5 | Redtape | PIA/SORN gap-finder (human-gated) | ◻︎ planned |
+| 6 | Daylight | Unified per-domain dashboard | ◻︎ planned |
+
+All modules are fixture-tested and reuse `packages/{core,db,feeds,redact}` behind their
+interfaces. The deferred pieces (real-time certstream, live page capture, the Postgres
+migration) are the ones that need infrastructure/hosting decisions — the analysis logic
+they feed is already built and tested.
 
 ## Monorepo layout
 
