@@ -1,0 +1,42 @@
+# Daylight — Fly.io config. One machine runs the web read-path + the in-process daily
+# Ledger scheduler, sharing one SQLite volume (avoids Fly's one-machine-per-volume limit).
+#
+# First-time setup (Kevin runs these — they need your Fly auth):
+#   fly apps create daylight
+#   fly volumes create daylight_data --region iad --size 1
+#   fly deploy
+# Then set the real public URL:  fly secrets set DAYLIGHT_SITE_URL=https://<app>.fly.dev
+
+app = "daylight"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  DAYLIGHT_DB_PATH = "/data/daylight.db"
+  DAYLIGHT_SITE_URL = "https://daylight.fly.dev"
+  DAYLIGHT_LEDGER_CRON = "17 0 * * *"
+  # Ledger increments — off at v0.1 (foundation only); flipped on when v0.2 ships.
+  FLAG_LEDGER_REGISTRY = "0"
+  FLAG_LEDGER_FEED = "0"
+  FLAG_LEDGER_HEURISTICS = "0"
+
+[[mounts]]
+  source = "daylight_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # Keep one machine always running so the in-process daily cron actually fires.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/status"

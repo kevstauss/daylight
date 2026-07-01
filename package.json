@@ -1,0 +1,37 @@
+{
+  "name": "daylight",
+  "version": "0.2.0",
+  "private": true,
+  "description": "A public, observational watchdog for federal .gov infrastructure. Public data only, observational only.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "typecheck": "pnpm -r --parallel typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "pnpm --filter @daylight/web dev",
+    "build": "pnpm --filter @daylight/web build",
+    "start": "pnpm --filter @daylight/web start",
+    "ledger": "pnpm --filter @daylight/ledger start",
+    "ledger:seed": "pnpm --filter @daylight/ledger seed",
+    "dummy": "pnpm --filter @daylight/dummy start",
+    "ci": "pnpm typecheck && pnpm test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild",
+      "sharp"
+    ]
+  }
+}

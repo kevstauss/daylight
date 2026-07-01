@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+.next
+**/.next
+.git
+data
+*.db
+*.db-shm
+*.db-wal
+*.log
+daylight-docs
+*.zip
+.DS_Store

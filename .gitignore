@@ -1,0 +1,29 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+.next/
+out/
+*.tsbuildinfo
+
+# local database + artifacts (never commit the SQLite file)
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# env
+.env
+.env.local
+.env.*.local
+
+# os / editor
+.DS_Store
+*.log
+.vscode/
+.idea/
+
+# the docs zip is unpacked into daylight-docs/ — keep the docs, ignore any re-zips
+*.zip

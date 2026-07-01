@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background-color: theme("colors.paper");
+  color: theme("colors.ink");
+}
+
+body {
+  font-feature-settings: "tnum" 1; /* tabular numerals — timestamps line up */
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+}
+
+/* Minimal prose styling for the rendered CHANGELOG + methods copy. */
+.prose-daylight {
+  line-height: 1.65;
+}
+.prose-daylight h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+  color: theme("colors.ink");
+  border-bottom: 1px solid theme("colors.edge");
+  padding-bottom: 0.35rem;
+}
+.prose-daylight h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.35rem;
+  color: theme("colors.ink");
+}
+.prose-daylight p {
+  margin: 0.6rem 0;
+  color: theme("colors.muted");
+}
+.prose-daylight ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin: 0.6rem 0;
+  color: theme("colors.muted");
+}
+.prose-daylight li {
+  margin: 0.3rem 0;
+}
+.prose-daylight code {
+  font-family: theme("fontFamily.mono");
+  font-size: 0.85em;
+  background: theme("colors.panel");
+  border: 1px solid theme("colors.edge");
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+  color: theme("colors.ink");
+}
+.prose-daylight a {
+  color: theme("colors.signal");
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-daylight strong {
+  color: theme("colors.ink");
+  font-weight: 600;
+}
