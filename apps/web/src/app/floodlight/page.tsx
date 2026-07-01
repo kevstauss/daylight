@@ -73,7 +73,12 @@ export default async function FloodlightPage({
                     <SeverityBadge severity={r.severity ?? "info"} />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-baseline gap-x-2">
-                        <span className="truncate font-mono text-sm text-ink">{r.url}</span>
+                        <Link
+                          href={`/floodlight/${encodeURIComponent(r.url)}`}
+                          className="truncate font-mono text-sm text-ink underline decoration-transparent underline-offset-2 hover:decoration-alarm"
+                        >
+                          {r.url}
+                        </Link>
                       </div>
                       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
                         <span className="text-muted">{r.tracker_count ?? 0} trackers</span>

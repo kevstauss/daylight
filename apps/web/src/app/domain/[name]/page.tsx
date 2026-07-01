@@ -155,7 +155,12 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
                   <li key={s.url} className="flex items-start gap-3 px-4 py-2.5">
                     <SeverityBadge severity={s.severity ?? "info"} />
                     <div className="min-w-0 flex-1">
-                      <span className="truncate font-mono text-sm text-ink">{s.url}</span>
+                      <Link
+                        href={`/floodlight/${encodeURIComponent(s.url)}`}
+                        className="truncate font-mono text-sm text-ink underline decoration-transparent underline-offset-2 hover:decoration-alarm"
+                      >
+                        {s.url}
+                      </Link>
                       <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted">
                         <span>{s.tracker_count ?? 0} trackers</span>
                         <span>session replay {s.session_replay ? "on" : "off"}</span>
@@ -196,6 +201,14 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
               title={comp && comp.snapshots.length > 0 ? "Snapshots on file; no removals detected." : "Not yet snapshotted by Receipts."}
             />
           )}
+          {comp && comp.snapshots.length > 0 ? (
+            <Link
+              href={`/receipts/${encodeURIComponent(comp.snapshots[0]!.url)}`}
+              className="link text-xs"
+            >
+              View snapshot history →
+            </Link>
+          ) : null}
         </section>
       ) : null}
 
