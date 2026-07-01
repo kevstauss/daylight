@@ -1,25 +1,44 @@
-// Ingest-time PII redaction pass. It guards the raw artifact store before anything
-// from a scanned page is persisted in a servable field (PRD §5).
+// Ingest-time PII redaction. It guards the raw/servable store before anything derived
+// from a scanned page is persisted (PRD §5).
 //
-// Phase 0-1 note: Ledger reads *official public registrant records* (which name agency
-// contacts by design), so redaction is a deliberate PASS-THROUGH here — but the seam
-// stays wired so Phase 3 (Floodlight) can drop in real page-text redaction without
-// touching callers.
+// Two entry points, by design:
+//  - redact<T>(value): structured PASS-THROUGH for already-public official records
+//    (Ledger's CISA registrant data — names agency contacts by design; we don't mangle it).
+//  - redactText(text): REAL scrubbing for free text captured from a scanned page (Phase 3),
+//    which may reflect PII from a URL query param or form value.
 
 export interface RedactionResult<T> {
   value: T;
   redacted: boolean;
-  /** Flagged for human review + withheld from the public read-path (Phase 3+). */
+  /** Flagged for human review + withheld from the public read-path. */
   flagged: boolean;
   notes: string[];
 }
 
-/** Pass-through for already-public official data. Later phases replace the body. */
+/** Pass-through for already-public official data. */
 export function redact<T>(value: T): RedactionResult<T> {
   return { value, redacted: false, flagged: false, notes: [] };
 }
 
-/** Convenience for text fields; identity for now. */
+const PATTERNS: { name: string; re: RegExp }[] = [
+  { name: "email", re: /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi },
+  { name: "ssn", re: /\b\d{3}-\d{2}-\d{4}\b/g },
+  {
+    name: "phone",
+    re: /(?<!\d)(?:\+?1[ .-]?)?\(?\d{3}\)?[ .-]?\d{3}[ .-]?\d{4}(?!\d)/g,
+  },
+];
+
+/** Scrub emails / SSNs / phone numbers from free text captured off a page. */
 export function redactText(text: string): RedactionResult<string> {
-  return redact(text);
+  let value = text;
+  const notes: string[] = [];
+  for (const { name, re } of PATTERNS) {
+    if (re.test(value)) {
+      notes.push(name);
+      value = value.replace(re, `[redacted:${name}]`);
+    }
+    re.lastIndex = 0;
+  }
+  return { value, redacted: notes.length > 0, flagged: notes.length > 0, notes };
 }

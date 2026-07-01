@@ -71,6 +71,22 @@ export interface SubdomainRow {
   apex_owner_suborg: string | null;
 }
 
+export interface ScorecardRow {
+  id: number;
+  url: string;
+  domain: string;
+  scanned_at: string;
+  tracker_count: number | null;
+  session_replay: number | null;
+  first_party_proxied: number | null;
+  privacy_notice_url: string | null;
+  request_count: number | null;
+  engine_version: string | null;
+  severity: string | null;
+  trackers_json: string | null;
+  reasons_json: string | null;
+}
+
 /** Map a persisted domains row back to the normalized DomainRecord contract. */
 export function rowToDomainRecord(row: DomainRow): DomainRecord {
   return {

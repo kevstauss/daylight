@@ -11,6 +11,8 @@ const nextConfig = {
     "@daylight/ledger",
     "@daylight/enrich",
     "@daylight/lookout",
+    "@daylight/fingerprints",
+    "@daylight/floodlight",
   ],
   // better-sqlite3 is a native addon — never bundle it; require at runtime.
   serverExternalPackages: ["better-sqlite3"],

@@ -25,6 +25,9 @@ primary_region = "iad"
   # DAYLIGHT_LOOKOUT_CRON (e.g. "40 1 * * *"). Left unset so the first backfill is manual
   # (`pnpm --filter @daylight/lookout backfill`) — crt.sh is flaky; watch the first run.
   FLAG_LOOKOUT = "1"
+  # Floodlight (Phase 3): analysis engine is live; the /floodlight UI shows scorecards once
+  # the live page-capture scanner is enabled (pending a scheduler/host decision).
+  FLAG_FLOODLIGHT = "1"
 
 [[mounts]]
   source = "daylight_data"

@@ -28,6 +28,25 @@ Live now (behind `FLAG_LOOKOUT`):
 Still to come for the `v0.3` tag (needs a hosting decision): the always-on **certstream**
 worker for real-time ingest, and the SQLite → Postgres migration that real-time ingest wants.
 
+**Floodlight analysis engine (Phase 3 core, toward `v0.4`).** The "Blacklight for .gov"
+tracker scanner's brain is built and fixture-tested (the project's heaviest lift):
+
+- **Reverse-proxy disguise detection (flagship):** flags a *first-party* endpoint whose
+  path or POST-body shape matches a known analytics SDK — the adblocker-evasion trick —
+  including the real AutoMonitor signature (`{session_id, events[]}` to an
+  `analytics.infra.<apex>` host).
+- **Session-replay detection**, **third-party tracker classification** (seeded from
+  DuckDuckGo Tracker Radar + EasyPrivacy in `packages/fingerprints`), and a
+  **privacy-notice cross-check** (does the page even link one?).
+- **Real redaction** now runs on ingest (`redactText` scrubs emails/SSNs/phones from any
+  page-derived text before it is stored) — the `/methods` assurance is now literally true.
+- `/floodlight` hall of shame + `/floodlight/feed.*` are live behind `FLAG_FLOODLIGHT`;
+  tracker add/remove diffs emit change events (Receipts will consume these in Phase 4).
+
+Deferred (needs a scan-scheduler/host decision): the live Playwright page-capture adapter.
+The engine is pure over a captured page, so it is fully tested without touching live sites —
+and per the guardrails, Daylight never submits forms, authenticates, or follows an access gate.
+
 ## v0.2 — Ledger (the first phase you can use)
 
 **The registry, now watched over time.** Daylight reads the public federal `.gov`

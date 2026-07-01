@@ -13,6 +13,8 @@ export default defineConfig({
       "@daylight/redact": r("./packages/redact/src/index.ts"),
       "@daylight/enrich": r("./packages/enrich/src/index.ts"),
       "@daylight/lookout": r("./workers/lookout/src/index.ts"),
+      "@daylight/fingerprints": r("./packages/fingerprints/src/index.ts"),
+      "@daylight/floodlight": r("./workers/floodlight/src/index.ts"),
     },
   },
   test: {

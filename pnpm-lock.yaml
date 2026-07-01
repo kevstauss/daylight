@@ -35,6 +35,12 @@ importers:
       '@daylight/feeds':
         specifier: workspace:*
         version: link:../../packages/feeds
+      '@daylight/fingerprints':
+        specifier: workspace:*
+        version: link:../../packages/fingerprints
+      '@daylight/floodlight':
+        specifier: workspace:*
+        version: link:../../workers/floodlight
       '@daylight/ledger':
         specifier: workspace:*
         version: link:../../workers/ledger
@@ -111,7 +117,27 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/fingerprints: {}
+
   packages/redact: {}
+
+  workers/floodlight:
+    dependencies:
+      '@daylight/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@daylight/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@daylight/feeds':
+        specifier: workspace:*
+        version: link:../../packages/feeds
+      '@daylight/fingerprints':
+        specifier: workspace:*
+        version: link:../../packages/fingerprints
+      '@daylight/redact':
+        specifier: workspace:*
+        version: link:../../packages/redact
 
   workers/ledger:
     dependencies:

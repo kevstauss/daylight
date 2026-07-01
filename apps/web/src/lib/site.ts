@@ -46,10 +46,16 @@ export const DATA_SOURCES: { name: string; url: string; use: string; phase: stri
     phase: "Lookout (backfill live)",
   },
   {
-    name: "Live public page source",
-    url: "https://www.gov/",
-    use: "Public page HTML + network requests (observational only, honest User-Agent) — used to fingerprint trackers.",
-    phase: "Floodlight (planned)",
+    name: "Live public page source (Playwright)",
+    url: "https://playwright.dev/",
+    use: "Public page HTML + network requests, passive load-only (no auth, no form submit, no crawling) — used to fingerprint trackers and the reverse-proxy disguise trick.",
+    phase: "Floodlight (engine live; capture pending)",
+  },
+  {
+    name: "DuckDuckGo Tracker Radar",
+    url: "https://github.com/duckduckgo/tracker-radar",
+    use: "Open dataset of tracker hosts + categories — seeds Floodlight's fingerprints, alongside EasyPrivacy and a session-replay vendor list.",
+    phase: "Floodlight (engine live)",
   },
   {
     name: "Wayback Save Page Now",

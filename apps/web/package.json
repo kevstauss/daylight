@@ -14,6 +14,8 @@
     "@daylight/db": "workspace:*",
     "@daylight/enrich": "workspace:*",
     "@daylight/feeds": "workspace:*",
+    "@daylight/fingerprints": "workspace:*",
+    "@daylight/floodlight": "workspace:*",
     "@daylight/ledger": "workspace:*",
     "@daylight/lookout": "workspace:*",
     "marked": "^14.1.4",

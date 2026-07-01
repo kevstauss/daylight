@@ -7,6 +7,7 @@ import type {
   DomainRow,
   ObservationRow,
   ScanRow,
+  ScorecardRow,
   SubdomainRow,
 } from "./rows.js";
 
@@ -370,9 +371,73 @@ export class DaylightDb {
       .all(params) as SubdomainRow[];
   }
 
+  // ---- scorecards (Floodlight / Phase 3) ----------------------------------
+
+  upsertScorecard(sc: ScorecardInput, scannedAt: string): void {
+    this.sql
+      .prepare(
+        `INSERT INTO scorecards
+           (url, domain, scanned_at, tracker_count, session_replay, first_party_proxied,
+            privacy_notice_url, request_count, engine_version, severity, trackers_json, reasons_json)
+         VALUES
+           (@url, @domain, @scannedAt, @trackerCount, @sessionReplay, @firstPartyProxied,
+            @privacyNoticeUrl, @requestCount, @engineVersion, @severity, @trackersJson, @reasonsJson)
+         ON CONFLICT(url) DO UPDATE SET
+           domain = excluded.domain, scanned_at = excluded.scanned_at,
+           tracker_count = excluded.tracker_count, session_replay = excluded.session_replay,
+           first_party_proxied = excluded.first_party_proxied,
+           privacy_notice_url = excluded.privacy_notice_url, request_count = excluded.request_count,
+           engine_version = excluded.engine_version, severity = excluded.severity,
+           trackers_json = excluded.trackers_json, reasons_json = excluded.reasons_json`,
+      )
+      .run({
+        url: sc.url,
+        domain: sc.domain,
+        scannedAt,
+        trackerCount: sc.trackerCount,
+        sessionReplay: sc.sessionReplay ? 1 : 0,
+        firstPartyProxied: sc.firstPartyProxied ? 1 : 0,
+        privacyNoticeUrl: sc.privacyNoticeUrl,
+        requestCount: sc.requestCount,
+        engineVersion: sc.engineVersion,
+        severity: sc.severity,
+        trackersJson: sc.trackersJson,
+        reasonsJson: sc.reasonsJson,
+      });
+  }
+
+  getScorecard(url: string): ScorecardRow | null {
+    const row = this.sql.prepare(`SELECT * FROM scorecards WHERE url = ?`).get(url) as
+      | ScorecardRow
+      | undefined;
+    return row ?? null;
+  }
+
+  listScorecards(f: { severity?: string; limit?: number } = {}): ScorecardRow[] {
+    const where = f.severity ? `WHERE severity = @severity` : "";
+    const limit = Math.max(1, Math.min(f.limit ?? 100, 1000));
+    return this.sql
+      .prepare(`SELECT * FROM scorecards ${where} ORDER BY scanned_at DESC LIMIT ${limit}`)
+      .all(f.severity ? { severity: f.severity } : {}) as ScorecardRow[];
+  }
+
   close(): void {
     this.sql.close();
   }
+}
+
+export interface ScorecardInput {
+  url: string;
+  domain: string;
+  trackerCount: number;
+  sessionReplay: boolean;
+  firstPartyProxied: boolean;
+  privacyNoticeUrl: string | null;
+  requestCount: number;
+  engineVersion: string;
+  severity: string;
+  trackersJson: string;
+  reasonsJson: string;
 }
 
 export interface SubdomainInput {

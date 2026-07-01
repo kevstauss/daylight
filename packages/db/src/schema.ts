@@ -84,4 +84,22 @@ CREATE TABLE IF NOT EXISTS subdomains (
   apex_owner_suborg TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_sub_apex ON subdomains(apex, first_seen DESC);
+
+-- Floodlight (Phase 3): latest tracker scorecard per public URL (history in observations).
+CREATE TABLE IF NOT EXISTS scorecards (
+  id INTEGER PRIMARY KEY,
+  url TEXT UNIQUE NOT NULL,
+  domain TEXT NOT NULL,
+  scanned_at TEXT NOT NULL,
+  tracker_count INTEGER,
+  session_replay INTEGER,             -- 0/1
+  first_party_proxied INTEGER,        -- 0/1
+  privacy_notice_url TEXT,            -- null = absent
+  request_count INTEGER,
+  engine_version TEXT,
+  severity TEXT,
+  trackers_json TEXT,                 -- JSON array of {vendor,category,host,path,firstPartyProxied}
+  reasons_json TEXT                   -- JSON array of human-readable reasons
+);
+CREATE INDEX IF NOT EXISTS ix_scorecard_domain ON scorecards(domain, scanned_at DESC);
 `;

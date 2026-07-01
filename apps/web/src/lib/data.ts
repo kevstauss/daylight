@@ -6,12 +6,13 @@ import {
   type ChangeRow,
   type DomainRow,
   type ScanRow,
+  type ScorecardRow,
   type SearchFilter,
   type SubdomainRow,
 } from "@daylight/db";
 import { changeToEntry, type FeedEntry } from "@daylight/feeds";
 
-export type { ChangeRow, DomainRow, ScanRow, SubdomainRow } from "@daylight/db";
+export type { ChangeRow, DomainRow, ScanRow, ScorecardRow, SubdomainRow } from "@daylight/db";
 
 export function statusRows(): ScanRow[] {
   return getDb().getStatus();
@@ -67,5 +68,20 @@ export function searchSubdomains(f: { q?: string; severity?: string; limit?: num
 
 export function subdomainCount(): number {
   const row = getDb().sql.prepare(`SELECT COUNT(*) AS n FROM subdomains`).get() as { n: number };
+  return row.n;
+}
+
+// ---- Floodlight (Phase 3) -------------------------------------------------
+
+export function floodlightScorecards(opts: { severity?: string; limit?: number } = {}): ScorecardRow[] {
+  return getDb().listScorecards({ severity: opts.severity, limit: opts.limit ?? 100 });
+}
+
+export function floodlightChanges(opts: { severity?: string; limit?: number } = {}): ChangeRow[] {
+  return getDb().listChanges({ module: "floodlight", severity: opts.severity, limit: opts.limit ?? 50 });
+}
+
+export function scorecardCount(): number {
+  const row = getDb().sql.prepare(`SELECT COUNT(*) AS n FROM scorecards`).get() as { n: number };
   return row.n;
 }

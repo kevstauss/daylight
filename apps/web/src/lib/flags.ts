@@ -10,6 +10,8 @@ export interface Flags {
   heuristics: boolean;
   /** Phase 2 — /lookout subdomain feed + cert timelines. */
   lookout: boolean;
+  /** Phase 3 — /floodlight tracker scorecards + hall of shame. */
+  floodlight: boolean;
 }
 
 export function flags(): Flags {
@@ -18,5 +20,6 @@ export function flags(): Flags {
     feed: flag("FLAG_LEDGER_FEED"),
     heuristics: flag("FLAG_LEDGER_HEURISTICS"),
     lookout: flag("FLAG_LOOKOUT"),
+    floodlight: flag("FLAG_FLOODLIGHT"),
   };
 }
