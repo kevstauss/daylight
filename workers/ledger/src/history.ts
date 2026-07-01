@@ -38,6 +38,7 @@ export async function listCsvCommits(opts: GitHubFetchOptions = {}): Promise<His
         accept: "application/vnd.github+json",
         ...(token ? { authorization: `Bearer ${token}` } : {}),
       },
+      signal: AbortSignal.timeout(20000), // no default fetch timeout — don't hang the backfill
     });
     if (!res.ok) {
       // A failed FIRST page means we can't list history at all. Returning [] here would let
