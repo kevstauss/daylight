@@ -8,7 +8,45 @@ Everything Daylight does is **observational and built on already-public data**. 
 
 ## Unreleased
 
-- Building Phase 1 (Ledger — registrant/contact diff watcher). Ships as `v0.2`.
+- Next up: Phase 2 (Lookout — certificate-transparency subdomain watcher). Ships as `v0.3`.
+
+## v0.2 — Ledger (the first phase you can use)
+
+**The registry, now watched over time.** Daylight reads the public federal `.gov`
+ownership registry (CISA's `cisagov/dotgov-data`, ~1,343 apex domains) every day and keeps
+a ledger of who owns what — and, more importantly, of every change.
+
+What you can do now:
+
+- **Search the registry** at `/registry` — look up any federal `.gov` and see who owns it,
+  its organization and sub-organization, and the published security contact.
+- **See a domain's history** at `/domain/{name}` — the owner card plus a timeline of
+  ownership and contact changes, each linked to the public source row.
+- **Subscribe to the change feed** at `/ledger/feed.xml` and `/ledger/feed.json` — every
+  registrant or security-contact change across the federal registry, filterable by
+  severity (append `?severity=high`).
+
+How it stays honest and sober:
+
+- **Contact-domain-mismatch heuristic (H1).** Flags when a domain's published security
+  contact is an email at *another* organization's `.gov` that isn't a recognized central
+  mailbox — e.g. `usadf.gov` (US African Development Foundation) listing
+  `akash@ndstudio.gov`. Crucially, it *clears* the legitimate cases: a contact at another
+  domain owned by the **same organization** (like `vote.gov` → `security@eac.gov`, both the
+  Election Assistance Commission) is not flagged. On the live dataset this surfaces a
+  single high-confidence flag rather than noise. Stated as a neutral observation, linked to
+  the source; never as an accusation.
+- **Runtime header verification.** Before diffing, Daylight checks the live CISA CSV header
+  matches the expected columns and fails loudly to `/status` on any drift — we verify, we
+  don't assume.
+- **Idempotent daily diffing.** Keyed by content hash: re-running the same data emits no
+  duplicate changes, and a name/org watch fires exactly once when an identity first appears.
+- **Config-driven watches.** `config/watchlist.yaml` fires a high-priority alert when a
+  watched identity (e.g. `@ndstudio.gov`) appears as any contact, or when a watched
+  organization gains or changes a domain.
+
+Under the hood: the daily pass runs in-process on the web machine (sharing the one SQLite
+volume); the Phase 0 walking-skeleton dummy worker has been retired now that Ledger is live.
 
 ## v0.1 — Foundation (walking skeleton)
 

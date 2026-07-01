@@ -18,7 +18,6 @@
     "start": "pnpm --filter @daylight/web start",
     "ledger": "pnpm --filter @daylight/ledger start",
     "ledger:seed": "pnpm --filter @daylight/ledger seed",
-    "dummy": "pnpm --filter @daylight/dummy start",
     "ci": "pnpm typecheck && pnpm test"
   },
   "devDependencies": {

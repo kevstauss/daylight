@@ -89,6 +89,11 @@ export class DaylightDb {
     return row ?? null;
   }
 
+  /** Every domain row (uncapped) — the worker's "previous state" for diffing. */
+  allDomains(): DomainRow[] {
+    return this.sql.prepare(`SELECT * FROM domains ORDER BY domain ASC`).all() as DomainRow[];
+  }
+
   searchDomains(f: SearchFilter = {}): DomainRow[] {
     const clauses: string[] = [];
     const params: Record<string, string> = {};

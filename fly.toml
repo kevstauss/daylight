@@ -17,10 +17,10 @@ primary_region = "iad"
   DAYLIGHT_DB_PATH = "/data/daylight.db"
   DAYLIGHT_SITE_URL = "https://daylight.fly.dev"
   DAYLIGHT_LEDGER_CRON = "17 0 * * *"
-  # Ledger increments — off at v0.1 (foundation only); flipped on when v0.2 ships.
-  FLAG_LEDGER_REGISTRY = "0"
-  FLAG_LEDGER_FEED = "0"
-  FLAG_LEDGER_HEURISTICS = "0"
+  # Ledger increments — live as of v0.2.
+  FLAG_LEDGER_REGISTRY = "1"
+  FLAG_LEDGER_FEED = "1"
+  FLAG_LEDGER_HEURISTICS = "1"
 
 [[mounts]]
   source = "daylight_data"
