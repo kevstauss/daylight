@@ -32,7 +32,21 @@ export function isBlockedIp(ip: string): boolean {
   return true; // unknown format — refuse
 }
 
-/** Reject anything that isn't a public http(s) URL (SSRF-safe). Throws with a reason. */
+/** True only if a hostname resolves entirely to public addresses (SSRF check). */
+export async function hostAllowed(hostname: string, opts: UrlGuardOptions = {}): Promise<boolean> {
+  if (opts.allowPrivate) return true;
+  let addrs: { address: string }[];
+  try {
+    addrs = await dns.lookup(hostname, { all: true });
+  } catch {
+    return false;
+  }
+  return addrs.length > 0 && addrs.every((a) => !isBlockedIp(a.address));
+}
+
+/** Reject anything that isn't a public http(s) URL (SSRF-safe). Throws with a reason.
+ *  NOTE: this is the pre-flight check; every actual request is re-validated at request time
+ *  (capture.ts) so redirects and DNS rebinding to a private address are also refused. */
 export async function assertScannableUrl(url: string, opts: UrlGuardOptions = {}): Promise<void> {
   let u: URL;
   try {
@@ -44,16 +58,8 @@ export async function assertScannableUrl(url: string, opts: UrlGuardOptions = {}
     throw new Error("only http(s) URLs may be scanned");
   }
   if (opts.allowPrivate) return;
-  let addrs: { address: string }[];
-  try {
-    addrs = await dns.lookup(u.hostname, { all: true });
-  } catch {
-    throw new Error(`cannot resolve ${u.hostname}`);
-  }
-  for (const a of addrs) {
-    if (isBlockedIp(a.address)) {
-      throw new Error(`refusing to scan a non-public address (${u.hostname} → ${a.address})`);
-    }
+  if (!(await hostAllowed(u.hostname, opts))) {
+    throw new Error(`refusing to scan a non-public address (${u.hostname})`);
   }
 }
 

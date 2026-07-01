@@ -196,6 +196,9 @@ importers:
       '@daylight/fingerprints':
         specifier: workspace:*
         version: link:../../packages/fingerprints
+      '@daylight/floodlight':
+        specifier: workspace:*
+        version: link:../floodlight
       '@daylight/redact':
         specifier: workspace:*
         version: link:../../packages/redact

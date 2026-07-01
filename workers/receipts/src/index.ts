@@ -3,6 +3,7 @@
 
 export type { Snapshot } from "./types.js";
 export { snapshotFromHtml, snapshotContentHash } from "./html.js";
+export { snapshotFromLiveCapture } from "./snapshot-map.js";
 export { diffSnapshots } from "./diff.js";
 export { saveToWayback, type WaybackSaver, type WaybackOptions } from "./wayback.js";
 export {

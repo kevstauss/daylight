@@ -1,8 +1,14 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createDb, type DaylightDb } from "@daylight/db";
+import type { LiveCapture } from "@daylight/floodlight/capture";
 import { beforeEach, describe, expect, it } from "vitest";
-import { diffSnapshots, runReceiptsSnapshot, snapshotFromHtml } from "./index.js";
+import {
+  diffSnapshots,
+  runReceiptsSnapshot,
+  snapshotFromHtml,
+  snapshotFromLiveCapture,
+} from "./index.js";
 import type { Snapshot } from "./types.js";
 
 const read = (name: string): string =>
@@ -74,6 +80,38 @@ describe("§7.3 idempotency — an unchanged re-capture emits zero changes", () 
     expect(r.shortCircuited).toBe(true);
     expect(r.changeIds).toHaveLength(0);
     expect(db.listSnapshots(URL_)).toHaveLength(1); // no duplicate snapshot row
+  });
+});
+
+describe("snapshotFromLiveCapture — maps a live capture to a Snapshot", () => {
+  it("takes trackers from network analysis + DOM facts, keeping the screenshot in the raw store", () => {
+    const live: LiveCapture = {
+      capture: {
+        url: "https://ndstudio.gov/",
+        requests: [
+          { url: "https://www.google-analytics.com/g/collect", method: "GET", resourceType: "image" },
+          {
+            url: "https://ndstudio.gov/metrics",
+            method: "POST",
+            resourceType: "fetch",
+            postBody: JSON.stringify({ event: "x", properties: {}, distinct_id: "u", api_key: "k" }),
+          },
+        ],
+        dom: { privacyNoticeUrl: "https://ndstudio.gov/privacy", hasSeal: true, formFields: ["email"] },
+      },
+      html: "<html><body>ok</body></html>",
+      screenshotPng: null,
+      gated: false,
+      finalUrl: "https://ndstudio.gov/",
+    };
+    const snap = snapshotFromLiveCapture("https://ndstudio.gov/", live, T0, "/raw/x.png");
+    expect(snap.domain).toBe("ndstudio.gov");
+    expect(snap.trackers.some((t) => t.includes("Google Analytics"))).toBe(true);
+    expect(snap.trackers.some((t) => t.includes("first-party-proxied"))).toBe(true);
+    expect(snap.privacyTextHash).not.toBeNull();
+    expect(snap.sealPresent).toBe(true);
+    expect(snap.formFields).toEqual(["email"]);
+    expect(snap.screenshotRef).toBe("/raw/x.png");
   });
 });
 

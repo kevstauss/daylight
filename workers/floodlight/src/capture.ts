@@ -1,6 +1,7 @@
+/// <reference lib="dom" />
 import { chromium } from "playwright";
 import type { DaylightDb } from "@daylight/db";
-import { assertScannableUrl, isAllowedByRobots, looksGated } from "./guards.js";
+import { assertScannableUrl, hostAllowed, isAllowedByRobots, looksGated } from "./guards.js";
 import { runFloodlightScan } from "./scan.js";
 import type { CapturedRequest, PageCapture } from "./types.js";
 
@@ -51,6 +52,34 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
       userAgent: ua,
       viewport: { width: 1280, height: 900 },
     });
+
+    // Re-validate EVERY request the page makes — the initial navigation, any redirect it
+    // follows, and every subresource — against the SSRF blocklist at request time. This
+    // closes the redirect-bypass and DNS-rebinding holes the pre-flight check alone can't.
+    const hostCache = new Map<string, Promise<boolean>>();
+    const allowed = (host: string): Promise<boolean> => {
+      let p = hostCache.get(host);
+      if (!p) {
+        p = hostAllowed(host, { allowPrivate: opts.allowPrivate });
+        hostCache.set(host, p);
+      }
+      return p;
+    };
+    await context.route("**/*", async (route) => {
+      let host = "";
+      try {
+        host = new URL(route.request().url()).hostname;
+      } catch {
+        /* malformed — block below */
+      }
+      try {
+        if (host && (await allowed(host))) await route.continue();
+        else await route.abort();
+      } catch {
+        await route.abort().catch(() => {});
+      }
+    });
+
     const page = await context.newPage();
     const requests: CapturedRequest[] = [];
     page.on("request", (r) => {

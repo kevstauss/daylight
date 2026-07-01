@@ -11,13 +11,15 @@
   },
   "types": "./src/index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "snapshot": "tsx src/cli.ts"
   },
   "dependencies": {
     "@daylight/core": "workspace:*",
     "@daylight/db": "workspace:*",
     "@daylight/feeds": "workspace:*",
     "@daylight/fingerprints": "workspace:*",
-    "@daylight/redact": "workspace:*"
+    "@daylight/redact": "workspace:*",
+    "@daylight/floodlight": "workspace:*"
   }
 }
