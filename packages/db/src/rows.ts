@@ -58,6 +58,19 @@ export interface AlertRow {
   error: string | null;
 }
 
+export interface SubdomainRow {
+  id: number;
+  fqdn: string;
+  apex: string;
+  first_seen: string;
+  last_seen: string;
+  labels: string | null; // JSON array
+  flag_severity: string | null;
+  flag_reason: string | null;
+  apex_owner_org: string | null;
+  apex_owner_suborg: string | null;
+}
+
 /** Map a persisted domains row back to the normalized DomainRecord contract. */
 export function rowToDomainRecord(row: DomainRow): DomainRecord {
   return {

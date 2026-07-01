@@ -14,6 +14,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   const f = flags();
   const nav = [
     ...(f.registry ? [{ href: "/registry", label: "Registry" }] : []),
+    ...(f.lookout ? [{ href: "/lookout", label: "Lookout" }] : []),
     { href: "/methods", label: "Methods" },
     { href: "/status", label: "Status" },
     { href: "/changelog", label: "Changelog" },

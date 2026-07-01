@@ -11,6 +11,8 @@ export default defineConfig({
       "@daylight/db": r("./packages/db/src/index.ts"),
       "@daylight/feeds": r("./packages/feeds/src/index.ts"),
       "@daylight/redact": r("./packages/redact/src/index.ts"),
+      "@daylight/enrich": r("./packages/enrich/src/index.ts"),
+      "@daylight/lookout": r("./workers/lookout/src/index.ts"),
     },
   },
   test: {

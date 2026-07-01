@@ -21,6 +21,10 @@ primary_region = "iad"
   FLAG_LEDGER_REGISTRY = "1"
   FLAG_LEDGER_FEED = "1"
   FLAG_LEDGER_HEURISTICS = "1"
+  # Lookout (Phase 2) UI is live; enable the crt.sh backfill cron by setting
+  # DAYLIGHT_LOOKOUT_CRON (e.g. "40 1 * * *"). Left unset so the first backfill is manual
+  # (`pnpm --filter @daylight/lookout backfill`) — crt.sh is flaky; watch the first run.
+  FLAG_LOOKOUT = "1"
 
 [[mounts]]
   source = "daylight_data"

@@ -68,4 +68,20 @@ CREATE TABLE IF NOT EXISTS watch_subscriptions (
   channel TEXT, target TEXT,
   created_at TEXT NOT NULL
 );
+
+-- Lookout (Phase 2): subdomains seen in Certificate Transparency logs. Existence-only.
+-- (Postgres uses TEXT[] for labels; SQLite stores a JSON array in a TEXT column.)
+CREATE TABLE IF NOT EXISTS subdomains (
+  id INTEGER PRIMARY KEY,
+  fqdn TEXT UNIQUE NOT NULL,           -- lowercased
+  apex TEXT NOT NULL,                  -- registrable apex (join key to domains.domain)
+  first_seen TEXT NOT NULL,
+  last_seen TEXT NOT NULL,
+  labels TEXT,                         -- JSON array of labels left of the apex
+  flag_severity TEXT,                  -- info|notable|high
+  flag_reason TEXT,
+  apex_owner_org TEXT,                 -- enriched from Ledger domains.org
+  apex_owner_suborg TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_sub_apex ON subdomains(apex, first_seen DESC);
 `;

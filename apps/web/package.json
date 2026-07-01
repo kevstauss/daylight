@@ -12,8 +12,10 @@
   "dependencies": {
     "@daylight/core": "workspace:*",
     "@daylight/db": "workspace:*",
+    "@daylight/enrich": "workspace:*",
     "@daylight/feeds": "workspace:*",
     "@daylight/ledger": "workspace:*",
+    "@daylight/lookout": "workspace:*",
     "marked": "^14.1.4",
     "next": "^15.1.3",
     "node-cron": "^3.0.3",

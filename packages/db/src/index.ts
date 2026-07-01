@@ -7,6 +7,7 @@ import type {
   DomainRow,
   ObservationRow,
   ScanRow,
+  SubdomainRow,
 } from "./rows.js";
 
 export type { Sqlite } from "./client.js";
@@ -304,9 +305,84 @@ export class DaylightDb {
     return row.n;
   }
 
+  // ---- subdomains (Lookout / Phase 2) -------------------------------------
+
+  /** Insert a subdomain; on repeat, advance last_seen + refresh flags/enrichment.
+   *  Returns inserted=false when the fqdn was already known (idempotency). */
+  upsertSubdomain(sub: SubdomainInput, seenAt: string): { inserted: boolean } {
+    const existed = this.sql
+      .prepare(`SELECT 1 FROM subdomains WHERE fqdn = ?`)
+      .get(sub.fqdn) as unknown;
+    this.sql
+      .prepare(
+        `INSERT INTO subdomains
+           (fqdn, apex, first_seen, last_seen, labels, flag_severity, flag_reason, apex_owner_org, apex_owner_suborg)
+         VALUES (@fqdn, @apex, @seenAt, @seenAt, @labels, @flagSeverity, @flagReason, @apexOwnerOrg, @apexOwnerSuborg)
+         ON CONFLICT(fqdn) DO UPDATE SET
+           last_seen = excluded.last_seen,
+           labels = excluded.labels,
+           flag_severity = excluded.flag_severity,
+           flag_reason = excluded.flag_reason,
+           apex_owner_org = excluded.apex_owner_org,
+           apex_owner_suborg = excluded.apex_owner_suborg`,
+      )
+      .run({
+        fqdn: sub.fqdn,
+        apex: sub.apex,
+        seenAt,
+        labels: JSON.stringify(sub.labels ?? []),
+        flagSeverity: sub.flagSeverity ?? null,
+        flagReason: sub.flagReason ?? null,
+        apexOwnerOrg: sub.apexOwnerOrg ?? null,
+        apexOwnerSuborg: sub.apexOwnerSuborg ?? null,
+      });
+    return { inserted: !existed };
+  }
+
+  getSubdomain(fqdn: string): SubdomainRow | null {
+    const row = this.sql
+      .prepare(`SELECT * FROM subdomains WHERE fqdn = ?`)
+      .get(fqdn.trim().toLowerCase()) as SubdomainRow | undefined;
+    return row ?? null;
+  }
+
+  subdomainsByApex(apex: string): SubdomainRow[] {
+    return this.sql
+      .prepare(`SELECT * FROM subdomains WHERE apex = ? ORDER BY first_seen DESC, fqdn ASC`)
+      .all(apex.trim().toLowerCase()) as SubdomainRow[];
+  }
+
+  searchSubdomains(f: { q?: string; severity?: string; limit?: number } = {}): SubdomainRow[] {
+    const clauses: string[] = [];
+    const params: Record<string, string> = {};
+    if (f.q && f.q.trim()) {
+      params.q = `%${f.q.trim().toLowerCase()}%`;
+      clauses.push(`(lower(fqdn) LIKE @q OR lower(apex) LIKE @q OR lower(coalesce(apex_owner_org,'')) LIKE @q)`);
+    }
+    if (f.severity) {
+      params.severity = f.severity;
+      clauses.push(`flag_severity = @severity`);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    const limit = Math.max(1, Math.min(f.limit ?? 200, 1000));
+    return this.sql
+      .prepare(`SELECT * FROM subdomains ${where} ORDER BY first_seen DESC, fqdn ASC LIMIT ${limit}`)
+      .all(params) as SubdomainRow[];
+  }
+
   close(): void {
     this.sql.close();
   }
+}
+
+export interface SubdomainInput {
+  fqdn: string;
+  apex: string;
+  labels?: string[];
+  flagSeverity?: string | null;
+  flagReason?: string | null;
+  apexOwnerOrg?: string | null;
+  apexOwnerSuborg?: string | null;
 }
 
 // ---- singleton + convenience free functions (the §3.4 surface) -------------

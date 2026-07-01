@@ -8,6 +8,8 @@ export interface Flags {
   feed: boolean;
   /** 1c — H1–H4 heuristics + person/org watches + severity routing. */
   heuristics: boolean;
+  /** Phase 2 — /lookout subdomain feed + cert timelines. */
+  lookout: boolean;
 }
 
 export function flags(): Flags {
@@ -15,5 +17,6 @@ export function flags(): Flags {
     registry: flag("FLAG_LEDGER_REGISTRY"),
     feed: flag("FLAG_LEDGER_FEED"),
     heuristics: flag("FLAG_LEDGER_HEURISTICS"),
+    lookout: flag("FLAG_LOOKOUT"),
   };
 }

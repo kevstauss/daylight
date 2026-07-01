@@ -40,10 +40,10 @@ export const DATA_SOURCES: { name: string; url: string; use: string; phase: stri
     phase: "Ledger (live)",
   },
   {
-    name: "Certificate Transparency logs",
-    url: "https://certificate.transparency.dev/",
-    use: "Public append-only logs of every issued TLS certificate — used to notice new subdomains appearing.",
-    phase: "Lookout (planned)",
+    name: "Certificate Transparency logs (via crt.sh)",
+    url: "https://crt.sh/",
+    use: "Public append-only logs of every issued TLS certificate — used to notice new subdomains appearing. Existence-only: we record that a cert exists; we never connect to the host.",
+    phase: "Lookout (backfill live)",
   },
   {
     name: "Live public page source",

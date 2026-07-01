@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { synthesizeTitle } from "@daylight/feeds";
-import { domainHistoryRows, domainRow } from "@/lib/data";
+import { domainHistoryRows, domainRow, subdomainsForApex, type SubdomainRow } from "@/lib/data";
 import { domainFlag } from "@/lib/ledger";
+import { flags } from "@/lib/flags";
 import { EmptyState, Panel, SeverityBadge, SourceLink, Timestamp } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +39,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
   }
 
   const flag = safe(() => domainFlag(row), null);
+  const subdomains = flags().lookout ? safe(() => subdomainsForApex(domain), []) : [];
 
   return (
     <div className="space-y-6">
@@ -101,6 +104,45 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
           </Panel>
         )}
       </section>
+
+      {flags().lookout ? (
+        <section className="space-y-3">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
+              Subdomains (from CT logs)
+            </h2>
+            <span className="font-mono text-xs text-faint">{subdomains.length}</span>
+          </div>
+          {subdomains.length === 0 ? (
+            <EmptyState
+              title="No subdomains recorded for this apex yet."
+              hint="Lookout records subdomains it sees in public Certificate Transparency logs. Existence-only."
+            />
+          ) : (
+            <Panel>
+              <ul className="divide-y divide-edge">
+                {subdomains.map((s: SubdomainRow) => (
+                  <li key={s.fqdn} className="flex items-start gap-3 px-4 py-2.5">
+                    <SeverityBadge severity={s.flag_severity ?? "info"} />
+                    <div className="min-w-0 flex-1">
+                      <span className="font-mono text-sm text-ink">{s.fqdn}</span>
+                      {s.flag_reason ? (
+                        <p className="mt-0.5 text-xs text-muted">{s.flag_reason}</p>
+                      ) : null}
+                    </div>
+                    <Timestamp iso={s.first_seen} />
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          )}
+          <p className="text-xs text-faint">
+            <Link href="/lookout" className="text-signal hover:text-ink">
+              All new subdomains →
+            </Link>
+          </p>
+        </section>
+      ) : null}
     </div>
   );
 }

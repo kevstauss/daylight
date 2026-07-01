@@ -7,10 +7,11 @@ import {
   type DomainRow,
   type ScanRow,
   type SearchFilter,
+  type SubdomainRow,
 } from "@daylight/db";
 import { changeToEntry, type FeedEntry } from "@daylight/feeds";
 
-export type { ChangeRow, DomainRow, ScanRow } from "@daylight/db";
+export type { ChangeRow, DomainRow, ScanRow, SubdomainRow } from "@daylight/db";
 
 export function statusRows(): ScanRow[] {
   return getDb().getStatus();
@@ -47,5 +48,24 @@ export function domainCount(): number {
 
 export function changeCount(): number {
   const row = getDb().sql.prepare(`SELECT COUNT(*) AS n FROM changes`).get() as { n: number };
+  return row.n;
+}
+
+// ---- Lookout (Phase 2) ----------------------------------------------------
+
+export function lookoutChanges(opts: { severity?: string; limit?: number } = {}): ChangeRow[] {
+  return getDb().listChanges({ module: "lookout", severity: opts.severity, limit: opts.limit ?? 50 });
+}
+
+export function subdomainsForApex(apex: string): SubdomainRow[] {
+  return getDb().subdomainsByApex(apex);
+}
+
+export function searchSubdomains(f: { q?: string; severity?: string; limit?: number }): SubdomainRow[] {
+  return getDb().searchSubdomains(f);
+}
+
+export function subdomainCount(): number {
+  const row = getDb().sql.prepare(`SELECT COUNT(*) AS n FROM subdomains`).get() as { n: number };
   return row.n;
 }

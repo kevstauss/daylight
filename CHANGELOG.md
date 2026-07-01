@@ -6,9 +6,27 @@ Rendered publicly at `/changelog`.
 Everything Daylight does is **observational and built on already-public data**. See
 `/methods` for every source, the bot's contact, and the observational-only scope.
 
-## Unreleased
+## Unreleased — Lookout (Phase 2, in progress toward `v0.3`)
 
-- Next up: Phase 2 (Lookout — certificate-transparency subdomain watcher). Ships as `v0.3`.
+**Certificate Transparency watcher.** Daylight now reads public CT logs so a new `.gov`
+subdomain surfaces the day its certificate is issued — enriched with who owns the apex
+(from Ledger). Existence-only: we record that a cert exists; we never connect to the host
+(many sit behind a Cloudflare Access gate — untouched).
+
+Live now (behind `FLAG_LOOKOUT`):
+
+- **`/lookout`** — new-subdomain feed with flag scoring, filterable by severity.
+- **`/lookout/feed.xml` + `/lookout/feed.json`** — the subdomain change feed.
+- **Cert/subdomain section on `/domain/{name}`** — the subdomains seen for an apex.
+- **Flag scoring:** high-signal labels (`previews`/`staging`/`infra`/…), a **function-mimic**
+  heuristic that flags a name imitating another agency (e.g. `vote-gov.previews.ndstudio.gov`
+  looks like `vote.gov` under the White House–controlled apex), and a collection/inference
+  infrastructure flag (`analytics.infra.ndstudio.gov`).
+- **crt.sh backfill** with backoff + an HTML-scrape fallback (crt.sh 502s under load), and
+  idempotent ingest keyed by fqdn / cert hash.
+
+Still to come for the `v0.3` tag (needs a hosting decision): the always-on **certstream**
+worker for real-time ingest, and the SQLite → Postgres migration that real-time ingest wants.
 
 ## v0.2 — Ledger (the first phase you can use)
 
