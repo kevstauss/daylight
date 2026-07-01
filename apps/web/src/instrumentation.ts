@@ -50,15 +50,20 @@ export async function register(): Promise<void> {
     const wl = loadWl();
     if (!wl) return;
     const database = db.createDb(db.resolveDbPath());
+    const scanId = database.recordScanStart("lookout"); // one aggregate scan for /status
     try {
       let added = 0;
+      let certsSeen = 0;
       for (const apex of [...wl.apexDomains, ...wl.subdomainApexes]) {
         const certs = await lookout.fetchCrtShCerts(apex);
-        added += lookout.runLookoutBackfill({ db: database, watchlist: wl, certs }).subdomainsAdded;
+        certsSeen += certs.length;
+        added += lookout.runLookoutBackfill({ db: database, watchlist: wl, certs, recordScan: false }).subdomainsAdded;
         await new Promise((r) => setTimeout(r, 2000)); // be gentle with crt.sh
       }
+      database.recordScanFinish(scanId, { ok: true, itemsSeen: certsSeen, changesEmitted: added });
       console.log(`[lookout:cron] backfill complete — ${added} new subdomains`);
     } catch (err) {
+      database.recordScanFinish(scanId, { ok: false, error: String(err), itemsSeen: 0, changesEmitted: 0 });
       console.error("[lookout] run error", err);
     } finally {
       database.close();

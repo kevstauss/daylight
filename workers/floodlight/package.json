@@ -19,7 +19,8 @@
   },
   "types": "./src/index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "sweep": "tsx src/sweep-cli.ts"
   },
   "dependencies": {
     "@daylight/core": "workspace:*",

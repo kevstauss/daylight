@@ -31,17 +31,31 @@ async function main(): Promise<void> {
   const db = createDb(resolveDbPath());
   const apexes = [...watchlist.apexDomains, ...watchlist.subdomainApexes];
   let totalAdded = 0;
+  let totalCerts = 0;
+  // One scan row for the whole sweep, so /status reflects the full run (not the last apex,
+  // which may have returned nothing when crt.sh 502'd on it).
+  const scanId = db.recordScanStart("lookout");
   try {
     for (const apex of apexes) {
       const certs = await fetchCrtShCerts(apex);
-      const res = runLookoutBackfill({ db, watchlist, certs });
+      const res = runLookoutBackfill({ db, watchlist, certs, recordScan: false });
       totalAdded += res.subdomainsAdded;
+      totalCerts += certs.length;
       // eslint-disable-next-line no-console
       console.log(`[lookout] ${apex}: ${certs.length} certs, ${res.subdomainsAdded} new subdomains`);
       await sleep(2000); // be gentle with crt.sh
     }
+    db.recordScanFinish(scanId, { ok: true, itemsSeen: totalCerts, changesEmitted: totalAdded });
     // eslint-disable-next-line no-console
     console.log(`[lookout] backfill complete — ${totalAdded} new subdomains across ${apexes.length} apexes`);
+  } catch (err) {
+    db.recordScanFinish(scanId, {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+      itemsSeen: totalCerts,
+      changesEmitted: totalAdded,
+    });
+    throw err;
   } finally {
     db.close();
   }

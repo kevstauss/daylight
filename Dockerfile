@@ -14,8 +14,8 @@ WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile
 # Floodlight/Receipts live capture (FLAG_FLOODLIGHT_SCAN / live snapshots) needs a browser.
-# It's off by default; uncomment to enable — adds ~300MB and wants a ~1GB-RAM machine.
-# RUN pnpm --filter @daylight/floodlight exec playwright install --with-deps chromium
+# Enabled: installs headless Chromium + its OS deps (~400MB). Runs on the 2GB machine.
+RUN pnpm --filter @daylight/floodlight exec playwright install --with-deps chromium
 RUN pnpm --filter @daylight/web build
 
 # Runtime reuses the build layer (source + deps present so the tsx-run Ledger worker

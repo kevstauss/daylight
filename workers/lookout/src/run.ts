@@ -13,6 +13,9 @@ export interface RunLookoutOptions {
   now?: string;
   /** Also process apexes outside the watchlist (FLAG_LOOKOUT_ALL_GOV). */
   allGov?: boolean;
+  /** When false, don't record a scan row — the caller records one aggregate scan across a
+   *  multi-apex sweep, so /status shows the whole run, not just the last (maybe empty) apex. */
+  recordScan?: boolean;
 }
 
 export interface RunLookoutResult {
@@ -33,7 +36,8 @@ const CT_SOURCE = "https://crt.sh/";
 export function runLookoutBackfill(opts: RunLookoutOptions): RunLookoutResult {
   const { db, watchlist, certs } = opts;
   const now = opts.now ?? nowIso();
-  const scanId = db.recordScanStart("lookout");
+  const record = opts.recordScan !== false;
+  const scanId = record ? db.recordScanStart("lookout") : -1;
 
   try {
     const out = db.sql.transaction((): { subdomainsAdded: number; changeIds: number[] } => {
@@ -102,15 +106,17 @@ export function runLookoutBackfill(opts: RunLookoutOptions): RunLookoutResult {
       return { subdomainsAdded, changeIds };
     })();
 
-    db.recordScanFinish(scanId, {
-      ok: true,
-      itemsSeen: certs.length,
-      changesEmitted: out.changeIds.length,
-    });
+    if (record) {
+      db.recordScanFinish(scanId, {
+        ok: true,
+        itemsSeen: certs.length,
+        changesEmitted: out.changeIds.length,
+      });
+    }
     return { ok: true, certsSeen: certs.length, ...out };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
-    db.recordScanFinish(scanId, { ok: false, error, itemsSeen: 0, changesEmitted: 0 });
+    if (record) db.recordScanFinish(scanId, { ok: false, error, itemsSeen: 0, changesEmitted: 0 });
     return { ok: false, error, certsSeen: 0, subdomainsAdded: 0, changeIds: [] };
   }
 }

@@ -26,9 +26,11 @@ primary_region = "iad"
   # DAYLIGHT_LOOKOUT_CRON (e.g. "40 1 * * *"). Left unset so the first backfill is manual
   # (`pnpm --filter @daylight/lookout backfill`) — crt.sh is flaky; watch the first run.
   FLAG_LOOKOUT = "1"
-  # Floodlight (Phase 3): analysis engine is live; the /floodlight UI shows scorecards once
-  # the live page-capture scanner is enabled (pending a scheduler/host decision).
+  # Floodlight (Phase 3): analysis engine + live page-capture scanner. The scan box is
+  # restricted to federal .gov hosts (isGovHost), which bounds the SSRF surface without a
+  # network egress filter. Needs the browser in the image (Dockerfile) + a ~2GB machine.
   FLAG_FLOODLIGHT = "1"
+  FLAG_FLOODLIGHT_SCAN = "1"
   # Receipts (Phase 4): removal-ledger engine is live; the ledger fills once the live
   # snapshot capture + Wayback push are enabled (pending a scheduler/host decision).
   FLAG_RECEIPTS = "1"
@@ -38,11 +40,10 @@ primary_region = "iad"
   FLAG_REDTAPE = "1"
 
 [[vm]]
-  # Pin the guest for reproducibility + headroom. 512MB is comfortable for the Next.js
-  # read-path plus the ~1,300-row federal seed. Bump to "1gb" only if the (currently
-  # commented-out) Floodlight/Receipts browser capture path is enabled in the Dockerfile.
+  # 2GB: the Next.js read-path + in-process crons + a headless Chromium spawn for live
+  # Floodlight/Receipts capture. (Was 512MB before the browser was enabled.)
   size = "shared-cpu-1x"
-  memory = "512mb"
+  memory = "2gb"
 
 [[mounts]]
   source = "daylight_data"

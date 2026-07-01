@@ -6,6 +6,7 @@ import { synthesizeTitle } from "@daylight/feeds";
 import { type ChangeRow, ledgerChangeCount, ledgerChanges } from "@/lib/data";
 import { flags } from "@/lib/flags";
 import { Eyebrow, InternalLink, Panel, SeverityBadge, Timestamp } from "@/components/ui";
+import { LedgerTabs } from "@/components/ledger-tabs";
 
 export const metadata: Metadata = { title: "Ledger activity" };
 export const dynamic = "force-dynamic";
@@ -62,6 +63,8 @@ export default async function LedgerPage({
           the public source. Neutral observations, dated to the registry commit that made them.
         </p>
       </div>
+
+      <LedgerTabs active="activity" />
 
       {/* Severity filter */}
       <div className="flex flex-wrap gap-1.5">

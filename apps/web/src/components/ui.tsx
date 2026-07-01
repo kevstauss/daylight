@@ -16,9 +16,11 @@ export function SeverityBadge({ severity }: { severity: string }) {
     info: "border-edgeStrong bg-transparent text-faint",
   };
   const label = severity === "high" || severity === "notable" ? severity : "info";
+  // Fixed width so the stamp column is uniform and every row's content (domains, titles)
+  // aligns down the left — an audit-ledger look. Used across all the list views.
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-sm border px-1.5 py-[3px] font-mono text-[10px] uppercase leading-none tracking-[0.12em] ${map[label]}`}
+      className={`inline-flex w-[4.5rem] shrink-0 items-center justify-center rounded-sm border px-1 py-[3px] font-mono text-[10px] uppercase leading-none tracking-[0.12em] ${map[label]}`}
     >
       {label}
     </span>

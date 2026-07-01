@@ -6,6 +6,7 @@ import { flags } from "@/lib/flags";
 import { domainCount, searchRegistry } from "@/lib/data";
 import { domainFlag, orgResolver } from "@/lib/ledger";
 import { EmptyState, Panel } from "@/components/ui";
+import { LedgerTabs } from "@/components/ledger-tabs";
 
 export const metadata: Metadata = { title: "Registry" };
 export const dynamic = "force-dynamic";
@@ -42,9 +43,15 @@ export default async function RegistryPage({
         <p className="mt-1 max-w-2xl text-sm text-muted">
           Who owns each federal <code className="font-mono text-ink">.gov</code> apex domain, and
           the published security contact. Searching {total.toLocaleString()} domains from CISA&rsquo;s
-          public registry.
+          public registry. For the change history, filterable by flag, see{" "}
+          <Link href="/ledger" className="link">
+            Activity
+          </Link>
+          .
         </p>
       </div>
+
+      <LedgerTabs active="registry" />
 
       <form action="/registry" method="get" className="flex gap-2">
         <input
