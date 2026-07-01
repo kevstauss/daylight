@@ -12,6 +12,8 @@ export interface Flags {
   lookout: boolean;
   /** Phase 3 — /floodlight tracker scorecards + hall of shame. */
   floodlight: boolean;
+  /** Phase 3a — the live "scan this URL" box (needs a browser + ~1GB RAM). */
+  floodlightScan: boolean;
   /** Phase 4 — /receipts removal ledger + snapshot history. */
   receipts: boolean;
   /** Phase 5 — /redtape human-reviewed PIA/SORN gap list. */
@@ -25,6 +27,7 @@ export function flags(): Flags {
     heuristics: flag("FLAG_LEDGER_HEURISTICS"),
     lookout: flag("FLAG_LOOKOUT"),
     floodlight: flag("FLAG_FLOODLIGHT"),
+    floodlightScan: flag("FLAG_FLOODLIGHT_SCAN"),
     receipts: flag("FLAG_RECEIPTS"),
     redtape: flag("FLAG_REDTAPE"),
   };

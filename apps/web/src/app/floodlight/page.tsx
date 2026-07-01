@@ -46,6 +46,14 @@ export default async function FloodlightPage({
           session-replay tools, the reverse-proxy disguise trick, and whether the page even has a
           privacy notice. Passive, public-page loads only. {total.toLocaleString()} pages scored.
         </p>
+        {flags().floodlightScan ? (
+          <Link
+            href="/floodlight/scan"
+            className="mt-3 inline-block rounded border border-edgeStrong bg-panel px-3 py-1.5 font-mono text-xs text-ink transition-colors hover:border-ink"
+          >
+            Scan a URL →
+          </Link>
+        ) : null}
       </div>
 
       {rows.length === 0 ? (

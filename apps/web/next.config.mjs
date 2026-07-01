@@ -15,8 +15,8 @@ const nextConfig = {
     "@daylight/floodlight",
     "@daylight/receipts",
   ],
-  // better-sqlite3 is a native addon — never bundle it; require at runtime.
-  serverExternalPackages: ["better-sqlite3"],
+  // Native / heavy server-only packages — never bundle; require at runtime.
+  serverExternalPackages: ["better-sqlite3", "playwright", "playwright-core"],
   // Workspace packages use ESM-correct ".js" import specifiers that point at ".ts"
   // source. Teach webpack to resolve them (tsc/vitest/tsx already do).
   webpack: (config) => {

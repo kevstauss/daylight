@@ -7,6 +7,14 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./capture": {
+      "types": "./src/capture.ts",
+      "default": "./src/capture.ts"
+    },
+    "./guards": {
+      "types": "./src/guards.ts",
+      "default": "./src/guards.ts"
     }
   },
   "types": "./src/index.ts",
@@ -18,6 +26,7 @@
     "@daylight/db": "workspace:*",
     "@daylight/feeds": "workspace:*",
     "@daylight/fingerprints": "workspace:*",
-    "@daylight/redact": "workspace:*"
+    "@daylight/redact": "workspace:*",
+    "playwright": "^1.49.1"
   }
 }

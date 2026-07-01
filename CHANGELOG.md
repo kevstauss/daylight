@@ -76,9 +76,14 @@ tracker scanner's brain is built and fixture-tested (the project's heaviest lift
 - `/floodlight` hall of shame + `/floodlight/feed.*` are live behind `FLAG_FLOODLIGHT`;
   tracker add/remove diffs emit change events (Receipts will consume these in Phase 4).
 
-Deferred (needs a scan-scheduler/host decision): the live Playwright page-capture adapter.
-The engine is pure over a captured page, so it is fully tested without touching live sites —
-and per the guardrails, Daylight never submits forms, authenticates, or follows an access gate.
+**Live capture is now built** (behind `FLAG_FLOODLIGHT_SCAN`): a Playwright adapter loads a
+public page once, captures every request + DOM facts + a screenshot, and a **"scan this URL"
+box** at `/floodlight/scan` scores any public page on demand. Guardrails are enforced in code:
+public http(s) only with **SSRF blocking** (private/loopback/cloud-metadata refused), robots.txt
+respected, an honest User-Agent, and an access-gated page (Cloudflare Access / SSO) is noted as
+existing but **never entered** — no forms submitted, nothing clicked. Tested against local
+fixtures + a real public page; verified the metadata endpoint is refused. Off by default (it
+needs a browser in the image and ~1 GB RAM); running scheduled sweeps is still a host decision.
 
 **Receipts removal-ledger engine (Phase 4 core, toward `v0.5`).** The counter-move to an
 apparatus built to be sealed and deleted:
