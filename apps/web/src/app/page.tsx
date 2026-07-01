@@ -1,121 +1,105 @@
 import Link from "next/link";
 import { changeCount, domainCount, globalChanges } from "@/lib/data";
 import { flags } from "@/lib/flags";
-import { SITE_TAGLINE } from "@/lib/site";
-import { EmptyState, InternalLink, Panel, SeverityBadge, Timestamp } from "@/components/ui";
+import { EmptyState, Eyebrow, InternalLink, Panel, SeverityBadge, Timestamp } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
+const MODULES = [
+  { key: "registry", href: "/registry", name: "Ledger", blurb: "Who owns each federal .gov, and every change to the record." },
+  { key: "lookout", href: "/lookout", name: "Lookout", blurb: "New subdomains the day their certificate is issued." },
+  { key: "floodlight", href: "/floodlight", name: "Floodlight", blurb: "Is this .gov tracking you? Trackers, session replay, the reverse-proxy trick." },
+  { key: "receipts", href: "/receipts", name: "Receipts", blurb: "What quietly disappeared — a dated, archived removal ledger." },
+  { key: "redtape", href: "/redtape", name: "Redtape", blurb: "Sites collecting personal data with no published privacy filing." },
+] as const;
+
 export default function Home() {
   const f = flags();
-  const recent = safe(() => globalChanges(8), []);
+  const recent = safe(() => globalChanges(9), []);
   const domains = safe(() => domainCount(), 0);
   const changes = safe(() => changeCount(), 0);
-  const feedHref = f.feed ? "/ledger/feed.xml" : "/feed.xml";
+  const live = MODULES.filter((m) => f[m.key as keyof typeof f]);
 
   return (
-    <div className="space-y-10">
-      <section className="space-y-4">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          The ledger is always watching.
+    <div className="space-y-14">
+      <section className="space-y-6">
+        <h1 className="max-w-3xl text-[30px] font-extrabold leading-[1.06] tracking-[-0.02em] text-ink sm:text-[42px]">
+          A public record of who runs the federal web — and what quietly changes when no one is looking.
         </h1>
-        <p className="max-w-2xl text-muted">{SITE_TAGLINE}</p>
-        <p className="max-w-2xl text-sm text-muted">
-          Daylight reads the public federal <code className="font-mono text-ink">.gov</code>{" "}
-          ownership registry every day and keeps a timestamped record of who owns what — and of
-          every change. Reporters can subscribe to a name; citizens can ask &ldquo;who owns this{" "}
-          .gov?&rdquo; Everything is observational, on public data.
+        <p className="max-w-measure text-[15px] leading-relaxed text-muted">
+          Daylight reads already-public data — the federal <span className="font-mono text-ink">.gov</span>{" "}
+          ownership registry, certificate transparency logs, live page source — and keeps a
+          timestamped, source-linked record of it. Reporters can subscribe to a name; anyone can ask
+          who owns a <span className="font-mono text-ink">.gov</span> and whether it&rsquo;s watching them.
         </p>
-        <div className="flex flex-wrap gap-3 pt-1 font-mono text-xs">
-          {f.registry ? (
-            <Link
-              href="/registry"
-              className="rounded border border-edge bg-panel px-3 py-1.5 text-ink hover:border-signal"
-            >
-              Search the registry →
-            </Link>
-          ) : null}
-          <Link
-            href={feedHref}
-            className="rounded border border-edge bg-panel px-3 py-1.5 text-muted hover:text-ink"
-          >
-            Change feed (RSS)
-          </Link>
-          <Link
-            href="/methods"
-            className="rounded border border-edge bg-panel px-3 py-1.5 text-muted hover:text-ink"
-          >
-            Methods &amp; sources
-          </Link>
+
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-y border-edge py-3">
+          <Figure n={domains.toLocaleString()} label="domains watched" />
+          <Figure n={changes.toLocaleString()} label="changes recorded" />
+          <Figure n={String(live.length)} label="modules live" />
+          <span className="font-mono text-xs text-faint">scope: apex .gov</span>
+        </div>
+
+        <div className="flex flex-wrap gap-x-5 gap-y-2 pt-1 text-sm">
+          {f.registry ? <InternalLink href="/registry">Search the registry →</InternalLink> : null}
+          <InternalLink href={f.feed ? "/ledger/feed.xml" : "/feed.xml"}>Subscribe (RSS)</InternalLink>
+          <InternalLink href="/methods">How this works</InternalLink>
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Stat label="Domains watched" value={domains} />
-        <Stat label="Changes recorded" value={changes} />
-        <Stat label="Scope" value="apex .gov" />
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Explore</h2>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {[
-            f.registry && { href: "/registry", title: "Ledger", blurb: "Who owns each federal .gov, and every ownership change." },
-            f.lookout && { href: "/lookout", title: "Lookout", blurb: "New subdomains from certificate transparency logs." },
-            f.floodlight && { href: "/floodlight", title: "Floodlight", blurb: "Is this gov site tracking you? Tracker scorecards." },
-            f.receipts && { href: "/receipts", title: "Receipts", blurb: "The removal ledger — what quietly disappeared." },
-            f.redtape && { href: "/redtape", title: "Redtape", blurb: "Reviewed PIA/SORN filing gaps, with evidence." },
-          ]
-            .filter((m): m is { href: string; title: string; blurb: string } => Boolean(m))
-            .map((m) => (
+      {live.length > 0 ? (
+        <section>
+          <Eyebrow>daylight · what it watches</Eyebrow>
+          <Panel className="divide-y divide-edge">
+            {live.map((m) => (
               <Link
-                key={m.href}
+                key={m.key}
                 href={m.href}
-                className="rounded-lg border border-edge bg-panel px-4 py-3 hover:border-signal"
+                className="group flex items-baseline justify-between gap-4 px-4 py-3.5 transition-colors hover:bg-raised"
               >
-                <div className="text-sm font-semibold text-ink">{m.title}</div>
-                <div className="mt-0.5 text-xs text-muted">{m.blurb}</div>
+                <div className="min-w-0">
+                  <span className="text-[15px] font-semibold text-ink">{m.name}</span>
+                  <span className="ml-2.5 text-sm text-muted">{m.blurb}</span>
+                </div>
+                <span className="shrink-0 font-mono text-xs text-faint transition-colors group-hover:text-alarm">→</span>
               </Link>
             ))}
-        </div>
-      </section>
+          </Panel>
+        </section>
+      ) : null}
 
-      <section className="space-y-3">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-            Recent activity
-          </h2>
-          <InternalLink href="/status">system status →</InternalLink>
+      <section>
+        <div className="mb-2 flex items-baseline justify-between">
+          <Eyebrow>changes · most recent</Eyebrow>
+          <InternalLink href="/status">System status →</InternalLink>
         </div>
         {recent.length === 0 ? (
           <EmptyState
             title="No changes recorded yet."
-            hint="Once the daily Ledger pass runs, ownership and contact changes appear here."
+            hint="Once the daily passes run, every ownership or contact change lands here — timestamped and linked to its public source."
           />
         ) : (
-          <Panel>
-            <ul className="divide-y divide-edge">
-              {recent.map((c) => (
-                <li key={c.id} className="flex items-start gap-3 px-4 py-3">
-                  <SeverityBadge severity={c.severity} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-ink">
-                      {c.reason ?? `${c.field ?? "record"} ${c.kind} on ${c.domain}`}
-                    </p>
-                    <div className="mt-0.5 flex items-center gap-3">
-                      {f.registry ? (
-                        <InternalLink href={`/domain/${encodeURIComponent(c.domain)}`}>
-                          {c.domain}
-                        </InternalLink>
-                      ) : (
-                        <span className="font-mono text-xs text-muted">{c.domain}</span>
-                      )}
-                      <Timestamp iso={c.detected_at} />
-                    </div>
+          <Panel className="divide-y divide-edge">
+            {recent.map((c) => (
+              <div key={c.id} className="flex items-start gap-3 px-4 py-3">
+                <SeverityBadge severity={c.severity} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm leading-snug text-ink">
+                    {c.reason ?? `${c.field ?? "record"} ${c.kind} on ${c.domain}`}
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                    {f.registry ? (
+                      <InternalLink href={`/domain/${encodeURIComponent(c.domain)}`}>
+                        <span className="font-mono text-xs">{c.domain}</span>
+                      </InternalLink>
+                    ) : (
+                      <span className="font-mono text-xs text-muted">{c.domain}</span>
+                    )}
+                    <Timestamp iso={c.detected_at} />
                   </div>
-                </li>
-              ))}
-            </ul>
+                </div>
+              </div>
+            ))}
           </Panel>
         )}
       </section>
@@ -123,16 +107,15 @@ export default function Home() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: number | string }) {
+function Figure({ n, label }: { n: string; label: string }) {
   return (
-    <div className="rounded-lg border border-edge bg-panel px-4 py-3">
-      <div className="font-mono text-xl text-ink">{typeof value === "number" ? value.toLocaleString() : value}</div>
-      <div className="mt-0.5 text-xs text-faint">{label}</div>
-    </div>
+    <span className="flex items-baseline gap-1.5">
+      <span className="font-mono text-base font-semibold tabular-nums text-ink">{n}</span>
+      <span className="text-xs text-faint">{label}</span>
+    </span>
   );
 }
 
-/** Render gracefully even before the DB/migrations exist (walking skeleton). */
 function safe<T>(fn: () => T, fallback: T): T {
   try {
     return fn();

@@ -48,7 +48,7 @@ export default async function LookoutPage({
       <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
         <Link
           href="/lookout"
-          className={`rounded border px-3 py-1.5 ${!severity ? "border-signal text-ink" : "border-edge text-muted hover:text-ink"}`}
+          className={`rounded border px-3 py-1.5 ${!severity ? "border-ink text-ink" : "border-edge text-muted hover:text-ink"}`}
         >
           all
         </Link>
@@ -85,7 +85,7 @@ export default async function LookoutPage({
                   </div>
                   {r.flag_reason ? <p className="mt-0.5 text-xs text-muted">{r.flag_reason}</p> : null}
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-faint">
-                    <Link href={`/domain/${encodeURIComponent(r.apex)}`} className="text-signal hover:text-ink">
+                    <Link href={`/domain/${encodeURIComponent(r.apex)}`} className="link">
                       {r.apex}
                     </Link>
                     {r.apex_owner_org ? <span>{r.apex_owner_org}</span> : null}

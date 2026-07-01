@@ -39,7 +39,7 @@ export default function ReceiptsPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-ink">{c.reason ?? `${c.field ?? "item"} removed from ${c.domain}`}</p>
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs">
-                    <Link href={`/domain/${encodeURIComponent(c.domain)}`} className="text-signal hover:text-ink">
+                    <Link href={`/domain/${encodeURIComponent(c.domain)}`} className="link">
                       {c.domain}
                     </Link>
                     {c.old_value ? <span className="font-mono text-faint">was: {c.old_value}</span> : null}
@@ -53,7 +53,7 @@ export default function ReceiptsPage() {
       )}
 
       <p className="text-xs text-faint">
-        <Link href="/receipts/feed.xml" className="text-signal hover:text-ink">
+        <Link href="/receipts/feed.xml" className="link">
           Removal feed (RSS) →
         </Link>
       </p>

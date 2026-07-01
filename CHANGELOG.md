@@ -23,6 +23,16 @@ composed on one page — with a source link and a "last checked" timestamp on ev
 The composition itself is complete and tested; the sections fill with data as each module's
 deferred live ingest (certstream, Playwright capture, the Redtape researcher) is enabled.
 
+**Visual system — "the public record."** A design pass gives Daylight an identity grounded in
+its own subject: an append-only federal audit trail. **Public Sans** (the US federal
+government's own typeface) leads; **IBM Plex Mono** is the co-voice for every machine fact —
+domains, contacts, content hashes, UTC timestamps. The palette is a cool institutional
+daylight-gray with cool near-black ink and **oxblood** used only as an official "stamp" for
+high-severity flags (with desaturated ochre/pine for the scorecard states). Every record is a
+ledger line — severity stamp, plain statement, mono identifier, UTC timestamp — and every
+section carries a module-path eyebrow (`ledger · ownership`) so the structure of the shared
+observation/change spine is legible on the surface. Underlined-ink links flag oxblood on hover.
+
 ## Unreleased — Lookout (Phase 2, in progress toward `v0.3`)
 
 **Certificate Transparency watcher.** Daylight now reads public CT logs so a new `.gov`

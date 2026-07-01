@@ -102,7 +102,7 @@ export default async function FloodlightPage({
       )}
 
       <p className="text-xs text-faint">
-        <Link href="/floodlight/feed.xml" className="text-signal hover:text-ink">
+        <Link href="/floodlight/feed.xml" className="link">
           Tracker-change feed (RSS) →
         </Link>
       </p>

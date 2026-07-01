@@ -52,11 +52,11 @@ export default async function RegistryPage({
           name="q"
           defaultValue={q}
           placeholder="Search domain, organization, or contact…"
-          className="w-full rounded border border-edge bg-panel px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-signal focus:outline-none"
+          className="w-full rounded border border-edge bg-panel px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-accent focus:outline-none"
         />
         <button
           type="submit"
-          className="rounded border border-edge bg-panel px-4 py-2 font-mono text-xs text-ink hover:border-signal"
+          className="rounded border border-edge bg-panel px-4 py-2 font-mono text-xs text-ink hover:border-ink"
         >
           Search
         </button>
@@ -87,7 +87,7 @@ export default async function RegistryPage({
                       <td className="px-4 py-2.5">
                         <Link
                           href={`/domain/${encodeURIComponent(r.domain)}`}
-                          className="font-mono text-ink underline underline-offset-2 hover:text-signal"
+                          className="font-mono text-ink underline underline-offset-2 hover:text-alarm"
                         >
                           {r.domain}
                         </Link>

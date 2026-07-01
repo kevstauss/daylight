@@ -62,7 +62,7 @@ export default function RedtapePage() {
               <Panel key={g.id} className="px-4 py-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <SeverityBadge severity={a.sev} />
-                  <Link href={`/domain/${encodeURIComponent(g.domain)}`} className="font-mono text-sm text-ink hover:text-signal">
+                  <Link href={`/domain/${encodeURIComponent(g.domain)}`} className="font-mono text-sm text-ink hover:text-alarm">
                     {g.domain}
                   </Link>
                   <span className="text-sm text-muted">— {a.text} as of {date}</span>

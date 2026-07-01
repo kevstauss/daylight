@@ -4,7 +4,7 @@ import { synthesizeTitle } from "@daylight/feeds";
 import { domainHistoryRows, domainRow, subdomainsForApex, type SubdomainRow } from "@/lib/data";
 import { composite, domainFlag } from "@/lib/ledger";
 import { flags } from "@/lib/flags";
-import { EmptyState, Panel, SeverityBadge, SourceLink, Timestamp } from "@/components/ui";
+import { EmptyState, Eyebrow, Panel, SeverityBadge, SourceLink, Timestamp } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +66,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
         </Panel>
       ) : null}
 
+      <Eyebrow>ledger · ownership</Eyebrow>
       <Panel className="px-4 py-4">
         <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
           <Field label="Organization" value={row.org} />
@@ -81,7 +82,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
       </Panel>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">History</h2>
+        <Eyebrow>ledger · history</Eyebrow>
         {history.length === 0 ? (
           <EmptyState
             title="No recorded changes yet."
@@ -110,9 +111,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
       {f.lookout ? (
         <section className="space-y-3">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-              Subdomains (from CT logs)
-            </h2>
+            <Eyebrow>lookout · subdomains (from CT logs)</Eyebrow>
             <span className="font-mono text-xs text-faint">{subdomains.length}</span>
           </div>
           {subdomains.length === 0 ? (
@@ -139,7 +138,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
             </Panel>
           )}
           <p className="text-xs text-faint">
-            <Link href="/lookout" className="text-signal hover:text-ink">
+            <Link href="/lookout" className="link">
               All new subdomains →
             </Link>
           </p>
@@ -148,7 +147,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
 
       {f.floodlight ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Tracker scorecard</h2>
+          <Eyebrow>floodlight · tracker scorecard</Eyebrow>
           {comp && comp.scorecards.length > 0 ? (
             <Panel>
               <ul className="divide-y divide-edge">
@@ -177,7 +176,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
 
       {f.receipts ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Snapshots &amp; removals</h2>
+          <Eyebrow>receipts · snapshots &amp; removals</Eyebrow>
           {comp && comp.removals.length > 0 ? (
             <Panel>
               <ul className="divide-y divide-edge">
@@ -202,7 +201,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
 
       {f.redtape ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Privacy filings</h2>
+          <Eyebrow>redtape · privacy filings</Eyebrow>
           {comp && comp.gaps.length > 0 ? (
             <Panel>
               <ul className="divide-y divide-edge">
@@ -219,7 +218,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
                     {g.fact_vs_inference_notes ? (
                       <p className="mt-0.5 text-xs text-muted">{g.fact_vs_inference_notes}</p>
                     ) : null}
-                    <Link href="/redtape" className="text-xs text-signal hover:text-ink">
+                    <Link href="/redtape" className="text-xs link">
                       evidence + search trail →
                     </Link>
                   </li>
