@@ -15,6 +15,7 @@ export default defineConfig({
       "@daylight/lookout": r("./workers/lookout/src/index.ts"),
       "@daylight/fingerprints": r("./packages/fingerprints/src/index.ts"),
       "@daylight/floodlight": r("./workers/floodlight/src/index.ts"),
+      "@daylight/receipts": r("./workers/receipts/src/index.ts"),
     },
   },
   test: {

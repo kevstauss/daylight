@@ -21,7 +21,7 @@ Same lane as the EFF, The Markup, and EPIC.
 | 1 | **Ledger** | Searchable owner registry + change feed + person/org watches | ✅ tagged `v0.2` (reviewed) |
 | 2 | Lookout | New-subdomain feed + flag scoring + Ledger-owner enrichment | 🔨 core on `main` — certstream + Postgres pending a hosting decision |
 | 3 | Floodlight | Tracker & session-replay scorecards | 🔨 engine on `main` — live Playwright capture pending a scheduler/host decision |
-| 4 | Receipts | Snapshot archive + removal ledger | ◻︎ planned |
+| 4 | Receipts | Snapshot archive + removal ledger | 🔨 removal-ledger engine on `main` — live snapshot + Wayback push pending the same decision |
 | 5 | Redtape | PIA/SORN gap-finder (human-gated) | ◻︎ planned |
 | 6 | Daylight | Unified per-domain dashboard | ◻︎ planned |
 

@@ -47,6 +47,24 @@ Deferred (needs a scan-scheduler/host decision): the live Playwright page-captur
 The engine is pure over a captured page, so it is fully tested without touching live sites —
 and per the guardrails, Daylight never submits forms, authenticates, or follows an access gate.
 
+**Receipts removal-ledger engine (Phase 4 core, toward `v0.5`).** The counter-move to an
+apparatus built to be sealed and deleted:
+
+- **Snapshot diff engine:** compares two snapshots of a page and flags what quietly
+  disappeared — a **tracker removed**, a **privacy notice removed**, an **agency seal
+  removed** — each a dated, high-severity `removed` event with before/after. This turns
+  "we took it down" (NDS pulled its tracking the day after the Guardian's questions) into
+  evidence, not an escape.
+- **`/receipts` removal ledger** + `/receipts/feed.*` are live behind `FLAG_RECEIPTS`.
+- **Wayback SPN2** archiving is wired as an injected saver (mocked in CI, opt-in in prod) so
+  each snapshot can carry an independent archived copy we don't control.
+- Redaction runs on captured text before persistence; the **raw store (screenshots/DOM) is
+  never served publicly** — screenshots go public only after a human-review flag.
+
+Deferred (needs the scan-scheduler/host decision, shared with Floodlight): the live
+Playwright snapshot + screenshot capture and the live Wayback push. The diff engine that
+consumes them is built and fixture-tested.
+
 ## v0.2 — Ledger (the first phase you can use)
 
 **The registry, now watched over time.** Daylight reads the public federal `.gov`

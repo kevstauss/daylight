@@ -102,4 +102,21 @@ CREATE TABLE IF NOT EXISTS scorecards (
   reasons_json TEXT                   -- JSON array of human-readable reasons
 );
 CREATE INDEX IF NOT EXISTS ix_scorecard_domain ON scorecards(domain, scanned_at DESC);
+
+-- Receipts (Phase 4): timestamped snapshots of watched pages. The screenshot_ref points
+-- into the RAW store, which is NEVER served publicly (screenshots public only post-review).
+CREATE TABLE IF NOT EXISTS snapshots (
+  id INTEGER PRIMARY KEY,
+  url TEXT NOT NULL,
+  domain TEXT NOT NULL,
+  captured_at TEXT NOT NULL,
+  dom_hash TEXT,
+  screenshot_ref TEXT,                -- raw-store path; never served publicly
+  tracker_snapshot_json TEXT,         -- JSON array of tracker keys
+  privacy_text_hash TEXT,             -- null = no privacy notice present
+  form_fields_json TEXT,              -- JSON array of PII field kinds
+  seal_present INTEGER,               -- 0/1
+  wayback_url TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_snap_url ON snapshots(url, captured_at DESC);
 `;

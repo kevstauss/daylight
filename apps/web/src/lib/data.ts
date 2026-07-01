@@ -85,3 +85,18 @@ export function scorecardCount(): number {
   const row = getDb().sql.prepare(`SELECT COUNT(*) AS n FROM scorecards`).get() as { n: number };
   return row.n;
 }
+
+// ---- Receipts (Phase 4) ---------------------------------------------------
+
+export function removalLedgerRows(limit = 100): ChangeRow[] {
+  return getDb().removalLedger(limit);
+}
+
+export function receiptsChanges(opts: { severity?: string; limit?: number } = {}): ChangeRow[] {
+  return getDb().listChanges({ module: "receipts", severity: opts.severity, limit: opts.limit ?? 50 });
+}
+
+export function snapshotCount(): number {
+  const row = getDb().sql.prepare(`SELECT COUNT(*) AS n FROM snapshots`).get() as { n: number };
+  return row.n;
+}

@@ -87,6 +87,20 @@ export interface ScorecardRow {
   reasons_json: string | null;
 }
 
+export interface SnapshotRow {
+  id: number;
+  url: string;
+  domain: string;
+  captured_at: string;
+  dom_hash: string | null;
+  screenshot_ref: string | null;
+  tracker_snapshot_json: string | null;
+  privacy_text_hash: string | null;
+  form_fields_json: string | null;
+  seal_present: number | null;
+  wayback_url: string | null;
+}
+
 /** Map a persisted domains row back to the normalized DomainRecord contract. */
 export function rowToDomainRecord(row: DomainRow): DomainRecord {
   return {

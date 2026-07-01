@@ -58,10 +58,10 @@ export const DATA_SOURCES: { name: string; url: string; use: string; phase: stri
     phase: "Floodlight (engine live)",
   },
   {
-    name: "Wayback Save Page Now",
+    name: "Wayback Save Page Now (SPN2)",
     url: "https://web.archive.org/",
-    use: "An independent third-party archive of snapshots, so the record is not one we control.",
-    phase: "Receipts (planned)",
+    use: "An independent third-party archive of snapshots, so the record of what a page showed is not one we control. Powers the removal ledger.",
+    phase: "Receipts (removal ledger live; capture pending)",
   },
   {
     name: "Federal Register API",

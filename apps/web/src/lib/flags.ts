@@ -12,6 +12,8 @@ export interface Flags {
   lookout: boolean;
   /** Phase 3 — /floodlight tracker scorecards + hall of shame. */
   floodlight: boolean;
+  /** Phase 4 — /receipts removal ledger + snapshot history. */
+  receipts: boolean;
 }
 
 export function flags(): Flags {
@@ -21,5 +23,6 @@ export function flags(): Flags {
     heuristics: flag("FLAG_LEDGER_HEURISTICS"),
     lookout: flag("FLAG_LOOKOUT"),
     floodlight: flag("FLAG_FLOODLIGHT"),
+    receipts: flag("FLAG_RECEIPTS"),
   };
 }

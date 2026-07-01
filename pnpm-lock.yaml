@@ -47,6 +47,9 @@ importers:
       '@daylight/lookout':
         specifier: workspace:*
         version: link:../../workers/lookout
+      '@daylight/receipts':
+        specifier: workspace:*
+        version: link:../../workers/receipts
       marked:
         specifier: ^14.1.4
         version: 14.1.4
@@ -175,6 +178,24 @@ importers:
       '@daylight/feeds':
         specifier: workspace:*
         version: link:../../packages/feeds
+
+  workers/receipts:
+    dependencies:
+      '@daylight/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@daylight/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@daylight/feeds':
+        specifier: workspace:*
+        version: link:../../packages/feeds
+      '@daylight/fingerprints':
+        specifier: workspace:*
+        version: link:../../packages/fingerprints
+      '@daylight/redact':
+        specifier: workspace:*
+        version: link:../../packages/redact
 
 packages:
 

@@ -8,6 +8,7 @@ import type {
   ObservationRow,
   ScanRow,
   ScorecardRow,
+  SnapshotRow,
   SubdomainRow,
 } from "./rows.js";
 
@@ -421,9 +422,73 @@ export class DaylightDb {
       .all(f.severity ? { severity: f.severity } : {}) as ScorecardRow[];
   }
 
+  // ---- snapshots (Receipts / Phase 4) -------------------------------------
+
+  insertSnapshot(snap: SnapshotInput): number {
+    const info = this.sql
+      .prepare(
+        `INSERT INTO snapshots
+           (url, domain, captured_at, dom_hash, screenshot_ref, tracker_snapshot_json,
+            privacy_text_hash, form_fields_json, seal_present, wayback_url)
+         VALUES
+           (@url, @domain, @capturedAt, @domHash, @screenshotRef, @trackerSnapshotJson,
+            @privacyTextHash, @formFieldsJson, @sealPresent, @waybackUrl)`,
+      )
+      .run({
+        url: snap.url,
+        domain: snap.domain,
+        capturedAt: snap.capturedAt,
+        domHash: snap.domHash ?? null,
+        screenshotRef: snap.screenshotRef ?? null,
+        trackerSnapshotJson: snap.trackerSnapshotJson ?? null,
+        privacyTextHash: snap.privacyTextHash ?? null,
+        formFieldsJson: snap.formFieldsJson ?? null,
+        sealPresent: snap.sealPresent ? 1 : 0,
+        waybackUrl: snap.waybackUrl ?? null,
+      });
+    return Number(info.lastInsertRowid);
+  }
+
+  latestSnapshot(url: string): SnapshotRow | null {
+    const row = this.sql
+      .prepare(`SELECT * FROM snapshots WHERE url = ? ORDER BY captured_at DESC, id DESC LIMIT 1`)
+      .get(url) as SnapshotRow | undefined;
+    return row ?? null;
+  }
+
+  listSnapshots(url: string): SnapshotRow[] {
+    return this.sql
+      .prepare(`SELECT * FROM snapshots WHERE url = ? ORDER BY captured_at DESC, id DESC`)
+      .all(url) as SnapshotRow[];
+  }
+
+  /** The removal ledger: high-severity `removed` change events from Receipts. */
+  removalLedger(limit = 100): ChangeRow[] {
+    const n = Math.max(1, Math.min(limit, 1000));
+    return this.sql
+      .prepare(
+        `SELECT * FROM changes WHERE module = 'receipts' AND kind = 'removed'
+         ORDER BY detected_at DESC, id DESC LIMIT ${n}`,
+      )
+      .all() as ChangeRow[];
+  }
+
   close(): void {
     this.sql.close();
   }
+}
+
+export interface SnapshotInput {
+  url: string;
+  domain: string;
+  capturedAt: string;
+  domHash?: string | null;
+  screenshotRef?: string | null;
+  trackerSnapshotJson?: string | null;
+  privacyTextHash?: string | null;
+  formFieldsJson?: string | null;
+  sealPresent?: boolean;
+  waybackUrl?: string | null;
 }
 
 export interface ScorecardInput {
