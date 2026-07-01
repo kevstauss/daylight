@@ -1,6 +1,6 @@
 import type { DomainRecord } from "@daylight/core";
 import { sha256 } from "@daylight/core";
-import { EXPECTED_HEADER, parseCsv, verifyHeader } from "./csv.js";
+import { EXPECTED_HEADER, isRecognizedHeader, parseCsv, verifyHeader } from "./csv.js";
 import { nullify } from "./text.js";
 
 /** Map a raw CSV row to a normalized DomainRecord (spec §5.2). */
@@ -24,10 +24,15 @@ export interface NormalizedCsv {
   records: DomainRecord[];
 }
 
-/** Parse + verify header + normalize. On header drift, records is empty (never mis-map). */
-export function normalizeCsv(text: string): NormalizedCsv {
+/**
+ * Parse + verify header + normalize. On header drift, records is empty (never mis-map).
+ * `allowHistorical` widens acceptance to the recognized older CISA headers (git-history
+ * backfill only) — their columns are positionally identical, so normalizeRow maps them the
+ * same way. The live daily pass omits it, so it still fails loud on ANY non-current header.
+ */
+export function normalizeCsv(text: string, opts: { allowHistorical?: boolean } = {}): NormalizedCsv {
   const { header, rows } = parseCsv(text);
-  const headerOk = verifyHeader(header);
+  const headerOk = opts.allowHistorical ? isRecognizedHeader(header) : verifyHeader(header);
   if (!headerOk) return { header, headerOk, records: [] };
   const records: DomainRecord[] = [];
   for (const r of rows) {

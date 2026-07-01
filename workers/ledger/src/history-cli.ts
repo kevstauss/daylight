@@ -5,6 +5,7 @@
 //   pnpm --filter @daylight/ledger ledger:history            # full backfill (~489 commits)
 //   pnpm --filter @daylight/ledger ledger:history -- --max=10  # last 10 commits (quick check)
 //   pnpm --filter @daylight/ledger ledger:history -- --force   # re-run even if complete
+//   pnpm --filter @daylight/ledger ledger:history -- --reset   # clean rebuild (clear + replay)
 
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -27,7 +28,8 @@ function findWatchlist(): string {
 }
 
 async function main(): Promise<void> {
-  const force = process.argv.includes("--force");
+  const reset = process.argv.includes("--reset");
+  const force = process.argv.includes("--force") || reset;
   const maxArg = process.argv.find((a) => a.startsWith("--max="));
   const max = maxArg ? Number.parseInt(maxArg.split("=")[1] ?? "", 10) : undefined;
 
@@ -54,7 +56,7 @@ async function main(): Promise<void> {
       return csv;
     };
 
-    const res = await backfillHistory({ db, watchlist, commits, getCsv, force });
+    const res = await backfillHistory({ db, watchlist, commits, getCsv, force, reset });
     // eslint-disable-next-line no-console
     console.log(`[ledger:history] ${JSON.stringify(res)}`);
     if (!res.ok) process.exitCode = 1;

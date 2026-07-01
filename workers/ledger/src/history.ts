@@ -73,6 +73,9 @@ export interface BackfillHistoryOptions {
   subscriptions?: WatchSubscription[];
   /** Re-run even if the completion marker is present. */
   force?: boolean;
+  /** Clean rebuild: clear prior ledger changes/alerts/observations/domains before replaying,
+   *  so a re-run doesn't duplicate already-inserted changes. Implies force. */
+  reset?: boolean;
 }
 
 export interface BackfillHistoryResult {
@@ -96,7 +99,7 @@ export async function backfillHistory(opts: BackfillHistoryOptions): Promise<Bac
   const scanId = db.recordScanStart("ledger");
 
   try {
-    if (!opts.force) {
+    if (!opts.force && !opts.reset) {
       const marker = db.latestObservation("ledger", HISTORY_SENTINEL);
       if (marker && marker.content_hash === HISTORY_DONE_HASH) {
         db.recordScanFinish(scanId, { ok: true, itemsSeen: 0, changesEmitted: 0 });
@@ -118,7 +121,9 @@ export async function backfillHistory(opts: BackfillHistoryOptions): Promise<Bac
       } catch {
         continue; // unreachable commit — skip rather than fail the whole backfill
       }
-      const parsed = normalizeCsv(csv);
+      // allowHistorical: accept the recognized older CISA headers so the backfill replays the
+      // full 2019→now record, not just the current-schema era. Columns are positionally identical.
+      const parsed = normalizeCsv(csv, { allowHistorical: true });
       // Skip header drift AND empty/zero-row revisions. A header-valid but rowless CSV
       // (a mid-edit commit, or a transient truncation) would otherwise diff as a phantom
       // mass-removal of every domain, then swallow the re-addition on the next commit
@@ -165,6 +170,14 @@ export async function backfillHistory(opts: BackfillHistoryOptions): Promise<Bac
     let alertsFired = 0;
 
     db.sql.transaction(() => {
+      if (opts.reset) {
+        // Clean rebuild — clear prior ledger-derived rows so a re-run doesn't duplicate changes.
+        // Order respects the alerts→changes FK. Scans (run audit trail) are left intact.
+        db.sql.prepare("DELETE FROM alerts").run();
+        db.sql.prepare("DELETE FROM changes WHERE module = 'ledger'").run();
+        db.sql.prepare("DELETE FROM observations WHERE module = 'ledger'").run();
+        db.sql.prepare("DELETE FROM domains").run();
+      }
       for (const p of pending) {
         const id = db.insertChange(p.change);
         changesEmitted++;

@@ -47,9 +47,18 @@ every ownership and security-contact change **dated to its actual commit**, run 
 same heuristics and watches as the daily pass. So the site launches with *years* of real,
 dated changes it "missed" by not watching live — including new-EOP-domain and contact-mismatch
 flags on past events. The first commit is a silent baseline (no "added" flood for the ~1,300
-domains that predate us); it's idempotent (a completion marker makes a re-run a no-op); and it
-reads only the public repo. Verified on live data — a 10-commit run recovered dated contact
-changes and caught `fraud.gov` appearing as a new Executive-Office-of-the-President domain.
+domains that predate us); it's idempotent (a completion marker makes a re-run a no-op, and a
+transient upstream failure never writes it); and it reads only the public repo.
+
+**Across every schema era.** CISA's CSV header changed three times since 2019 (`Agency,
+Organization` → `Agency,Organization name` → `Organization name,Suborganization name`), but the
+columns never moved. The backfill recognizes each historical header explicitly and maps them
+positionally, so it replays the *whole* record rather than only the current-schema era — the
+live daily pass still verifies the current header exactly and fails loud on any drift. Verified
+end-to-end on live data: a full run recovered **11,455 dated changes across 2021–2026** (the
+registry's real activity begins ~2021, when CISA began actively maintaining it), with the H1
+contact-mismatch heuristic firing correctly on historical events (e.g. a `.mil` security
+contact on a DoD `.gov`). A `--reset` flag rebuilds cleanly without duplicating prior rows.
 
 ## Unreleased — Daylight dashboard (Phase 6, composition toward `v1.0`)
 

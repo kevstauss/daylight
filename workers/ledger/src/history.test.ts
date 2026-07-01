@@ -77,6 +77,59 @@ describe("git-history backfill — dated historical changes", () => {
     expect(forced.skipped).toBe(false);
     expect(forced.changesEmitted).toBe(2);
   });
+
+  it("--reset rebuilds cleanly without duplicating already-inserted changes", async () => {
+    await backfillHistory({ db, watchlist: wl, commits, getCsv });
+    expect(db.domainHistory("usadf.gov")).toHaveLength(1);
+
+    const rebuilt = await backfillHistory({ db, watchlist: wl, commits, getCsv, reset: true });
+    expect(rebuilt.skipped).toBe(false);
+    expect(rebuilt.changesEmitted).toBe(2);
+    // Prior changes were cleared first, so history is not duplicated.
+    expect(db.domainHistory("usadf.gov")).toHaveLength(1);
+    expect(db.listChanges({ module: "ledger" })).toHaveLength(2);
+  });
+});
+
+describe("git-history backfill — replays across CISA's changing header schemas", () => {
+  // The same domains carried through three header eras. Only the real contact change (in the
+  // current-header commit) should emit; the format transitions must NOT fake a diff.
+  const H19 = "Domain Name,Domain Type,Agency,Organization,City,State,Security Contact Email,,,";
+  const HMID = "Domain name,Domain type,Agency,Organization name,City,State,Security contact email";
+  const gsa = (email: string, hdr: "old" | "now"): string =>
+    hdr === "old"
+      ? `gsa.gov,Federal - Executive,General Services Administration,Technology Transformation Services,Washington,DC,${email},,,`
+      : `gsa.gov,Federal - Executive,General Services Administration,Technology Transformation Services,Washington,DC,${email}`;
+
+  const eras: Record<string, string> = {
+    e2019: [H19, gsa("security@gsa.gov", "old")].join("\n") + "\n", // 2019 schema — baseline
+    e2022: [HMID, gsa("security@gsa.gov", "old")].join("\n") + "\n", // mid schema, same data
+    e2026: [HEADER, gsa("newsec@gsa.gov", "now")].join("\n") + "\n", // current schema, contact change
+  };
+  const eraCommits: HistoryCommit[] = [
+    { sha: "e2019", date: "2019-06-01T00:00:00.000Z" },
+    { sha: "e2022", date: "2022-06-01T00:00:00.000Z" },
+    { sha: "e2026", date: "2026-06-01T00:00:00.000Z" },
+  ];
+
+  it("recovers a change dated to the current-schema commit and fakes none at schema transitions", async () => {
+    const res = await backfillHistory({
+      db,
+      watchlist: wl,
+      commits: eraCommits,
+      getCsv: async (s) => eras[s]!,
+    });
+    expect(res.ok).toBe(true);
+    expect(res.commitsProcessed).toBe(3); // all three eras parsed, none skipped as "drift"
+    // Exactly one change: the 2022→2026 contact change. NO phantom diff at the 2019→2022 rename.
+    const changes = db.domainHistory("gsa.gov");
+    expect(changes).toHaveLength(1);
+    expect(changes[0]!.kind).toBe("modified");
+    expect(changes[0]!.detected_at).toBe("2026-06-01T00:00:00.000Z");
+    // The 2019 row parsed positionally: Agency → org, Organization → suborg.
+    expect(db.getDomain("gsa.gov")?.org).toBe("General Services Administration");
+    expect(db.getDomain("gsa.gov")?.security_contact_email).toBe("newsec@gsa.gov");
+  });
 });
 
 describe("git-history backfill — failure paths never poison the one-time marker", () => {
