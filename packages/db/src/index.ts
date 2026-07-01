@@ -530,9 +530,16 @@ export class DaylightDb {
    */
   publicGaps(limit = 100): GapRow[] {
     const n = Math.max(1, Math.min(limit, 1000));
+    // Enforce the §7.6 "documented negative" invariant structurally on the READ side too: a
+    // public gap must carry a non-empty query + source trail so a stranger can re-verify the
+    // absence. This blocks a trail-less `manual` gap even if a reviewer publishes it. (Explicit
+    // IS NOT NULL / <> '[]' — SQL NULL comparisons via IN/NOT IN would silently never match.)
     return this.sql
       .prepare(
-        `SELECT * FROM gaps WHERE human_reviewed = 1 AND published = 1
+        `SELECT * FROM gaps
+         WHERE human_reviewed = 1 AND published = 1
+           AND queries_run_json IS NOT NULL AND queries_run_json <> '[]'
+           AND sources_checked_json IS NOT NULL AND sources_checked_json <> '[]'
          ORDER BY created_at DESC, id DESC LIMIT ${n}`,
       )
       .all() as GapRow[];

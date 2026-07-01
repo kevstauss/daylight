@@ -102,24 +102,68 @@ export function robotsAllows(robotsTxt: string, path: string, uaToken = "dayligh
   return true;
 }
 
-/** Fetch + evaluate the origin's robots.txt. Network/parse failure ⇒ allowed (courtesy). */
-export async function isAllowedByRobots(url: string, ua: string): Promise<boolean> {
+/**
+ * Fetch + evaluate the origin's robots.txt. This is a SERVER-SIDE request made before the
+ * browser launches, so it does NOT go through the context.route SSRF guard. We therefore
+ * validate every hop ourselves: refuse to auto-follow redirects (redirect:"manual") and
+ * re-run the SSRF host check on each Location before following, capping the chain. Without
+ * this, a page could 302 its /robots.txt to http://169.254.169.254/… and bounce us into the
+ * metadata service. Network/parse failure ⇒ allowed (courtesy — the scan itself is guarded).
+ */
+export async function isAllowedByRobots(url: string, ua: string, opts: UrlGuardOptions = {}): Promise<boolean> {
   try {
     const u = new URL(url);
-    const res = await fetch(`${u.origin}/robots.txt`, {
-      headers: { "user-agent": ua },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) return true;
-    return robotsAllows(await res.text(), u.pathname);
+    let target = `${u.origin}/robots.txt`;
+    for (let hop = 0; hop < 5; hop++) {
+      const t = new URL(target);
+      if (t.protocol !== "http:" && t.protocol !== "https:") return true;
+      if (!(await hostAllowed(t.hostname, opts))) return true; // can't vet the hop → courtesy allow
+      const res = await fetch(target, {
+        headers: { "user-agent": ua },
+        redirect: "manual",
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get("location");
+        if (!loc) return true;
+        target = new URL(loc, target).toString(); // resolve, re-validate on next iteration
+        continue;
+      }
+      if (!res.ok) return true;
+      return robotsAllows(await res.text(), u.pathname);
+    }
+    return true; // redirect loop / too many hops → courtesy allow
   } catch {
     return true;
   }
 }
 
+// Known identity-provider / access-wall signals. A page whose FINAL url matches one of these
+// is sitting behind SSO or an access gate we must never authenticate past (existence-only).
+const GATE_PATTERNS =
+  /cloudflareaccess\.com|login\.microsoftonline\.com|\.okta\.com|\.auth0\.com|amazoncognito\.com|\.onelogin\.com|pingidentity\.com|(^|\/\/)(secure\.)?login\.gov\/|\/oauth2\/(authorize|v2)|\/openid|\/saml2?\/|\/adfs\/|response_type=code/i;
+
 /** Detect an access-control wall we must not authenticate past (existence-only). */
 export function looksGated(finalUrl: string): boolean {
-  return /cloudflareaccess\.com|\/oauth2\/authorize|login\.microsoftonline\.com|\.okta\.com\//i.test(
-    finalUrl,
-  );
+  return GATE_PATTERNS.test(finalUrl);
+}
+
+/**
+ * Decide whether a completed navigation landed on a wall — fail toward "gated" so we err on
+ * the side of NOT scraping. Combines the URL/IdP signal with high-precision runtime signals
+ * (an HTTP 401 or a WWW-Authenticate challenge, or a password field on the page) so custom
+ * walls the substring list doesn't name are still caught, without falsely calling a plain
+ * cross-domain redirect an "access wall."
+ */
+export function isGatedNavigation(opts: {
+  finalUrl: string;
+  status?: number;
+  wwwAuthenticate?: boolean;
+  hasPasswordField?: boolean;
+}): boolean {
+  if (looksGated(opts.finalUrl)) return true;
+  if (opts.status === 401) return true;
+  if (opts.wwwAuthenticate) return true;
+  if (opts.hasPasswordField) return true;
+  return false;
 }

@@ -16,6 +16,10 @@ let recent: number[] = [];
 
 async function runScan(formData: FormData): Promise<void> {
   "use server";
+  // Re-check the kill-switch INSIDE the action. A Server Action has its own stable endpoint,
+  // reachable even when the page component's gate isn't rendered — so gating only the page
+  // would leave this browser-spawning path (FLAG_FLOODLIGHT_SCAN exists to disable it) live.
+  if (!flags().floodlightScan) notFound();
   const url = String(formData.get("url") ?? "").trim();
   const back = (msg: string) => redirect(`/floodlight/scan?error=${encodeURIComponent(msg)}`);
   if (!url) back("Enter a public URL to scan.");

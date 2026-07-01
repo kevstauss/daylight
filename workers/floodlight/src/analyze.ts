@@ -44,12 +44,19 @@ export function analyzeCapture(capture: PageCapture): Scorecard {
 
     if (firstParty) {
       // H1 — a first-party endpoint shaped like analytics = reverse-proxy disguise.
-      const proxied = looksProxiedAnalytics(host, path, req.postBody);
+      const proxied = looksProxiedAnalytics(host, path, req.postBody, req.method, req.resourceType);
       if (proxied.matched) {
         firstPartyProxied = true;
-        trackers.push({ vendor: proxied.vendor, category: "analytics", host, path, firstPartyProxied: true });
-        reasons.push(`first-party endpoint ${host}${path} carries an analytics payload shape (reverse-proxy disguise)`);
         if (/posthog/i.test(proxied.vendor) && isSessionReplayPath(path)) sessionReplay = true;
+        // Dedup on vendor+host (the granularity trackerKey diffs on). An analytics endpoint
+        // fires many beacons per load; without this, one finding becomes N duplicate
+        // high-severity "tracker added" changes flooding the Receipts review feed.
+        const key = `fp|${proxied.vendor}|${host}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          trackers.push({ vendor: proxied.vendor, category: "analytics", host, path, firstPartyProxied: true });
+          reasons.push(`first-party endpoint ${host}${path} carries an analytics payload shape (reverse-proxy disguise)`);
+        }
       }
       continue;
     }

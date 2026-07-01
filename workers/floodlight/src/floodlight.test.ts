@@ -150,3 +150,49 @@ describe("§7 rescan diff + redaction", () => {
     expect(obs!.payload_json).toContain("[redacted:email]");
   });
 });
+
+describe("§7 reverse-proxy disguise — precision (no false HIGH on content pages)", () => {
+  const firstPartyGet = (path: string): PageCapture =>
+    capture(
+      `https://example.gov${path}`,
+      [{ url: `https://example.gov${path}`, method: "GET", resourceType: "document" }],
+      dom({ privacyNoticeUrl: "https://example.gov/privacy" }),
+    );
+
+  it("a GET content page at /decide/how-to-vote is NOT flagged as proxied analytics", () => {
+    const sc = analyzeCapture(firstPartyGet("/decide/how-to-vote"));
+    expect(sc.firstPartyProxied).toBe(false);
+    expect(sc.severity).not.toBe("high");
+  });
+
+  it("a GET content page at /s/2024-report is NOT flagged proxied or session-replay", () => {
+    const sc = analyzeCapture(firstPartyGet("/s/2024-report"));
+    expect(sc.firstPartyProxied).toBe(false);
+    expect(sc.sessionReplay).toBe(false);
+  });
+
+  it("a genuine POST beacon to /decide/ with a JSON body IS still flagged", () => {
+    const sc = analyzeCapture(
+      capture(
+        "https://example.gov/",
+        [{ url: "https://example.gov/decide/", method: "POST", resourceType: "fetch", postBody: JSON.stringify({ token: "x" }) }],
+        dom(),
+      ),
+    );
+    expect(sc.firstPartyProxied).toBe(true);
+    expect(sc.severity).toBe("high");
+  });
+
+  it("many first-party analytics beacons to one host collapse to a single tracker (dedup)", () => {
+    const beacon = (p: string): CapturedRequest => ({
+      url: `https://ndstudio.gov${p}`,
+      method: "POST",
+      resourceType: "fetch",
+      postBody: JSON.stringify({ event: "$pageview", distinct_id: "u1", api_key: "phc_x" }),
+    });
+    const sc = analyzeCapture(
+      capture("https://ndstudio.gov/", [beacon("/e/"), beacon("/batch/"), beacon("/e/")], dom()),
+    );
+    expect(sc.trackers.filter((t) => t.firstPartyProxied)).toHaveLength(1);
+  });
+});

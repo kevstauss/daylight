@@ -39,11 +39,63 @@ export const FINGERPRINTS: Fingerprint[] = [
   { vendor: "Mixpanel", category: "analytics", hosts: ["mixpanel.com", "api.mixpanel.com"] },
 ];
 
-/** The registrable domain (eTLD+1, best-effort last two labels). */
+// Multi-label public suffixes in this watchdog's realistic scope. A naive "last two labels"
+// eTLD+1 is wrong for every one of these: it would fold www.smithville.k12.tx.us to `tx.us`
+// (colliding every Texas school district) and bbc.co.uk to `co.uk`. This is a curated subset
+// of the Public Suffix List — the US `.us` locality space (state + k12/cc/lib/state/… tiers,
+// where US state & local government actually live) plus common ccTLD second levels — not the
+// full PSL. Anything not listed falls back to last-two-labels, which is correct for `.gov`,
+// `.com`, etc. (the core Ledger dataset is all single-label `.gov`).
+const US_STATES =
+  "ak al ar az ca co ct dc de fl ga gu hi ia id il in ks ky la ma md me mi mn mo ms mt nc nd ne nh nj nm nv ny oh ok or pa pr ri sc sd tn tx ut va vi vt wa wi wv wy".split(
+    " ",
+  );
+const US_LOCALITY_TIERS = "k12 cc lib state gen cog mus dst pvt tec".split(" ");
+const BASE_MULTI_SUFFIXES = [
+  "co.uk", "org.uk", "me.uk", "ltd.uk", "plc.uk", "net.uk", "sch.uk", "ac.uk", "gov.uk", "nhs.uk", "mod.uk", "police.uk",
+  "com.au", "net.au", "org.au", "edu.au", "gov.au", "id.au", "asn.au",
+  "co.nz", "net.nz", "org.nz", "govt.nz", "ac.nz", "school.nz",
+  "co.jp", "or.jp", "ne.jp", "go.jp", "ac.jp", "ad.jp", "ed.jp", "gr.jp", "lg.jp",
+  "com.br", "net.br", "org.br", "gov.br", "edu.br",
+  "co.in", "net.in", "org.in", "gov.in", "nic.in", "ac.in", "edu.in", "res.in",
+  "co.za", "org.za", "gov.za", "ac.za", "net.za", "web.za",
+  "com.mx", "org.mx", "gob.mx", "edu.mx", "net.mx",
+  "com.cn", "net.cn", "org.cn", "gov.cn", "edu.cn", "ac.cn",
+  "co.kr", "or.kr", "ne.kr", "go.kr", "ac.kr", "re.kr",
+  "com.sg", "net.sg", "org.sg", "gov.sg", "edu.sg",
+  "com.hk", "net.hk", "org.hk", "gov.hk", "edu.hk",
+  "com.tw", "net.tw", "org.tw", "gov.tw", "edu.tw",
+  "co.il", "org.il", "net.il", "gov.il", "ac.il", "muni.il",
+  "com.tr", "net.tr", "org.tr", "gov.tr", "edu.tr", "bel.tr",
+  "com.ar", "net.ar", "org.ar", "gob.ar", "edu.ar",
+  "com.co", "net.co", "org.co", "gov.co", "edu.co",
+  "co.id", "or.id", "go.id", "ac.id", "web.id",
+  "com.ph", "net.ph", "org.ph", "gov.ph", "edu.ph",
+  "com.my", "net.my", "org.my", "gov.my", "edu.my",
+  "com.sa", "net.sa", "org.sa", "gov.sa", "edu.sa",
+  "co.th", "or.th", "go.th", "ac.th", "in.th",
+];
+
+const PUBLIC_SUFFIXES: ReadonlySet<string> = (() => {
+  const s = new Set(BASE_MULTI_SUFFIXES);
+  for (const st of US_STATES) {
+    s.add(`${st}.us`);
+    for (const tier of US_LOCALITY_TIERS) s.add(`${tier}.${st}.us`);
+  }
+  return s;
+})();
+
+/** The registrable domain (eTLD+1) using a curated public-suffix set, longest match wins. */
 export function registrableDomain(host: string): string {
   const h = host.toLowerCase().replace(/:\d+$/, "").replace(/\.$/, "");
   const parts = h.split(".").filter(Boolean);
-  return parts.length <= 2 ? parts.join(".") : parts.slice(-2).join(".");
+  if (parts.length <= 2) return parts.join(".");
+  // Check candidate suffixes longest-first; registrable domain = matched suffix + one label.
+  for (let take = Math.min(parts.length - 1, 4); take >= 2; take--) {
+    const suffix = parts.slice(parts.length - take).join(".");
+    if (PUBLIC_SUFFIXES.has(suffix)) return parts.slice(parts.length - take - 1).join(".");
+  }
+  return parts.slice(-2).join(".");
 }
 
 /** Classify a request host against the fingerprint set. */

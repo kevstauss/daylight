@@ -6,6 +6,38 @@ Rendered publicly at `/changelog`.
 Everything Daylight does is **observational and built on already-public data**. See
 `/methods` for every source, the bot's contact, and the observational-only scope.
 
+## Unreleased — Hardening pass (adversarial review fixes)
+
+**A watchdog has to hold up to the scrutiny it applies.** A multi-agent adversarial review of
+Phases 2–6 (each finding independently verified) surfaced 15 real defects; all are fixed, and
+each fix ships with a regression test so it can't quietly come back (test suite 69 → 86):
+
+- **Live-capture SSRF, closed properly.** The `robots.txt` pre-flight fetch no longer follows
+  redirects to unvetted hosts (it validates every hop and refuses private/loopback/metadata
+  targets), the browser now **pins the exact IP** it connects to so a rebinding host can't
+  swap in `169.254.169.254` after the check, service workers and WebSocket handshakes are held
+  to the same host allowlist, and the misleading "DNS rebinding is closed" comments are gone
+  (the complete guarantee is a network-level egress filter, noted for the deploy).
+- **No false accusations.** The reverse-proxy-disguise heuristic now requires a real analytics
+  beacon (a POST/XHR with a matching body), so an ordinary `.gov` content page at `/decide/…`
+  or `/s/…` is never flagged "high." Duplicate analytics beacons collapse to one finding
+  instead of flooding the review feed. The subdomain-mimic check no longer flags a service
+  hosted under its own legitimate owner, and it names the *real* service being imitated.
+- **The history backfill can't be silently poisoned.** A transient GitHub failure (or an empty
+  commit list) now fails loudly and stays retriable instead of writing its "done" marker over
+  an empty run; a truncated/empty registry revision is skipped instead of emitting a phantom
+  removal of every domain.
+- **Registrable-domain correctness** for state and local government: `www.smithville.k12.tx.us`
+  is no longer folded into `tx.us` (which would collide every Texas school district).
+- **Gate tightening:** the Floodlight scan kill-switch is re-checked inside the server action,
+  the Lookout wide sweep keeps its always-on `.gov` scope filter, and a Redtape gap with a
+  blank or missing search trail can never reach the public path (enforced on read *and* write).
+
+**Review queue auth moved off the URL.** Reviewer sign-in at `/review` now sets an HttpOnly,
+Secure, SameSite=Strict cookie instead of carrying the token in the query string — so it can't
+leak through server logs or a `Referer` header — and the route is served `no-referrer` /
+`no-store` / `noindex`.
+
 ## Unreleased — Ledger git-history backfill
 
 **We launched late, but the record didn't start today.** The CISA registry is a git repo, so

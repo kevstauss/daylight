@@ -2,7 +2,10 @@ import type { Researcher, ResearcherInput, ResearcherOutput } from "./types.js";
 
 export const PROMPT_VERSION = "redtape/2026-07-01";
 
-const asStrArr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+// Blank / whitespace-only strings are treated as absent: the §7.6 "documented negative"
+// invariant requires a trail a stranger can actually re-run, so [""] must not satisfy it.
+const asStrArr = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim().length > 0) : [];
 
 /**
  * Safely parse the agent's raw output into a validated ResearcherOutput, or null if

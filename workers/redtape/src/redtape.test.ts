@@ -124,6 +124,37 @@ describe("§7.6 every public gap carries a non-empty query + source trail", () =
   });
 });
 
+describe("§7.6 a blank trail is not a documented negative", () => {
+  const blankTrail = mock({
+    pia_found: false,
+    pia_refs: [],
+    sorn_found: false,
+    sorn_refs: [],
+    gap_assessment: "no_filing",
+    confidence: 0.6,
+    queries_run: ["", "   "],
+    sources_checked: [""],
+    fact_vs_inference_notes: "",
+  });
+
+  it("an all-blank queries/sources trail is rejected (routed to manual, never auto no_filing)", async () => {
+    const r = await runRedtapeAssessment({
+      db,
+      candidate: { ...candidate, domain: "ndstudio.gov" },
+      researcher: blankTrail,
+      now: NOW,
+    });
+    expect(r.manual).toBe(true);
+    expect(db.publicGaps()).toHaveLength(0);
+  });
+
+  it("publicGaps withholds a published gap that has an empty trail (read-side invariant)", async () => {
+    const r = await runRedtapeAssessment({ db, candidate, researcher: malformed, now: NOW }); // manual, []
+    db.reviewGap(r.gapId, { published: true }); // a reviewer publishes a trail-less manual gap
+    expect(db.publicGaps()).toHaveLength(0); // still withheld — no re-checkable negative
+  });
+});
+
 describe("Federal Register client parses SORN notices", () => {
   it("maps API results to refs (injected fetch — no live call)", async () => {
     const fetchImpl = async (): Promise<Response> =>

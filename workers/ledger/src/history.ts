@@ -1,5 +1,5 @@
 import type { Change, DomainRecord, Watchlist, WatchSubscription } from "@daylight/core";
-import { nowIso, sha256, watchSubscriptions } from "@daylight/core";
+import { sha256, watchSubscriptions } from "@daylight/core";
 import type { DaylightDb } from "@daylight/db";
 import { diff } from "./diff.js";
 import { resolveChange } from "./emit.js";
@@ -39,7 +39,15 @@ export async function listCsvCommits(opts: GitHubFetchOptions = {}): Promise<His
         ...(token ? { authorization: `Bearer ${token}` } : {}),
       },
     });
-    if (!res.ok) break;
+    if (!res.ok) {
+      // A failed FIRST page means we can't list history at all. Returning [] here would let
+      // the caller mistake an upstream error (e.g. the 60 req/hr unauthenticated rate limit)
+      // for "no history" and permanently mark the one-time backfill done. Fail loudly instead.
+      if (page === 1) {
+        throw new Error(`GitHub commits API failed (${res.status} ${res.statusText}) — cannot list ledger history`);
+      }
+      break; // a later page failed after we already collected commits — stop with what we have
+    }
     const arr = (await res.json()) as { sha: string; commit?: { committer?: { date?: string }; author?: { date?: string } } }[];
     if (!Array.isArray(arr) || arr.length === 0) break;
     for (const c of arr) {
@@ -111,7 +119,11 @@ export async function backfillHistory(opts: BackfillHistoryOptions): Promise<Bac
         continue; // unreachable commit — skip rather than fail the whole backfill
       }
       const parsed = normalizeCsv(csv);
-      if (!parsed.headerOk) continue; // header drift at that revision — skip it
+      // Skip header drift AND empty/zero-row revisions. A header-valid but rowless CSV
+      // (a mid-edit commit, or a transient truncation) would otherwise diff as a phantom
+      // mass-removal of every domain, then swallow the re-addition on the next commit
+      // because prev would be empty. An empty revision is never a real registry state.
+      if (!parsed.headerOk || parsed.records.length === 0) continue;
       const current = recordsToMap(parsed.records);
 
       // The first parsed commit is the baseline — it establishes prior state without a flood
@@ -134,7 +146,20 @@ export async function backfillHistory(opts: BackfillHistoryOptions): Promise<Bac
       commitsProcessed++;
     }
 
-    const now = commits.length ? commits[commits.length - 1]!.date : nowIso();
+    // If nothing was actually replayed — empty commit list, or every revision was
+    // unreachable/invalid — do NOT write the completion marker. Writing it here would
+    // permanently mark the one-time backfill "done" after a transient upstream failure,
+    // and only a --force run could ever recover it. Signal a retriable failure instead.
+    if (commitsProcessed === 0) {
+      const error =
+        commits.length === 0
+          ? "no commits to replay (git-history listing empty or upstream failure)"
+          : "no commits processed (every revision unreachable or invalid) — not marking backfill done";
+      db.recordScanFinish(scanId, { ok: false, error, itemsSeen: 0, changesEmitted: 0 });
+      return { ok: false, skipped: false, commitsProcessed: 0, changesEmitted: 0, alertsFired: 0, error };
+    }
+
+    const now = commits[commits.length - 1]!.date;
     const sourceUrl = `https://raw.githubusercontent.com/${REPO}/${finalSha}/${CSV_PATH}`;
     let changesEmitted = 0;
     let alertsFired = 0;

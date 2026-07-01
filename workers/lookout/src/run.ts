@@ -65,6 +65,9 @@ export function runLookoutBackfill(opts: RunLookoutOptions): RunLookoutResult {
           if (!fqdn) continue;
           const apex = registrableApex(fqdn);
           if (fqdn === apex) continue; // the apex itself is Ledger's beat, not a subdomain
+          if (!apex.endsWith(".gov")) continue; // spec §2: the dataset is federal .gov only —
+          // a cert's SAN list routinely mixes in non-.gov names; the allGov widening must never
+          // pull those in.
           const onWatch = watchlist.apexDomains.includes(apex) || watchlist.subdomainApexes.includes(apex);
           if (!onWatch && !opts.allGov) continue;
 

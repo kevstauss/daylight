@@ -1,9 +1,31 @@
 /// <reference lib="dom" />
+import net from "node:net";
+import { promises as dns } from "node:dns";
 import { chromium } from "playwright";
 import type { DaylightDb } from "@daylight/db";
-import { assertScannableUrl, hostAllowed, isAllowedByRobots, looksGated } from "./guards.js";
+import { assertScannableUrl, hostAllowed, isAllowedByRobots, isBlockedIp, isGatedNavigation } from "./guards.js";
 import { runFloodlightScan } from "./scan.js";
 import type { CapturedRequest, PageCapture } from "./types.js";
+
+/**
+ * Resolve the target host to a single vetted public IP and return a Chromium
+ * --host-resolver-rules arg that PINS the connection to it. The app-layer route guard only
+ * validates a DNS answer; Chromium re-resolves independently, so a rebinding host could hand
+ * the browser a private address after our check passed. Pinning the target closes that for
+ * the initial navigation and same-host requests. Returns [] when we can't safely pin (tests /
+ * literal IPs / resolution failure) — the request-time route guard still applies.
+ * NOTE: this does NOT pin redirect/subresource hosts with OTHER names; a network-level egress
+ * filter dropping RFC1918/link-local (recommended for the Fly deploy) is the full guarantee.
+ */
+async function resolvePinArgs(url: string, allowPrivate?: boolean): Promise<string[]> {
+  if (allowPrivate) return [];
+  const host = new URL(url).hostname;
+  if (net.isIP(host)) return []; // literal IP already vetted by assertScannableUrl
+  const { address } = await dns.lookup(host); // first A/AAAA record
+  if (isBlockedIp(address)) throw new Error(`refusing to scan a non-public address (${host})`);
+  const target = net.isIPv6(address) ? `[${address}]` : address;
+  return [`--host-resolver-rules=MAP ${host} ${target}`];
+}
 
 function userAgent(): string {
   const site = (process.env.DAYLIGHT_SITE_URL?.trim() || "http://localhost:3000").replace(/\/+$/, "");
@@ -39,23 +61,28 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
   await assertScannableUrl(url, { allowPrivate: opts.allowPrivate });
   const ua = userAgent();
   if (opts.respectRobots !== false && !opts.allowPrivate) {
-    if (!(await isAllowedByRobots(url, ua))) throw new Error(`robots.txt disallows scanning ${url}`);
+    if (!(await isAllowedByRobots(url, ua, { allowPrivate: opts.allowPrivate }))) {
+      throw new Error(`robots.txt disallows scanning ${url}`);
+    }
   }
 
+  const pinArgs = await resolvePinArgs(url, opts.allowPrivate);
   const browser = await chromium.launch({
     headless: true,
     channel: opts.channel ?? process.env.DAYLIGHT_BROWSER_CHANNEL,
-    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+    args: ["--no-sandbox", "--disable-dev-shm-usage", ...pinArgs],
   });
   try {
     const context = await browser.newContext({
       userAgent: ua,
       viewport: { width: 1280, height: 900 },
+      serviceWorkers: "block", // a service worker could issue requests outside route interception
     });
 
-    // Re-validate EVERY request the page makes — the initial navigation, any redirect it
-    // follows, and every subresource — against the SSRF blocklist at request time. This
-    // closes the redirect-bypass and DNS-rebinding holes the pre-flight check alone can't.
+    // Re-validate every HTTP(S) request at request time — the initial navigation, any redirect
+    // it follows, and every subresource — against the SSRF blocklist. This is best-effort
+    // defense in depth: it cannot pin the IP Chromium actually connects with (see
+    // resolvePinArgs, which pins the target host), but it blocks obvious private/redirect hops.
     const hostCache = new Map<string, Promise<boolean>>();
     const allowed = (host: string): Promise<boolean> => {
       let p = hostCache.get(host);
@@ -80,6 +107,23 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
       }
     });
 
+    // WebSocket handshakes bypass context.route entirely, so guard them with the same check
+    // (routeWebSocket added in Playwright 1.48). Only connect upstream if the host is public.
+    if (typeof context.routeWebSocket === "function") {
+      await context.routeWebSocket("**/*", (ws) => {
+        void (async () => {
+          let host = "";
+          try {
+            host = new URL(ws.url()).hostname;
+          } catch {
+            /* malformed — close below */
+          }
+          if (host && (await allowed(host))) ws.connectToServer();
+          else ws.close();
+        })();
+      });
+    }
+
     const page = await context.newPage();
     const requests: CapturedRequest[] = [];
     page.on("request", (r) => {
@@ -92,13 +136,12 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
       });
     });
 
-    await page
+    const navResponse = await page
       .goto(url, { waitUntil: "domcontentloaded", timeout: opts.timeoutMs ?? 20000 })
       .catch(() => null);
     await page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
 
     const finalUrl = page.url();
-    const gated = looksGated(finalUrl);
 
     const dom = await page.evaluate(() => {
       const links = Array.from(document.querySelectorAll("a"));
@@ -114,6 +157,15 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
         new Set(types.filter((t) => ["email", "tel", "password", "file"].includes(t))),
       );
       return { privacyNoticeUrl: pv ? pv.href || null : null, hasSeal, formFields: pii };
+    });
+
+    // Fail toward "gated": the URL/IdP signal plus high-precision runtime signals (HTTP 401,
+    // a WWW-Authenticate challenge, or a password field) — so custom walls are still caught.
+    const gated = isGatedNavigation({
+      finalUrl,
+      status: navResponse?.status(),
+      wwwAuthenticate: !!navResponse?.headers()["www-authenticate"],
+      hasPasswordField: dom.formFields.includes("password"),
     });
 
     const html = await page.content().catch(() => "");

@@ -27,7 +27,17 @@ export function buildMimicTokens(wl: Watchlist): Map<string, string> {
     const domain = raw.toLowerCase();
     const label0 = domain.split(".")[0];
     if (!label0) continue;
-    const functionDomain = domain.includes(".") ? domain : wl.comparators[domain] ?? `${domain}.gov`;
+    // The impersonated function is:
+    //  - a watched shadow apex that has a comparator → the REAL service it mimics (its value),
+    //    e.g. passports.gov (shadow, watched) → travel.state.gov (the real passport service);
+    //  - any other dotted domain → itself (a plain reference like vote.gov maps to vote.gov);
+    //  - a bare token → its comparator value or <token>.gov.
+    const functionDomain =
+      wl.apexDomains.includes(domain) && wl.comparators[domain]
+        ? wl.comparators[domain]!
+        : domain.includes(".")
+          ? domain
+          : wl.comparators[domain] ?? `${domain}.gov`;
     const add = (t: string) => {
       if (t && !tokens.has(t)) tokens.set(t, functionDomain);
     };
@@ -42,6 +52,19 @@ interface Candidate {
   severity: Severity;
   reason: string;
   rank: number;
+}
+
+/**
+ * Apexes that may LEGITIMATELY host a given function, so H2 doesn't cry impersonation on them:
+ * the function's own apex (self-hosting), plus the comparator-designated legit owner. Without
+ * the second case, `vote.eac.gov` would be flagged as mimicking `vote.gov` even though the
+ * watchlist records EAC as vote.gov's legitimate owner.
+ */
+function legitApexesFor(wl: Watchlist, functionDomain: string): Set<string> {
+  const set = new Set<string>([registrableApex(functionDomain)]);
+  const owner = wl.comparators[functionDomain];
+  if (owner) set.add(registrableApex(owner));
+  return set;
 }
 
 /**
@@ -61,14 +84,14 @@ export function scoreSubdomain(fqdn: string, wl: Watchlist, ownerLabel?: string 
   const tokens = buildMimicTokens(wl);
   for (const label of labels) {
     const functionDomain = tokens.get(label);
-    if (functionDomain && registrableApex(functionDomain) !== apex) {
-      candidates.push({
-        severity: "high",
-        reason: `looks like ${functionDomain} hosted under ${apex}${ownerSuffix}`,
-        rank: 4,
-      });
-      break;
-    }
+    if (!functionDomain) continue;
+    if (legitApexesFor(wl, functionDomain).has(apex)) continue; // self-hosted or the legit owner
+    candidates.push({
+      severity: "high",
+      reason: `looks like ${functionDomain} hosted under ${apex}${ownerSuffix}`,
+      rank: 4,
+    });
+    break;
   }
 
   // H3 — collection/inference infrastructure.

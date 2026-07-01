@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { assertScannableUrl, isBlockedIp, looksGated, robotsAllows } from "./guards.js";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  assertScannableUrl,
+  isAllowedByRobots,
+  isBlockedIp,
+  isGatedNavigation,
+  looksGated,
+  robotsAllows,
+} from "./guards.js";
 
 describe("SSRF guard — only public http(s) is scannable", () => {
   it("blocks loopback / private / link-local / metadata addresses", () => {
@@ -34,5 +41,43 @@ describe("access-gate detection", () => {
     expect(looksGated("https://loveisaskill.cloudflareaccess.com/")).toBe(true);
     expect(looksGated("https://login.microsoftonline.com/oauth2/authorize")).toBe(true);
     expect(looksGated("https://ndstudio.gov/")).toBe(false);
+  });
+
+  it("flags the broader IdP set (Auth0 / Okta / login.gov)", () => {
+    expect(looksGated("https://example.auth0.com/authorize")).toBe(true);
+    expect(looksGated("https://agency.okta.com/app/x")).toBe(true);
+    expect(looksGated("https://secure.login.gov/")).toBe(true);
+  });
+
+  it("isGatedNavigation catches a 401 / password field even when the URL looks benign", () => {
+    expect(isGatedNavigation({ finalUrl: "https://example.gov/portal", status: 401 })).toBe(true);
+    expect(isGatedNavigation({ finalUrl: "https://example.gov/portal", hasPasswordField: true })).toBe(true);
+    expect(isGatedNavigation({ finalUrl: "https://example.gov/about" })).toBe(false);
+  });
+});
+
+describe("robots.txt fetch — SSRF-safe (never follows a redirect to a private host)", () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("does not follow a cross-origin redirect to the cloud-metadata address", async () => {
+    const calls: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      calls.push(String(input));
+      // The origin's /robots.txt 302s to the metadata service — the classic redirect-SSRF.
+      return new Response(null, {
+        status: 302,
+        headers: { location: "http://169.254.169.254/latest/meta-data/" },
+      });
+    }) as typeof fetch;
+
+    // Use a literal public IP as the host so hostAllowed resolves without a real DNS query.
+    const allowed = await isAllowedByRobots("https://8.8.8.8/page", "DaylightBot");
+    expect(allowed).toBe(true); // courtesy-allow — but WITHOUT ever hitting the private target
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain("8.8.8.8");
+    expect(calls.some((u) => u.includes("169.254.169.254"))).toBe(false);
   });
 });

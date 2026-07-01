@@ -92,6 +92,21 @@ describe("§8.3 H2 flagship — function-mimic", () => {
   });
 });
 
+describe("§8.3 H2 — legit-owner suppression + correct impersonation naming", () => {
+  it("does NOT flag a function hosted under its comparator-designated legit owner", () => {
+    // The watchlist records EAC as vote.gov's legitimate owner, so vote.eac.gov is not mimicry.
+    const s = scoreSubdomain("vote.eac.gov", wl);
+    expect(s.reason.toLowerCase()).not.toContain("looks like");
+    expect(s.severity).not.toBe("high");
+  });
+
+  it("names the REAL service for a watched shadow apex (passports.gov → travel.state.gov)", () => {
+    const s = scoreSubdomain("passport.staging.ndstudio.gov", wl);
+    expect(s.reason.toLowerCase()).toContain("travel.state.gov");
+    expect(s.reason.toLowerCase()).not.toContain("looks like passports.gov");
+  });
+});
+
 describe("§8.4 H3 — collection/inference infra", () => {
   it("analytics.infra.ndstudio.gov flags as analytics/infra", () => {
     const s = scoreSubdomain("analytics.infra.ndstudio.gov", wl);

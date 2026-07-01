@@ -78,3 +78,44 @@ describe("git-history backfill — dated historical changes", () => {
     expect(forced.changesEmitted).toBe(2);
   });
 });
+
+describe("git-history backfill — failure paths never poison the one-time marker", () => {
+  it("an empty commit list returns ok:false, writes NO completion marker, and stays retriable", async () => {
+    const res = await backfillHistory({ db, watchlist: wl, commits: [], getCsv });
+    expect(res.ok).toBe(false);
+    expect(res.skipped).toBe(false);
+    expect(res.commitsProcessed).toBe(0);
+    // The marker is absent, so a later run with real commits actually performs the backfill.
+    const real = await backfillHistory({ db, watchlist: wl, commits, getCsv });
+    expect(real.skipped).toBe(false);
+    expect(real.commitsProcessed).toBe(3);
+    expect(real.changesEmitted).toBe(2);
+  });
+
+  it("every revision unreachable → ok:false, no marker, no phantom changes, still retriable", async () => {
+    const failCsv = async (): Promise<string> => {
+      throw new Error("network down");
+    };
+    const res = await backfillHistory({ db, watchlist: wl, commits, getCsv: failCsv });
+    expect(res.ok).toBe(false);
+    expect(res.commitsProcessed).toBe(0);
+    expect(db.listChanges({ module: "ledger" })).toHaveLength(0);
+    const real = await backfillHistory({ db, watchlist: wl, commits, getCsv });
+    expect(real.commitsProcessed).toBe(3);
+  });
+
+  it("a header-only (zero-row) revision does not wipe the baseline or emit phantom removals", async () => {
+    const withEmpty: Record<string, string> = { c1: CSV.c1!, cE: HEADER + "\n", c3: CSV.c3! };
+    const cs: HistoryCommit[] = [
+      { sha: "c1", date: "2020-01-01T00:00:00.000Z" },
+      { sha: "cE", date: "2020-06-01T00:00:00.000Z" }, // truncated/mid-edit revision
+      { sha: "c3", date: "2022-03-01T00:00:00.000Z" },
+    ];
+    await backfillHistory({ db, watchlist: wl, commits: cs, getCsv: async (s) => withEmpty[s]! });
+    // The empty revision removed nothing…
+    expect(db.listChanges({ module: "ledger" }).filter((c) => c.kind === "removed")).toHaveLength(0);
+    // …and the baseline survived, so c3's real change is still detected against c1.
+    expect(db.getDomain("vote.gov")).not.toBeNull();
+    expect(db.getDomain("trumprx.gov")?.security_contact_email).toBe("someone@ndstudio.gov");
+  });
+});
