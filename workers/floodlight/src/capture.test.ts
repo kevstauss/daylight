@@ -17,18 +17,41 @@ const FIXTURE = `<!doctype html><html><head><title>capture fixture</title></head
   </script>
 </body></html>`;
 
+// A homepage that links NO privacy notice — forces the canonical-path fallback probe. The notice
+// lives at an UNLINKED path (/privacy-statement), and unknown paths 404 so the soft-404 catch-all
+// guard sees a genuine 404 on its bogus probe (a real regression case: eac.gov behaves this way).
+const NO_PRIVACY_LINK = `<!doctype html><html><head><title>no privacy link</title></head><body>
+  <h1>Agency</h1><p>This homepage links no privacy notice.</p></body></html>`;
+
 let server: http.Server;
 let port = 0;
 
 beforeAll(async () => {
   server = http.createServer((req, res) => {
-    if (req.url === "/metrics") {
+    const url = req.url ?? "/";
+    if (url === "/metrics") {
       res.writeHead(200);
       res.end("ok");
       return;
     }
-    res.writeHead(200, { "content-type": "text/html" });
-    res.end(FIXTURE);
+    if (url === "/noprivacy") {
+      res.writeHead(200, { "content-type": "text/html" });
+      res.end(NO_PRIVACY_LINK);
+      return;
+    }
+    if (url === "/privacy-statement") {
+      res.writeHead(200, { "content-type": "text/html" });
+      res.end("<!doctype html><html><body><h1>Privacy Statement</h1><p>Our privacy practices.</p></body></html>");
+      return;
+    }
+    if (url === "/") {
+      res.writeHead(200, { "content-type": "text/html" });
+      res.end(FIXTURE);
+      return;
+    }
+    // Everything else (unlinked canonical paths + the bogus soft-404 probe) is a genuine 404.
+    res.writeHead(404);
+    res.end("not found");
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   port = (server.address() as AddressInfo).port;
@@ -54,6 +77,18 @@ describe("live capture (Playwright, local fixture — no gov hosts)", () => {
     expect(res.capture.dom.hasSeal).toBe(true);
     expect(res.capture.dom.formFields).toContain("email");
     expect(res.screenshotPng).toBeTruthy();
+  }, 45000);
+
+  it("finds an UNLINKED privacy notice via the in-page canonical-path probe", async () => {
+    // Homepage links nothing, so the DOM scan yields null and the probe must run. This exercises
+    // the probe's page.evaluate end-to-end — the path that regressed on a `__name is not defined`
+    // transform bug (the evaluate throwing was silently swallowed to a false "no notice").
+    const res = await capturePage(`http://127.0.0.1:${port}/noprivacy`, {
+      allowPrivate: true,
+      channel: "chrome",
+      respectRobots: false,
+    });
+    expect(res.capture.dom.privacyNoticeUrl).toContain("/privacy-statement");
   }, 45000);
 
   it("captureAndScore persists a scorecard and flags the first-party reverse-proxy shape", async () => {

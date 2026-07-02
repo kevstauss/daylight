@@ -100,28 +100,34 @@ const SOFT404_PROBE_PATH = "/__daylight-privacy-probe-should-not-exist__";
  */
 async function probePrivacyInPage(page: Page): Promise<string | null> {
   try {
+    // NOTE: everything inside page.evaluate must be anonymous inline functions. A NAMED inner
+    // function (e.g. `const get = async () => …`) makes esbuild/SWC (with keepNames) wrap it in a
+    // `__name(...)` helper that exists only in Node, not the browser page the function is
+    // serialized into — so the evaluate throws `__name is not defined` at runtime. Keep it inline.
     return await page.evaluate(
       async ({ paths, bogus }): Promise<string | null> => {
         const origin = location.origin;
-        const get = async (path: string): Promise<{ ok: boolean; url: string; len: number; body: string }> => {
-          const ctrl = new AbortController();
-          const timer = setTimeout(() => ctrl.abort(), 4000);
-          try {
-            const r = await fetch(path, { method: "GET", redirect: "follow", credentials: "omit", signal: ctrl.signal });
-            const sameOrigin = new URL(r.url, origin).origin === origin;
-            const ok = r.ok && sameOrigin;
-            const body = ok ? (await r.text()).slice(0, 20000) : "";
-            return { ok, url: r.url, len: body.length, body };
-          } catch {
-            return { ok: false, url: "", len: 0, body: "" };
-          } finally {
-            clearTimeout(timer);
-          }
-        };
-        const [bog, ...hits] = await Promise.all([bogus, ...paths].map(get));
+        const all = await Promise.all(
+          [bogus, ...paths].map(async (path) => {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 4000);
+            try {
+              const r = await fetch(path, { method: "GET", redirect: "follow", credentials: "omit", signal: ctrl.signal });
+              const sameOrigin = new URL(r.url, origin).origin === origin;
+              const ok = r.ok && sameOrigin;
+              const body = ok ? (await r.text()).slice(0, 20000) : "";
+              return { ok, url: r.url, len: body.length, body };
+            } catch {
+              return { ok: false, url: "", len: 0, body: "" };
+            } finally {
+              clearTimeout(timer);
+            }
+          }),
+        );
+        const bog = all[0];
         if (!bog) return null;
-        for (let i = 0; i < paths.length; i++) {
-          const res = hits[i];
+        for (let i = 1; i < all.length; i++) {
+          const res = all[i];
           if (!res || !res.ok) continue;
           // soft-404 catch-all: the bogus path also 200'd and this body ~matches it
           if (bog.ok && Math.abs(res.len - bog.len) < 64) continue;
@@ -285,11 +291,10 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
     const capturedRequests = requests.slice();
 
     // If the page linked no privacy notice, fall back to probing canonical paths in-page (skipped
-    // when gated or in tests). Corrects false "no privacy notice" flags on agencies that publish
-    // one at a fixed path without linking it from the homepage.
+    // only when gated). Corrects false "no privacy notice" flags on agencies that publish one at a
+    // fixed path without linking it from the homepage.
     const privacyNoticeUrl =
-      dom.privacyNoticeUrl ??
-      (!gated && !opts.allowPrivate ? await withTimeout(probePrivacyInPage(page), 6000, null) : null);
+      dom.privacyNoticeUrl ?? (!gated ? await withTimeout(probePrivacyInPage(page), 6000, null) : null);
     const domFacts = { ...dom, privacyNoticeUrl };
 
     // page.content() has no native timeout and serializes the whole DOM; on a frame-heavy page
