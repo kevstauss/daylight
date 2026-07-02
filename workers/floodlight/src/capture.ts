@@ -42,6 +42,9 @@ export interface CaptureOptions {
   respectRobots?: boolean;
   /** Restrict the target to a federal .gov host (the public scan box sets this). */
   govOnly?: boolean;
+  /** Skip the full-page screenshot — Floodlight scoring never uses it, and on a big page it's
+   *  a large in-memory buffer that adds up across a sweep. Receipts leaves it on (raw store). */
+  skipScreenshot?: boolean;
 }
 
 export interface LiveCapture {
@@ -171,7 +174,8 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
     });
 
     const html = await page.content().catch(() => "");
-    const screenshotPng = gated ? null : await page.screenshot({ fullPage: true }).catch(() => null);
+    const screenshotPng =
+      gated || opts.skipScreenshot ? null : await page.screenshot({ fullPage: true }).catch(() => null);
 
     return {
       capture: { url, requests, dom },
@@ -204,7 +208,8 @@ export async function captureAndScore(
 ): Promise<ScanResult> {
   let live: LiveCapture;
   try {
-    live = await capturePage(url, opts);
+    // Floodlight scoring never uses the screenshot — skip it to keep sweep memory flat.
+    live = await capturePage(url, { skipScreenshot: true, ...opts });
   } catch (err) {
     return { ok: false, gated: false, domain: null, error: err instanceof Error ? err.message : String(err) };
   }

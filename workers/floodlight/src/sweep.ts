@@ -40,6 +40,7 @@ export async function runFloodlightSweep(
     if (r.gated) out.gated++;
     if (r.severity === "high" || r.severity === "notable") out.flagged++;
     opts.log?.(`[floodlight] ${host}: ${r.ok ? (r.gated ? "gated" : r.severity) : `error: ${r.error}`}`);
+    await new Promise((res) => setTimeout(res, 1500)); // gentle + let memory settle between browsers
   }
   return out;
 }
