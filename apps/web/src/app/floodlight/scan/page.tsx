@@ -103,8 +103,8 @@ export default async function ScanPage({
         <h1 className="text-2xl font-semibold tracking-tight">Scan a federal .gov page</h1>
         <p className="mt-1 text-sm text-muted">
           Load a public federal <code className="font-mono text-ink">.gov</code> page and see what
-          it loads on its own — third-party trackers, session-replay tools, the reverse-proxy
-          disguise trick, and whether it links a privacy notice. We load the page once, capture
+          it loads on its own: third-party trackers, session-replay tools, tracking disguised as the
+          site&rsquo;s own traffic, and whether it links a privacy notice. We load the page once, capture
           what it requests, and stop. No forms are submitted, nothing is clicked, and an
           access-gated page is noted but never entered. Scanning is restricted to{" "}
           <code className="font-mono text-ink">.gov</code> hosts.

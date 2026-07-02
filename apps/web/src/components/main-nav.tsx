@@ -10,7 +10,20 @@ export interface NavItem {
   owns?: string[];
 }
 
-export function MainNav({ items, rssHref }: { items: NavItem[]; rssHref: string }) {
+/**
+ * `items` are the primary modules (Ledger…Redtape); `meta` are the secondary pages
+ * (Watchlist, Methods, Status). The two groups are visually separated so the five
+ * modules read as the product and the meta pages as supporting context.
+ */
+export function MainNav({
+  items,
+  meta = [],
+  rssHref,
+}: {
+  items: NavItem[];
+  meta?: NavItem[];
+  rssHref: string;
+}) {
   const pathname = usePathname() || "/";
   const active = (item: NavItem): boolean =>
     [item.href, ...(item.owns ?? [])].some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -31,10 +44,30 @@ export function MainNav({ items, rssHref }: { items: NavItem[]; rssHref: string 
           {n.label}
         </Link>
       ))}
+
+      {meta.length > 0 ? (
+        <span aria-hidden className="hidden h-4 w-px self-center bg-edgeStrong sm:inline-block" />
+      ) : null}
+
+      {meta.map((n) => (
+        <Link
+          key={n.href}
+          href={n.href}
+          aria-current={active(n) ? "page" : undefined}
+          className={`inline-flex min-h-6 items-center py-1 text-[13px] ${
+            active(n)
+              ? "font-medium text-muted"
+              : "text-faint transition-colors hover:text-muted"
+          }`}
+        >
+          {n.label}
+        </Link>
+      ))}
+
       <Link
         href={rssHref}
         aria-label="Global RSS feed"
-        className="inline-flex min-h-6 items-center rounded-sm border border-edgeStrong px-2 py-1 font-mono text-[11px] text-muted transition-colors hover:border-ink hover:text-ink"
+        className="inline-flex h-7 items-center rounded-sm border border-edgeStrong px-2 font-mono text-[11px] text-muted transition-colors hover:border-ink hover:text-ink"
       >
         RSS
       </Link>

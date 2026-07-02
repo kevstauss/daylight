@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 const MODULES = [
   { key: "registry", href: "/registry", name: "Ledger", blurb: "Who owns each federal .gov, and every change to the record." },
   { key: "lookout", href: "/lookout", name: "Lookout", blurb: "New subdomains the day their certificate is issued." },
-  { key: "floodlight", href: "/floodlight", name: "Floodlight", blurb: "Is this .gov tracking you? Trackers, session replay, the reverse-proxy trick." },
+  { key: "floodlight", href: "/floodlight", name: "Floodlight", blurb: "Is this .gov tracking you? Trackers, session replay, and tracking disguised as the site's own traffic." },
   { key: "receipts", href: "/receipts", name: "Receipts", blurb: "What quietly disappeared — a dated, archived removal ledger." },
   { key: "redtape", href: "/redtape", name: "Redtape", blurb: "Sites collecting personal data with no published privacy filing." },
 ] as const;
@@ -54,25 +54,29 @@ export default function Home() {
       {live.length > 0 ? (
         <section>
           <Eyebrow>daylight · what it watches</Eyebrow>
-          <Panel className="divide-y divide-edge">
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {live.map((m) => (
               <Link
                 key={m.key}
                 href={m.href}
-                className="group flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-raised sm:gap-4"
+                className="group flex items-start gap-3.5 rounded-lg border border-edge bg-panel p-4 transition-colors hover:border-edgeStrong hover:bg-raised sm:gap-4 sm:p-5"
               >
                 <ModuleIcon
                   name={m.key}
-                  className="h-5 w-5 shrink-0 text-faint transition-colors group-hover:text-ink"
+                  className="mt-0.5 h-6 w-6 shrink-0 text-muted transition-colors group-hover:text-ink sm:h-7 sm:w-7"
                 />
-                <span className="w-[4.75rem] shrink-0 text-[15px] font-semibold text-ink sm:w-24">
-                  {m.name}
-                </span>
-                <span className="min-w-0 flex-1 text-sm text-muted">{m.blurb}</span>
-                <span className="shrink-0 font-mono text-xs text-faint transition-colors group-hover:text-alarm">→</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[17px] font-bold tracking-tight text-ink">{m.name}</span>
+                    <span className="shrink-0 font-mono text-xs text-faint transition-colors group-hover:text-alarm">
+                      →
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm leading-snug text-muted">{m.blurb}</p>
+                </div>
               </Link>
             ))}
-          </Panel>
+          </div>
         </section>
       ) : null}
 

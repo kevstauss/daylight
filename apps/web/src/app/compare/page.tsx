@@ -59,8 +59,8 @@ export default async function ComparePage({
           <h1 className="text-2xl font-semibold tracking-tight">Shadow vs. legit comparator</h1>
           <p className="mt-1 text-sm text-muted">
             Put a suspected shadow site next to its legitimate counterpart and see, side by side,
-            what each one collects and runs — trackers, session replay, the reverse-proxy disguise,
-            privacy notices, the PII a form asks for, and the agency seal. Pick a pair:
+            what each one collects and runs: trackers, session replay, tracking disguised as
+            first-party traffic, privacy notices, the PII a form asks for, and the agency seal. Pick a pair:
           </p>
         </div>
         {Object.keys(comparators).length === 0 ? (

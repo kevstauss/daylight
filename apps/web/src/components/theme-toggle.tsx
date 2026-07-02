@@ -47,7 +47,7 @@ export function ThemeToggle() {
       onClick={cycle}
       aria-label={LABEL[mode]}
       title={LABEL[mode]}
-      className="inline-flex min-h-6 min-w-6 items-center justify-center rounded-sm border border-edgeStrong px-2 py-1 font-mono text-[12px] leading-none text-muted transition-colors hover:border-ink hover:text-ink"
+      className="inline-flex h-7 min-w-7 items-center justify-center rounded-sm border border-edgeStrong px-2 font-mono text-[12px] leading-none text-muted transition-colors hover:border-ink hover:text-ink"
     >
       <span aria-hidden suppressHydrationWarning>
         {mounted ? GLYPH[mode] : "◐"}

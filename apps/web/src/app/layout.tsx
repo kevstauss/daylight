@@ -9,7 +9,7 @@ import { MainNav } from "@/components/main-nav";
 import { GlobalSearch } from "@/components/global-search";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { flags } from "@/lib/flags";
-import { CREDIT_LINE, FUNDING_URL, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
+import { CREDIT_LINE, FUNDING_URL, HEADER_TAGLINE, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
 
 // Applies a saved theme choice before first paint (no flash). System pref is the default.
 const NO_FLASH = `(function(){try{var t=localStorage.getItem('daylight-theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`;
@@ -37,12 +37,14 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   const f = flags();
-  const nav = [
+  const modules = [
     ...(f.registry ? [{ href: "/registry", label: "Ledger", owns: ["/ledger", "/domain"] }] : []),
     ...(f.lookout ? [{ href: "/lookout", label: "Lookout" }] : []),
     ...(f.floodlight ? [{ href: "/floodlight", label: "Floodlight" }] : []),
     ...(f.receipts ? [{ href: "/receipts", label: "Receipts" }] : []),
     ...(f.redtape ? [{ href: "/redtape", label: "Redtape" }] : []),
+  ];
+  const meta = [
     { href: "/watchlist", label: "Watchlist" },
     { href: "/methods", label: "Methods" },
     { href: "/status", label: "Status" },
@@ -64,16 +66,19 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                 <span className="kicker hidden sm:inline">federal .gov watch</span>
               </Link>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                <MainNav items={nav} rssHref="/feed.xml" />
+                <MainNav items={modules} meta={meta} rssHref="/feed.xml" />
                 <ThemeToggle />
               </div>
             </div>
-            <div className="pb-2">
-              <GlobalSearch variant="compact" />
-            </div>
+            <p className="-mt-1 max-w-measure pb-2.5 text-[13px] leading-snug text-muted">
+              {HEADER_TAGLINE}
+            </p>
             <div className="flex items-center gap-2 pb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
               <span className="inline-block h-[7px] w-[7px] shrink-0 rounded-full border border-alarm bg-alarm/60" />
               observational · public data only · every record timestamped &amp; source-linked
+            </div>
+            <div className="pb-3">
+              <GlobalSearch variant="compact" />
             </div>
           </header>
 
@@ -108,6 +113,18 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               ) : null}
             </p>
             <p className="mt-2.5 font-mono">{CREDIT_LINE}</p>
+            <p className="mt-1.5">
+              Daylight owes its start to the reporting of{" "}
+              <a
+                href="https://substack.com/@thedreydossier"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="link"
+              >
+                The Drey Dossier
+              </a>
+              .
+            </p>
           </footer>
         </div>
       </body>

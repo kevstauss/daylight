@@ -75,9 +75,9 @@ export default async function FloodlightPage({
       <div>
         <div className="flex items-center gap-2.5"><ModuleIcon name="floodlight" className="h-6 w-6 shrink-0 text-ink" /><h1 className="text-2xl font-semibold tracking-tight">Floodlight</h1></div>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          &ldquo;Is this gov site tracking me?&rdquo; — a scorecard of third-party trackers,
-          session-replay tools, the reverse-proxy disguise trick, and whether the page even has a
-          privacy notice. Passive, public-page loads only. {total.toLocaleString()} pages scored.
+          &ldquo;Is this gov site tracking me?&rdquo; A scorecard of third-party trackers,
+          session-replay tools, tracking disguised as the site&rsquo;s own traffic, and whether the
+          page even has a privacy notice. Passive, public-page loads only. {total.toLocaleString()} pages scored.
         </p>
         {flags().floodlightScan ? (
           <Link

@@ -3,6 +3,8 @@
 export const SITE_NAME = "Daylight";
 export const SITE_TAGLINE =
   "A public, observational watchdog for federal .gov infrastructure.";
+/** Short masthead subtitle (a compressed version of the homepage hero line). */
+export const HEADER_TAGLINE = "Who runs the federal web, and what quietly changes.";
 
 /** Configured public origin (no trailing slash). Feeds fall back to the request origin. */
 export function configuredSiteUrl(): string {
@@ -63,7 +65,7 @@ export const FUNDING_URL = process.env.DAYLIGHT_FUNDING_URL?.trim() || null;
 export const USER_AGENT = `DaylightBot/0.4 (+${configuredSiteUrl()}/methods; observational; public-data-only)`;
 
 export const CREDIT_LINE =
-  "Built with Claude Code. Research assisted by Claude (Anthropic).";
+  "Built with Claude Code. Research assisted by Claude.";
 
 /** Every public data source Daylight reads (PRD §8). Shown permanently on /methods.
  *  `use` is the plain-language lead; `technical` is the expandable detail; `cadence` feeds the
