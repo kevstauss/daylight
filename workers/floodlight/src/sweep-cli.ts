@@ -33,7 +33,10 @@ async function main(): Promise<void> {
     // eslint-disable-next-line no-console
     const r = await runFloodlightSweep(db, hosts, { channel: process.env.DAYLIGHT_BROWSER_CHANNEL, log: (m) => console.log(m) });
     // eslint-disable-next-line no-console
-    console.log(`[floodlight] sweep complete — ${r.scanned} scanned, ${r.gated} gated, ${r.flagged} flagged`);
+    console.log(
+      `[floodlight] sweep complete — ${r.scanned} scanned, ${r.gated} gated, ${r.flagged} flagged, ${r.retried} recovered on retry` +
+        (r.stillFailed.length ? `; still failing: ${r.stillFailed.join(", ")}` : ""),
+    );
   } finally {
     db.close();
   }

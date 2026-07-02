@@ -120,7 +120,10 @@ export async function register(): Promise<void> {
     const database = db.createDb(db.resolveDbPath());
     try {
       const r = await floodlight.runFloodlightSweep(database, hosts, { channel });
-      console.log(`[floodlight:cron] sweep — ${r.scanned} scanned, ${r.gated} gated, ${r.flagged} flagged`);
+      console.log(
+        `[floodlight:cron] sweep — ${r.scanned} scanned, ${r.gated} gated, ${r.flagged} flagged, ${r.retried} recovered` +
+          (r.stillFailed.length ? `; still failing: ${r.stillFailed.join(", ")}` : ""),
+      );
     } catch (err) {
       console.error("[floodlight] sweep error", err);
     } finally {

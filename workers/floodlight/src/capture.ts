@@ -45,6 +45,28 @@ export interface CaptureOptions {
   /** Skip the full-page screenshot — Floodlight scoring never uses it, and on a big page it's
    *  a large in-memory buffer that adds up across a sweep. Receipts leaves it on (raw store). */
   skipScreenshot?: boolean;
+  /** Skip page.content() — Floodlight scores from the captured requests + DOM facts and never
+   *  reads html. On a frame-heavy page (justice.gov: 58 frames) content() serialization can take
+   *  30s+ against a pegged main thread and blow the sweep budget. Receipts leaves it on. */
+  skipHtml?: boolean;
+}
+
+/**
+ * Resolve `p`, but never wait longer than `ms` — on timeout (or rejection) yield `fallback`.
+ * page.content() has no native timeout and can hang for tens of seconds while it serializes a
+ * frame-heavy DOM, so we bound it here for the Receipts (html-keeping) path. The abandoned CDP
+ * call is torn down when the browser closes; we clear the timer so it can't keep the process
+ * alive after the race settles. NOTE: this is deliberately NOT used for the DOM evaluate — a
+ * timeout there would yield ambiguous "found nothing" facts (see the evaluate call below).
+ */
+function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((resolve) => {
+    timer = setTimeout(() => resolve(fallback), ms);
+  });
+  return Promise.race([p.catch(() => fallback), timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
 }
 
 export interface LiveCapture {
@@ -81,9 +103,10 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
   // whole thing, and one slow/heavy site (or a CPU-starved machine) can stall an entire sweep.
   // On timeout we abandon this page and the finally still closes the browser (no leak).
   const overallMs = (opts.timeoutMs ?? 20000) + 25000;
-  const overallTimeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(`capture exceeded ${overallMs}ms`)), overallMs),
-  );
+  let overallTimer: ReturnType<typeof setTimeout> | undefined;
+  const overallTimeout = new Promise<never>((_, reject) => {
+    overallTimer = setTimeout(() => reject(new Error(`capture exceeded ${overallMs}ms`)), overallMs);
+  });
   try {
     return await Promise.race([
       (async (): Promise<LiveCapture> => {
@@ -157,6 +180,13 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
 
     const finalUrl = page.url();
 
+    // DOM facts in one pass. Deliberately NOT time-boxed: a fallback here would be ambiguous —
+    // {privacyNoticeUrl:null, formFields:[]} is indistinguishable from a page that genuinely has
+    // no privacy notice / no PII fields, which would publish a FALSE "no privacy notice" flag and
+    // understate a real PII page. Instead we let a genuinely-stuck evaluate hit the overall cap
+    // above: that aborts the whole capture (no scorecard persisted) and the sweep retries it, so a
+    // scorecard is only ever written from real, fully-read DOM facts. The heavy-page budget is
+    // reclaimed by skipping page.content() below, not by short-circuiting this read.
     const dom = await page.evaluate(() => {
       const links = Array.from(document.querySelectorAll("a"));
       const pv = links.find(
@@ -182,9 +212,16 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
       hasPasswordField: dom.formFields.includes("password"),
     });
 
-    const html = await page.content().catch(() => "");
+    // page.content() has no native timeout and serializes the whole DOM; on a frame-heavy page
+    // it can take 30s+ and blow the overall cap. Skip it for Floodlight (scoring ignores html);
+    // bound it for Receipts so a slow page degrades to "" instead of hanging.
+    const html = opts.skipHtml ? "" : await withTimeout(page.content(), 12000, "");
+    // Bound the screenshot too — a fullPage capture on a huge page otherwise runs to Playwright's
+    // ~30s default and can push the Receipts (non-skip) path past the overall cap.
     const screenshotPng =
-      gated || opts.skipScreenshot ? null : await page.screenshot({ fullPage: true }).catch(() => null);
+      gated || opts.skipScreenshot
+        ? null
+        : await page.screenshot({ fullPage: true, timeout: 15000 }).catch(() => null);
 
     return {
       capture: { url, requests, dom },
@@ -197,6 +234,7 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
       overallTimeout,
     ]);
   } finally {
+    if (overallTimer) clearTimeout(overallTimer);
     await browser.close().catch(() => {});
   }
 }
@@ -220,8 +258,9 @@ export async function captureAndScore(
 ): Promise<ScanResult> {
   let live: LiveCapture;
   try {
-    // Floodlight scoring never uses the screenshot — skip it to keep sweep memory flat.
-    live = await capturePage(url, { skipScreenshot: true, ...opts });
+    // Floodlight scoring reads only the request log + DOM facts — never the screenshot or html.
+    // Skipping both keeps sweep memory flat and dodges page.content()'s multi-second serialize.
+    live = await capturePage(url, { skipScreenshot: true, skipHtml: true, ...opts });
   } catch (err) {
     return { ok: false, gated: false, domain: null, error: err instanceof Error ? err.message : String(err) };
   }
@@ -234,6 +273,14 @@ export async function captureAndScore(
     }
     return { ok: true, gated: true, domain: host };
   }
-  const result = runFloodlightScan(db, live.capture);
-  return { ok: true, gated: false, domain: result.scorecard.domain, severity: result.scorecard.severity };
+  // Guard the DB write: runFloodlightScan rethrows on any transaction error (e.g. a transient
+  // SQLITE_BUSY while the web process reads). Without this, one bad host would throw out of the
+  // sweep loop and abort every remaining host AND the retry pass. Report it as a failed host so
+  // the caller continues (and the retry pass gives it another go).
+  try {
+    const result = runFloodlightScan(db, live.capture);
+    return { ok: true, gated: false, domain: result.scorecard.domain, severity: result.scorecard.severity };
+  } catch (err) {
+    return { ok: false, gated: false, domain: null, error: err instanceof Error ? err.message : String(err) };
+  }
 }
