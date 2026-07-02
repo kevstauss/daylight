@@ -28,53 +28,100 @@ export function originFromRequest(req: Request): string {
   return configuredSiteUrl();
 }
 
-export const CONTACT =
-  process.env.DAYLIGHT_CONTACT?.trim() || `${configuredSiteUrl()}/methods`;
-
-/** Where the public sends tips / watchlist submissions. */
+/** Where the public sends tips / watchlist submissions / disputes. */
 export const TIPS_EMAIL = process.env.DAYLIGHT_TIPS?.trim() || "tips@daylight.watch";
+
+/** Normalize a contact value to a usable href: bare emails get a `mailto:` scheme. */
+function normalizeContact(v: string): string {
+  if (/^https?:\/\//i.test(v) || v.startsWith("mailto:")) return v;
+  if (v.includes("@")) return `mailto:${v}`;
+  return v;
+}
+
+function resolveContact(): string {
+  const raw = process.env.DAYLIGHT_CONTACT?.trim();
+  if (raw) return normalizeContact(raw);
+  // A real mailbox — NOT the old `${site}/methods` default, which made the "Contact" link on the
+  // methods page point circularly back at itself. Warn loudly in prod so a real address gets set.
+  if (process.env.NODE_ENV === "production" && !process.env.DAYLIGHT_TIPS?.trim()) {
+    console.warn(
+      "[daylight] DAYLIGHT_CONTACT (and DAYLIGHT_TIPS) are unset — falling back to the placeholder tips mailbox. Set a real contact for the methods/dispute path.",
+    );
+  }
+  return `mailto:${TIPS_EMAIL}`;
+}
+
+/** A ready-to-use href (mailto: or https:) for the public/agency contact + dispute path. */
+export const CONTACT = resolveContact();
+/** The human-readable form (scheme stripped) for display. */
+export const CONTACT_LABEL = CONTACT.replace(/^mailto:/, "");
+
+/** Optional funding/donation link (GitHub Sponsors / Ko-fi / Open Collective). Rendered in the
+ *  footer + methods only when set — no placeholder shown when absent. */
+export const FUNDING_URL = process.env.DAYLIGHT_FUNDING_URL?.trim() || null;
 
 export const USER_AGENT = `DaylightBot/0.4 (+${configuredSiteUrl()}/methods; observational; public-data-only)`;
 
 export const CREDIT_LINE =
   "Built with Claude Code. Research assisted by Claude (Anthropic).";
 
-/** Every public data source Daylight reads (PRD §8). Shown permanently on /methods. */
-export const DATA_SOURCES: { name: string; url: string; use: string; phase: string }[] = [
+/** Every public data source Daylight reads (PRD §8). Shown permanently on /methods.
+ *  `use` is the plain-language lead; `technical` is the expandable detail; `cadence` feeds the
+ *  bot-behavior table (how often + how politely we read each source). */
+export const DATA_SOURCES: {
+  name: string;
+  url: string;
+  use: string;
+  technical: string;
+  cadence: string;
+  phase: string;
+}[] = [
   {
     name: "CISA dotgov-data",
     url: "https://github.com/cisagov/dotgov-data",
-    use: "Public federal .gov ownership registry — who owns each apex domain and its security contact. Diffed daily.",
+    use: "The official public list of who owns each federal .gov domain, and the email listed as its security contact. We check it every day and note anything that changed.",
+    technical: "We `git fetch` the public cisagov/dotgov-data repo and diff current-federal.csv commit-to-commit. Every emitted change links the commit-pinned blob it was read from, so the exact before/after row is re-checkable. Ownership/contact deltas are classified (H1 contact-domain mismatch, H9 contact concentration, watchlist hits); city/state churn is stored but never surfaced as a change.",
+    cadence: "Daily; a full git-history backfill runs once.",
     phase: "Ledger (live)",
   },
   {
     name: "Certificate Transparency logs (via crt.sh)",
     url: "https://crt.sh/",
-    use: "Public append-only logs of every issued TLS certificate — used to notice new subdomains appearing. Existence-only: we record that a cert exists; we never connect to the host.",
+    use: "Every time a website gets a security certificate, it's published in a public log. We read those logs to notice when a new subdomain first appears — for example a `previews.` or `photo.` host.",
+    technical: "Public append-only Certificate Transparency (CT) logs, queried via crt.sh (with backoff + caching). We extract SANs, identify never-before-seen subdomains under watched apexes, and score them against a label list (previews/staging/auth/photo/analytics/infra…). Existence-only: we record that a certificate exists; we never connect to, probe, or authenticate to the host. Each row links back to its crt.sh query.",
+    cadence: "Nightly reconcile; certstream (real-time) deferred pending hosting.",
     phase: "Lookout (backfill live)",
   },
   {
     name: "Live public page source (Playwright)",
     url: "https://playwright.dev/",
-    use: "Public page HTML + network requests, passive load-only (no auth, no form submit, no crawling) — used to fingerprint trackers and the reverse-proxy disguise trick.",
+    use: "We load a public government page the way your browser would, once, and write down what it loaded on its own — which trackers ran, whether it records your clicks, and whether it links a privacy notice. We never fill in or submit anything.",
+    technical: "A headless Chromium loads the public URL once (load-only: no auth, no form submission, no clicking, no crawling). We capture every network request (with a bounded POST-body sample) and passive DOM facts, then fingerprint third-party trackers and the reverse-proxy disguise (a first-party endpoint whose payload shape matches an analytics SDK). SSRF-guarded (IP-pinned, RFC1918 blocked); an access-gated page is noted as existing and never entered.",
+    cadence: "Daily for the watchlist, weekly full sweep (deferred pending hosting).",
     phase: "Floodlight (engine live; capture pending)",
   },
   {
     name: "DuckDuckGo Tracker Radar",
     url: "https://github.com/duckduckgo/tracker-radar",
-    use: "Open dataset of tracker hosts + categories — seeds Floodlight's fingerprints, alongside EasyPrivacy and a session-replay vendor list.",
+    use: "An open, public catalog of known trackers and what they do. We use it to recognize the trackers we see on a page.",
+    technical: "Seeds Floodlight's curated fingerprint set (host + payload-shape signatures) alongside EasyPrivacy and a session-replay vendor list. We keep a high-signal subset — the vendors that actually appear on federal sites plus the common analytics/session-replay tools — not the full multi-thousand-host dataset, so it stays auditable.",
+    cadence: "Bundled dataset; refreshed with releases.",
     phase: "Floodlight (engine live)",
   },
   {
     name: "Wayback Save Page Now (SPN2)",
     url: "https://web.archive.org/",
-    use: "An independent third-party archive of snapshots, so the record of what a page showed is not one we control. Powers the removal ledger.",
+    use: "An independent public archive (the Internet Archive). We ask it to save a copy of watched pages, so the record of what a page showed on a given day isn't one we control and can't quietly change.",
+    technical: "On snapshot, we POST the URL to web.archive.org/save/{url} (rate-limited, opt-in) and store the returned archive URL beside our own dated snapshot. When something present before is gone after — a tracker, a privacy clause, a seal, a form field — it becomes a dated `removed` event in the removal ledger with before/after.",
+    cadence: "With each Receipts snapshot (deferred pending hosting).",
     phase: "Receipts (removal ledger live; capture pending)",
   },
   {
     name: "Federal Register API",
     url: "https://www.federalregister.gov/developers/documentation/api/v1",
-    use: "Public SORN (System of Records Notice) search — used to check for required privacy filings. Redtape's gap findings are human-reviewed before publication and never assert illegality.",
+    use: "The government's own public record of privacy filings. When a site collects personal information, the law generally requires a published privacy notice; we search this record to see whether one exists — and show you the exact searches we ran.",
+    technical: "An AI research agent (behind a human-approval gate — see below) searches the Federal Register for SORNs matching a collection, returning references OR a documented negative with the exact queries run. Only human-reviewed, published gaps ever appear on /redtape, and only with a non-empty query + source trail so the negative is re-runnable. Copy is constrained to observation (\"no published PIA found as of {date}; searches below\"), never \"illegal.\" Note: PIA repositories live on agency sites, not the Federal Register, so a PIA search is not yet fully automatable.",
+    cadence: "On new collection detected + monthly re-sweep (human-gated).",
     phase: "Redtape (gap-finder + human gate live)",
   },
 ];

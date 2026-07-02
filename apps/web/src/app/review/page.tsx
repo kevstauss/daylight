@@ -88,7 +88,7 @@ export default async function ReviewPage() {
             name="token"
             autoComplete="off"
             placeholder="Review token"
-            className="w-full rounded border border-edge bg-panel px-3 py-2 font-mono text-sm text-ink placeholder:text-faint focus:border-accent focus:outline-none"
+            className="w-full rounded border border-edge bg-panel px-3 py-2 font-mono text-sm text-ink placeholder:text-faint focus:border-accent"
           />
           <button
             type="submit"
@@ -154,7 +154,7 @@ export default async function ReviewPage() {
                   name="note"
                   rows={2}
                   placeholder="Reviewer note (why, and what to fix)…"
-                  className="w-full rounded border border-edge bg-panel px-2 py-1.5 text-xs text-ink placeholder:text-faint focus:border-accent focus:outline-none"
+                  className="w-full rounded border border-edge bg-panel px-2 py-1.5 text-xs text-ink placeholder:text-faint focus:border-accent"
                 />
                 <div className="flex flex-wrap gap-2 font-mono text-xs">
                   <button

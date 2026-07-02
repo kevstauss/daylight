@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { changeCount, domainCount, globalChanges } from "@/lib/data";
 import { flags } from "@/lib/flags";
-import { EmptyState, Eyebrow, InternalLink, Panel, SeverityBadge, Timestamp } from "@/components/ui";
+import { EmptyState, Eyebrow, InternalLink, Panel, SeverityBadge, SourceRef, Timestamp } from "@/components/ui";
+import { GlobalSearch } from "@/components/global-search";
 import { ModuleIcon } from "@/components/module-icon";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,8 @@ export default function Home() {
           timestamped, source-linked record of it. Reporters can subscribe to a name; anyone can ask
           who owns a <span className="font-mono text-ink">.gov</span> and whether it&rsquo;s watching them.
         </p>
+
+        <GlobalSearch variant="hero" />
 
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-y border-edge py-3">
           <Figure n={domains.toLocaleString()} label="domains watched" />
@@ -101,6 +104,7 @@ export default function Home() {
                       <span className="font-mono text-xs text-muted">{c.domain}</span>
                     )}
                     <Timestamp iso={c.detected_at} />
+                    <SourceRef href={c.source_url} />
                   </div>
                 </div>
               </div>

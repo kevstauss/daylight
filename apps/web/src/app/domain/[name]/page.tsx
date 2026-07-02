@@ -1,15 +1,33 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { synthesizeTitle } from "@daylight/feeds";
-import { domainHistoryRows, domainRow, subdomainsForApex, type SubdomainRow } from "@/lib/data";
+import {
+  domainHistoryRows,
+  domainRow,
+  scorecardsForHost,
+  subdomainRow,
+  subdomainsForApex,
+  type ScorecardRow,
+  type SubdomainRow,
+} from "@/lib/data";
 import { composite, domainFlag } from "@/lib/ledger";
 import { flags } from "@/lib/flags";
-import { EmptyState, Eyebrow, Panel, SeverityBadge, SourceLink, Timestamp } from "@/components/ui";
+import { watchlist } from "@/lib/watchlist";
+import {
+  EmptyState,
+  Eyebrow,
+  InternalLink,
+  Panel,
+  SeverityBadge,
+  SourceLink,
+  SourceRef,
+  Timestamp,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-const CISA_SOURCE =
-  "https://github.com/cisagov/dotgov-data/blob/main/current-federal.csv";
+const CISA_SOURCE = "https://github.com/cisagov/dotgov-data/blob/main/current-federal.csv";
+const crtsh = (q: string): string => `https://crt.sh/?q=${encodeURIComponent(q)}`;
 
 export async function generateMetadata({
   params,
@@ -17,38 +35,130 @@ export async function generateMetadata({
   params: Promise<{ name: string }>;
 }): Promise<Metadata> {
   const { name } = await params;
-  return { title: decodeURIComponent(name) };
+  // The App Router already URL-decodes the param; decoding again throws URIError on a bare '%'.
+  // safeDecode is idempotent for real domains and never throws.
+  return { title: safeDecode(name) };
+}
+
+/** Resolve which legit/shadow domain to compare this one against, from watchlist.comparators. */
+function comparatorFor(domain: string): string | null {
+  const comparators = watchlist()?.comparators ?? {};
+  if (comparators[domain]) return comparators[domain];
+  for (const [k, v] of Object.entries(comparators)) if (v === domain) return k;
+  return null;
 }
 
 export default async function DomainPage({ params }: { params: Promise<{ name: string }> }) {
   const { name } = await params;
-  const domain = decodeURIComponent(name).trim().toLowerCase();
+  const domain = safeDecode(name).trim().toLowerCase();
+  const f = flags();
   const row = safe(() => domainRow(domain), null);
-  const history = safe(() => domainHistoryRows(domain), []);
 
+  // Not an apex in the registry — but it may be a subdomain Lookout has seen (item 14). Resolve it
+  // regardless of the Lookout module flag: the data exists (it's in the subdomains table + the API),
+  // so "not in the registry" would be a false negative for a name Daylight demonstrably tracks.
   if (!row) {
+    const sub = safe(() => subdomainRow(domain), null);
+    if (sub) return <SubdomainView sub={sub} />;
     return (
       <div className="space-y-4">
         <h1 className="font-mono text-xl text-ink">{domain}</h1>
         <EmptyState
           title="Not in the federal .gov registry."
-          hint="Daylight's Ledger watches apex federal .gov domains from CISA's public registry. Subdomains are Lookout's beat (coming in a later phase)."
+          hint="Daylight's Ledger watches apex federal .gov domains from CISA's public registry, and Lookout records subdomains seen in Certificate Transparency logs. This name matches neither yet."
         />
+        <p className="text-sm">
+          <InternalLink href={`/registry?q=${encodeURIComponent(domain)}`}>
+            Search the registry for “{domain}” →
+          </InternalLink>
+        </p>
       </div>
     );
   }
 
   const flag = safe(() => domainFlag(row), null);
-  const f = flags();
   const subdomains = f.lookout ? safe(() => subdomainsForApex(domain), []) : [];
+  const history = safe(() => domainHistoryRows(domain), []);
   const comp = safe(() => composite(domain), null);
+  const watched = (watchlist()?.apexDomains ?? []).includes(domain);
+  const counterpart = comparatorFor(domain);
+  const flaggedSubs = subdomains.filter((s) => s.flag_severity === "high" || s.flag_severity === "notable").length;
+  const sc = comp?.scorecards[0] ?? null;
+  const gap = comp?.gaps[0] ?? null;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="font-mono text-2xl text-ink">{row.domain}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="font-mono text-2xl text-ink">{row.domain}</h1>
+          {watched ? (
+            <span
+              className="rounded-sm border border-alarm/50 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-alarm"
+              title="This domain is on the Daylight watchlist — flags on it are raised to the highest severity."
+            >
+              on the watchlist
+            </span>
+          ) : null}
+        </div>
         <Timestamp iso={row.last_seen} prefix="last checked" />
       </div>
+
+      {/* Answer strip — the four questions above the fold, each anchoring to its section. */}
+      <div className="flex flex-wrap gap-2 text-xs">
+        <AnswerChip href="#ownership" label="owner" value={row.org || "—"} />
+        <AnswerChip href="#history" label="changes" value={String(history.length)} />
+        {f.lookout ? (
+          <AnswerChip
+            href="#subdomains"
+            label="subdomains"
+            value={`${subdomains.length}${flaggedSubs ? ` · ${flaggedSubs} flagged` : ""}`}
+            alarm={flaggedSubs > 0}
+          />
+        ) : null}
+        {f.floodlight ? (
+          <AnswerChip
+            href="#trackers"
+            label="tracking"
+            value={
+              sc
+                ? `${sc.tracker_count ?? 0} tracker${(sc.tracker_count ?? 0) === 1 ? "" : "s"}${sc.session_replay ? " · replay" : ""}${sc.first_party_proxied ? " · proxied" : ""}`
+                : "not scanned"
+            }
+            alarm={!!(sc && (sc.session_replay || sc.first_party_proxied))}
+          />
+        ) : null}
+        {f.redtape ? (
+          <AnswerChip
+            href="#filings"
+            label="filing"
+            value={
+              gap
+                ? gap.gap_assessment === "no_filing"
+                  ? "no PIA/SORN"
+                  : gap.gap_assessment === "incomplete_filing"
+                    ? "incomplete"
+                    : "on file"
+                : "—"
+            }
+            alarm={gap?.gap_assessment === "no_filing"}
+          />
+        ) : null}
+      </div>
+
+      {counterpart ? (
+        <Panel className="px-4 py-3">
+          <p className="text-sm text-muted">
+            Daylight tracks <span className="font-mono text-ink">{domain}</span> alongside its
+            comparator <span className="font-mono text-ink">{counterpart}</span>.{" "}
+            <Link
+              href={`/compare?a=${encodeURIComponent(domain)}&b=${encodeURIComponent(counterpart)}`}
+              className="link"
+            >
+              Compare them side by side →
+            </Link>
+          </p>
+        </Panel>
+      ) : null}
 
       {flag ? (
         <Panel className={`px-4 py-3 ${flag.severity === "high" ? "border-alarm/50" : ""}`}>
@@ -66,22 +176,24 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
         </Panel>
       ) : null}
 
-      <Eyebrow>ledger · ownership</Eyebrow>
-      <Panel className="px-4 py-4">
-        <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
-          <Field label="Organization" value={row.org} />
-          <Field label="Suborganization" value={row.suborg} />
-          <Field label="Domain type" value={row.domain_type} />
-          <Field label="Location" value={[row.city, row.state].filter(Boolean).join(", ") || null} />
-          <Field label="Security contact" value={row.security_contact_email} mono />
-          <Field label="First seen" value={row.first_seen} mono />
-        </dl>
-        <p className="mt-4 border-t border-edge pt-3 text-xs text-faint">
-          Source: <SourceLink href={CISA_SOURCE}>cisagov/dotgov-data · current-federal.csv</SourceLink>
-        </p>
-      </Panel>
+      <section id="ownership" className="scroll-mt-4">
+        <Eyebrow>ledger · ownership</Eyebrow>
+        <Panel className="px-4 py-4">
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+            <Field label="Organization" value={row.org} />
+            <Field label="Suborganization" value={row.suborg} />
+            <Field label="Domain type" value={row.domain_type} />
+            <Field label="Location" value={[row.city, row.state].filter(Boolean).join(", ") || null} />
+            <Field label="Security contact" value={row.security_contact_email} mono />
+            <Field label="First seen" value={row.first_seen} mono />
+          </dl>
+          <p className="mt-4 border-t border-edge pt-3 text-xs text-faint">
+            Source: <SourceLink href={CISA_SOURCE}>cisagov/dotgov-data · current-federal.csv</SourceLink>
+          </p>
+        </Panel>
+      </section>
 
-      <section className="space-y-3">
+      <section id="history" className="scroll-mt-4 space-y-3">
         <Eyebrow>ledger · history</Eyebrow>
         {history.length === 0 ? (
           <EmptyState
@@ -99,7 +211,16 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
                     <SeverityBadge severity={c.severity} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-ink">{synthesizeTitle(c)}</p>
-                      <Timestamp iso={c.detected_at} />
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                        <Timestamp iso={c.detected_at} />
+                        <SourceRef href={c.source_url} />
+                        <Link
+                          href={`/change/${c.id}`}
+                          className="font-mono text-xs text-faint underline decoration-edgeStrong underline-offset-2 hover:text-ink"
+                        >
+                          cite →
+                        </Link>
+                      </div>
                     </div>
                   </li>
                 ))}
@@ -109,9 +230,9 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
       </section>
 
       {f.lookout ? (
-        <section className="space-y-3">
+        <section id="subdomains" className="scroll-mt-4 space-y-3">
           <div className="flex items-baseline justify-between">
-            <Eyebrow>lookout · subdomains (from CT logs)</Eyebrow>
+            <Eyebrow>lookout · subdomains (from Certificate Transparency logs)</Eyebrow>
             <span className="font-mono text-xs text-faint">{subdomains.length}</span>
           </div>
           {subdomains.length === 0 ? (
@@ -126,10 +247,13 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
                   <li key={s.fqdn} className="flex items-start gap-3 px-4 py-2.5">
                     <SeverityBadge severity={s.flag_severity ?? "info"} />
                     <div className="min-w-0 flex-1">
-                      <span className="font-mono text-sm text-ink">{s.fqdn}</span>
-                      {s.flag_reason ? (
-                        <p className="mt-0.5 text-xs text-muted">{s.flag_reason}</p>
-                      ) : null}
+                      <Link
+                        href={`/domain/${encodeURIComponent(s.fqdn)}`}
+                        className="font-mono text-sm text-ink underline decoration-transparent underline-offset-2 hover:decoration-alarm"
+                      >
+                        {s.fqdn}
+                      </Link>
+                      {s.flag_reason ? <p className="mt-0.5 text-xs text-muted">{s.flag_reason}</p> : null}
                     </div>
                     <Timestamp iso={s.first_seen} />
                   </li>
@@ -146,7 +270,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
       ) : null}
 
       {f.floodlight ? (
-        <section className="space-y-3">
+        <section id="trackers" className="scroll-mt-4 space-y-3">
           <Eyebrow>floodlight · tracker scorecard</Eyebrow>
           {comp && comp.scorecards.length > 0 ? (
             <Panel>
@@ -162,7 +286,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
                         {s.url}
                       </Link>
                       <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted">
-                        <span>{s.tracker_count ?? 0} trackers</span>
+                        <span>{s.tracker_count ?? 0} tracker{(s.tracker_count ?? 0) === 1 ? "" : "s"}</span>
                         <span>session replay {s.session_replay ? "on" : "off"}</span>
                         <span>reverse-proxy {s.first_party_proxied ? "detected" : "no"}</span>
                         <span>privacy notice {s.privacy_notice_url ? "present" : "absent"}</span>
@@ -180,7 +304,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
       ) : null}
 
       {f.receipts ? (
-        <section className="space-y-3">
+        <section id="snapshots" className="scroll-mt-4 space-y-3">
           <Eyebrow>receipts · snapshots &amp; removals</Eyebrow>
           {comp && comp.removals.length > 0 ? (
             <Panel>
@@ -190,6 +314,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
                     <SeverityBadge severity={c.severity} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-ink">{c.reason ?? `${c.field ?? "item"} removed`}</p>
+                      <SourceRef href={c.source_url} />
                     </div>
                     <Timestamp iso={c.detected_at} />
                   </li>
@@ -202,10 +327,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
             />
           )}
           {comp && comp.snapshots.length > 0 ? (
-            <Link
-              href={`/receipts/${encodeURIComponent(comp.snapshots[0]!.url)}`}
-              className="link text-xs"
-            >
+            <Link href={`/receipts/${encodeURIComponent(comp.snapshots[0]!.url)}`} className="link text-xs">
               View snapshot history →
             </Link>
           ) : null}
@@ -213,7 +335,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
       ) : null}
 
       {f.redtape ? (
-        <section className="space-y-3">
+        <section id="filings" className="scroll-mt-4 space-y-3">
           <Eyebrow>redtape · privacy filings</Eyebrow>
           {comp && comp.gaps.length > 0 ? (
             <Panel>
@@ -247,6 +369,77 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
   );
 }
 
+/** A subdomain (non-apex) view — the investigation's key artifacts are subdomains (item 14). */
+function SubdomainView({ sub }: { sub: SubdomainRow }) {
+  const labels = safeParse(sub.labels);
+  const scorecards = safe(() => scorecardsForHost(sub.fqdn), [] as ScorecardRow[]);
+  return (
+    <div className="space-y-6">
+      <div>
+        <nav aria-label="Breadcrumb" className="mb-1 font-mono text-xs text-faint">
+          <Link href={`/domain/${encodeURIComponent(sub.apex)}`} className="link">
+            {sub.apex}
+          </Link>{" "}
+          / {sub.fqdn}
+        </nav>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="break-all font-mono text-2xl text-ink">{sub.fqdn}</h1>
+          <SeverityBadge severity={sub.flag_severity ?? "info"} />
+        </div>
+        <p className="mt-1 text-sm text-muted">
+          Seen in public Certificate Transparency logs under{" "}
+          <Link href={`/domain/${encodeURIComponent(sub.apex)}`} className="link">
+            {sub.apex}
+          </Link>
+          {sub.apex_owner_org ? ` (${sub.apex_owner_org})` : ""}. Existence-only — Daylight records
+          that a certificate exists; it never connects to this host.
+        </p>
+      </div>
+
+      {sub.flag_reason ? (
+        <Panel className={`px-4 py-3 ${sub.flag_severity === "high" ? "border-alarm/50" : ""}`}>
+          <p className="text-sm text-ink">{sub.flag_reason}</p>
+        </Panel>
+      ) : null}
+
+      <Panel className="px-4 py-4">
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+          <Field label="Apex" value={sub.apex} mono />
+          <Field label="Apex owner" value={sub.apex_owner_org} />
+          <Field label="Labels" value={labels.length ? labels.join(", ") : null} mono />
+          <Field label="First seen (UTC)" value={sub.first_seen} mono />
+          <Field label="Last seen (UTC)" value={sub.last_seen} mono />
+        </dl>
+        <p className="mt-4 border-t border-edge pt-3 text-xs text-faint">
+          Source: <SourceLink href={crtsh(sub.fqdn)}>crt.sh · {sub.fqdn}</SourceLink>
+        </p>
+      </Panel>
+
+      {scorecards.length > 0 ? (
+        <section className="space-y-3">
+          <Eyebrow>floodlight · scorecards on this host</Eyebrow>
+          <Panel>
+            <ul className="divide-y divide-edge">
+              {scorecards.map((s) => (
+                <li key={s.url} className="flex items-start gap-3 px-4 py-2.5">
+                  <SeverityBadge severity={s.severity ?? "info"} />
+                  <Link
+                    href={`/floodlight/${encodeURIComponent(s.url)}`}
+                    className="min-w-0 flex-1 truncate font-mono text-sm text-ink hover:text-alarm"
+                  >
+                    {s.url}
+                  </Link>
+                  <Timestamp iso={s.scanned_at} />
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
 function Field({ label, value, mono }: { label: string; value: string | null; mono?: boolean }) {
   return (
     <div>
@@ -256,6 +449,48 @@ function Field({ label, value, mono }: { label: string; value: string | null; mo
       </dd>
     </div>
   );
+}
+
+function AnswerChip({
+  href,
+  label,
+  value,
+  alarm,
+}: {
+  href: string;
+  label: string;
+  value: string;
+  alarm?: boolean;
+}) {
+  return (
+    <a
+      href={href}
+      className={`inline-flex min-h-6 items-center gap-1.5 rounded-sm border px-2 py-1 ${
+        alarm ? "border-alarm/50 text-alarm" : "border-edge text-muted hover:border-ink hover:text-ink"
+      }`}
+    >
+      <span className="font-mono text-[10px] uppercase tracking-wide text-faint">{label}</span>
+      <span className="font-mono">{value}</span>
+    </a>
+  );
+}
+
+function safeParse(json: string | null): string[] {
+  try {
+    return JSON.parse(json ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+}
+
+/** The App Router already decodes route params; a second decode throws on a bare '%'. Decode
+ *  defensively so a malformed value can't 500 the page. */
+function safeDecode(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
 }
 
 function safe<T>(fn: () => T, fallback: T): T {

@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { sha256 } from "@daylight/core";
 import { type ChangeRow, floodlightScorecard, floodlightUrlChanges } from "@/lib/data";
 import { flags } from "@/lib/flags";
-import { Eyebrow, InternalLink, Panel, SeverityBadge, Timestamp } from "@/components/ui";
+import { configuredSiteUrl } from "@/lib/site";
+import { Eyebrow, InternalLink, Panel, SeverityBadge, SourceRef, Timestamp } from "@/components/ui";
+import { CiteBlock } from "@/components/cite-block";
 import { ModuleIcon } from "@/components/module-icon";
 
 export const metadata: Metadata = { title: "Scorecard" };
@@ -48,7 +51,7 @@ export default async function FloodlightUrlPage({ params }: { params: Promise<{ 
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
           <SeverityBadge severity={sc.severity ?? "info"} />
           <span className="font-mono text-xs text-faint">
-            {sc.tracker_count ?? 0} third-party · {sc.request_count ?? 0} requests · scanned{" "}
+            {sc.tracker_count ?? 0} third-party tracker{(sc.tracker_count ?? 0) === 1 ? "" : "s"} · {sc.request_count ?? 0} request{(sc.request_count ?? 0) === 1 ? "" : "s"} · scanned{" "}
             <Timestamp iso={sc.scanned_at} />
           </span>
           <InternalLink href={`/domain/${encodeURIComponent(sc.domain)}`}>
@@ -100,13 +103,37 @@ export default async function FloodlightUrlPage({ params }: { params: Promise<{ 
                 <SeverityBadge severity={c.severity} />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-ink">{c.reason ?? `${c.kind} tracker`}</p>
-                  <Timestamp iso={c.detected_at} />
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3">
+                    <Timestamp iso={c.detected_at} />
+                    <SourceRef href={c.source_url} />
+                    <a
+                      href={`/change/${c.id}`}
+                      className="font-mono text-xs text-faint underline decoration-edgeStrong underline-offset-2 hover:text-ink"
+                    >
+                      cite →
+                    </a>
+                  </div>
                 </div>
               </div>
             ))}
           </Panel>
         </section>
       ) : null}
+
+      <CiteBlock
+        title={`Floodlight scorecard for ${sc.url}`}
+        url={`${configuredSiteUrl()}/floodlight/${encodeURIComponent(sc.url)}`}
+        hash={sha256(
+          JSON.stringify([
+            sc.url,
+            sc.tracker_count,
+            sc.session_replay,
+            sc.first_party_proxied,
+            sc.privacy_notice_url,
+            sc.scanned_at,
+          ]),
+        )}
+      />
 
       <p className="text-xs text-faint">
         Engine {sc.engine_version ?? "?"} · a passive, load-only capture of a public page. See{" "}

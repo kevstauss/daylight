@@ -16,24 +16,25 @@ export function MainNav({ items, rssHref }: { items: NavItem[]; rssHref: string 
     [item.href, ...(item.owns ?? [])].some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   return (
-    <nav className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+    <nav aria-label="Primary" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
       {items.map((n) => (
         <Link
           key={n.href}
           href={n.href}
           aria-current={active(n) ? "page" : undefined}
-          className={
+          className={`inline-flex min-h-6 items-center py-1 underline underline-offset-[5px] ${
             active(n)
-              ? "font-medium text-ink underline decoration-alarm decoration-2 underline-offset-[5px]"
-              : "text-muted underline decoration-transparent underline-offset-[5px] transition-colors hover:text-ink hover:decoration-edgeStrong"
-          }
+              ? "font-medium text-ink decoration-alarm decoration-2"
+              : "text-muted decoration-transparent transition-colors hover:text-ink hover:decoration-edgeStrong"
+          }`}
         >
           {n.label}
         </Link>
       ))}
       <Link
         href={rssHref}
-        className="rounded-sm border border-edgeStrong px-2 py-0.5 font-mono text-[11px] text-muted transition-colors hover:border-ink hover:text-ink"
+        aria-label="Global RSS feed"
+        className="inline-flex min-h-6 items-center rounded-sm border border-edgeStrong px-2 py-1 font-mono text-[11px] text-muted transition-colors hover:border-ink hover:text-ink"
       >
         RSS
       </Link>

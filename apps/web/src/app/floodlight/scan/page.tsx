@@ -81,7 +81,9 @@ async function runScan(formData: FormData): Promise<void> {
 
   if (!result.ok) back(result.error ?? "The scan could not complete.");
   if (result.gated) redirect(`/floodlight/scan?gated=${encodeURIComponent(result.domain ?? url)}`);
-  redirect(`/floodlight?scanned=${encodeURIComponent(result.domain ?? "")}`);
+  // Land the user on the scorecard they just created (the shareable artifact), not a generic list.
+  if (result.url) redirect(`/floodlight/${encodeURIComponent(result.url)}`);
+  redirect("/floodlight");
 }
 
 export default async function ScanPage({
@@ -129,7 +131,7 @@ export default async function ScanPage({
           name="url"
           required
           placeholder="https://example.gov/"
-          className="w-full rounded border border-edge bg-panel px-3 py-2 font-mono text-sm text-ink placeholder:text-faint focus:border-accent focus:outline-none"
+          className="w-full rounded border border-edge bg-panel px-3 py-2 font-mono text-sm text-ink placeholder:text-faint focus:border-accent"
         />
         <button
           type="submit"

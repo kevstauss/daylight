@@ -12,10 +12,10 @@
   --c-edge-strong: 183 192 199;
   --c-ink: 20 23 26;
   --c-muted: 79 87 95;
-  --c-faint: 130 139 147;
+  --c-faint: 92 101 109; /* WCAG AA on paper (4.9:1) — carries timestamps/citations/table headers */
   --c-accent: 28 74 103;
   --c-alarm: 156 42 36;
-  --c-signal: 138 100 18;
+  --c-signal: 122 88 12; /* darkened so NOTABLE stamp text clears AA on its tint */
   --c-calm: 47 107 79;
 }
 
@@ -32,9 +32,9 @@
     --c-edge-strong: 71 66 59;
     --c-ink: 233 228 216;
     --c-muted: 168 159 146;
-    --c-faint: 124 115 101;
+    --c-faint: 150 140 126; /* WCAG AA on dark paper (5.5:1) */
     --c-accent: 111 166 196;
-    --c-alarm: 207 90 78;
+    --c-alarm: 232 122 110; /* lifted so HIGH stamp text clears AA on dark (was 3.85:1) */
     --c-signal: 203 154 76;
     --c-calm: 111 174 134;
   }
@@ -48,9 +48,9 @@
   --c-edge-strong: 71 66 59;
   --c-ink: 233 228 216;
   --c-muted: 168 159 146;
-  --c-faint: 124 115 101;
+  --c-faint: 150 140 126; /* WCAG AA on dark paper (5.5:1) */
   --c-accent: 111 166 196;
-  --c-alarm: 207 90 78;
+  --c-alarm: 232 122 110; /* lifted so HIGH stamp text clears AA on dark (was 3.85:1) */
   --c-signal: 203 154 76;
   --c-calm: 111 174 134;
 }
@@ -109,6 +109,38 @@ time,
   outline: 2px solid theme("colors.accent");
   outline-offset: 2px;
   border-radius: 2px;
+}
+
+/* Screen-reader-only content (visually hidden, still announced). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Keyboard skip link — hidden until focused, then slides into view above the masthead. */
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -3.5rem;
+  z-index: 50;
+  background: theme("colors.raised");
+  color: theme("colors.ink");
+  border: 1px solid theme("colors.edgeStrong");
+  border-radius: 3px;
+  padding: 0.5rem 0.75rem;
+  font-family: theme("fontFamily.mono");
+  font-size: 12px;
+  transition: top 120ms ease;
+}
+.skip-link:focus {
+  top: 0.5rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

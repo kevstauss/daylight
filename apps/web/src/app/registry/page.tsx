@@ -60,7 +60,7 @@ export default async function RegistryPage({
           name="q"
           defaultValue={q}
           placeholder="Search domain, organization, or contact…"
-          className="w-full rounded border border-edge bg-panel px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-accent focus:outline-none"
+          className="w-full rounded border border-edge bg-panel px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-accent"
         />
         <button
           type="submit"
@@ -109,11 +109,19 @@ export default async function RegistryPage({
                       </td>
                       <td className="px-4 py-2.5">
                         {flag && flag.severity === "high" ? (
-                          <span className="rounded border border-alarm/50 px-1.5 py-0.5 font-mono text-[10px] uppercase text-alarm">
+                          <span
+                            className="rounded border border-alarm/50 px-1.5 py-0.5 font-mono text-[10px] uppercase text-alarm"
+                            aria-label={flag.reason}
+                            title={flag.reason}
+                          >
                             contact mismatch
                           </span>
                         ) : flag ? (
-                          <span className="font-mono text-[10px] text-faint" title={flag.reason}>
+                          <span
+                            className="font-mono text-[10px] text-faint"
+                            aria-label={flag.reason}
+                            title={flag.reason}
+                          >
                             foreign contact
                           </span>
                         ) : null}

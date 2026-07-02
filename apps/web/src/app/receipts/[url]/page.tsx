@@ -66,7 +66,7 @@ export default async function ReceiptsUrlPage({ params }: { params: Promise<{ ur
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <Timestamp iso={s.captured_at} />
                 <span className="font-mono text-xs text-faint">
-                  {count(s.tracker_snapshot_json)} trackers ·{" "}
+                  {count(s.tracker_snapshot_json)} tracker{count(s.tracker_snapshot_json) === 1 ? "" : "s"} ·{" "}
                   {s.privacy_text_hash ? "privacy notice ✓" : "no privacy notice"} ·{" "}
                   {s.seal_present ? "seal ✓" : "no seal"} · {count(s.form_fields_json)} PII fields
                 </span>

@@ -5,7 +5,7 @@ import { FLAG_TYPES, type FlagKind, classifyChangeFlag } from "@daylight/core";
 import { synthesizeTitle } from "@daylight/feeds";
 import { type ChangeRow, ledgerChanges, ledgerFlagCounts } from "@/lib/data";
 import { flags } from "@/lib/flags";
-import { Eyebrow, InternalLink, Panel, SeverityBadge, Timestamp } from "@/components/ui";
+import { Eyebrow, InternalLink, Panel, SeverityBadge, SourceRef, Timestamp } from "@/components/ui";
 import { ModuleIcon } from "@/components/module-icon";
 import { LedgerTabs } from "@/components/ledger-tabs";
 
@@ -115,6 +115,13 @@ export default async function LedgerPage({
                       {FLAG_LABEL.get(kind) ?? kind}
                     </span>
                     <Timestamp iso={c.detected_at} />
+                    <SourceRef href={c.source_url} />
+                    <a
+                      href={`/change/${c.id}`}
+                      className="font-mono text-xs text-faint underline decoration-edgeStrong underline-offset-2 hover:text-ink"
+                    >
+                      cite →
+                    </a>
                   </div>
                 </div>
               </div>

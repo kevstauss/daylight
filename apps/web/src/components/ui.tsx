@@ -1,10 +1,13 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-/** Section eyebrow — a module path, e.g. "ledger · ownership". Encodes which part of the
- *  system a section belongs to (the shared observation/change spine is real structure). */
+export { HashChip } from "./hash-chip";
+
+/** Section eyebrow — a module path, e.g. "ledger · ownership". Rendered as an <h2> (visually a
+ *  kicker) so screen-reader users get a real heading outline to navigate each page's sections,
+ *  not a wall of unlabeled lists below the lone <h1>. */
 export function Eyebrow({ children }: { children: ReactNode }) {
-  return <div className="kicker mb-2 flex items-center gap-2">{children}</div>;
+  return <h2 className="kicker mb-2 flex items-center gap-2">{children}</h2>;
 }
 
 /** Severity as an official stamp — oxblood for high, ochre for notable, quiet for info.
@@ -20,33 +23,32 @@ export function SeverityBadge({ severity }: { severity: string }) {
   // aligns down the left — an audit-ledger look. Used across all the list views.
   return (
     <span
-      className={`inline-flex w-[4.5rem] shrink-0 items-center justify-center rounded-sm border px-1 py-[3px] font-mono text-[10px] uppercase leading-none tracking-[0.12em] ${map[label]}`}
+      className={`inline-flex w-[4.5rem] shrink-0 items-center justify-center rounded-sm border px-1 py-[3px] font-mono text-[11px] uppercase leading-none tracking-[0.12em] ${map[label]}`}
     >
       {label}
     </span>
   );
 }
 
-/** A UTC timestamp — always mono, always tabular, so a column of them lines up. */
+/** A UTC timestamp — mono + tabular so columns line up, with a human-readable aria-label so a
+ *  screen reader announces "July 1, 2026, 8:00 AM UTC" instead of spelling out the raw ISO glyph. */
 export function Timestamp({ iso, prefix }: { iso: string | null; prefix?: string }) {
   if (!iso) return <span className="font-mono text-xs text-faint tabular-nums">—</span>;
   const d = new Date(iso);
-  const text = Number.isNaN(d.getTime()) ? iso : d.toISOString().replace(".000Z", "Z");
+  const valid = !Number.isNaN(d.getTime());
+  const text = valid ? d.toISOString().replace(".000Z", "Z") : iso;
+  const human = valid
+    ? `${new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(d)} UTC`
+    : iso;
   return (
-    <time dateTime={iso} className="font-mono text-xs text-faint tabular-nums" title={iso}>
-      {prefix ? <span className="text-faint/70">{prefix} </span> : null}
-      {text}
+    <time
+      dateTime={iso}
+      className="font-mono text-xs text-faint tabular-nums"
+      aria-label={prefix ? `${prefix} ${human}` : human}
+    >
+      {prefix ? <span aria-hidden="true">{prefix} </span> : null}
+      <span aria-hidden="true">{text}</span>
     </time>
-  );
-}
-
-/** Short content-hash fingerprint chip — the way a CT log / audit trail cites a record. */
-export function HashChip({ hash }: { hash: string | null | undefined }) {
-  if (!hash) return null;
-  return (
-    <span className="rounded-sm border border-edge bg-panel px-1 font-mono text-[10px] text-faint" title={hash}>
-      {hash.slice(0, 8)}
-    </span>
   );
 }
 
@@ -60,6 +62,22 @@ export function SourceLink({ href, children }: { href: string; children: ReactNo
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className="link">
       {children}
+    </a>
+  );
+}
+
+/** "source →" — the exact public artifact a change/finding was observed in (commit blob / crt.sh /
+ *  wayback). Makes every row one-click re-verifiable. Renders nothing when there's no source. */
+export function SourceRef({ href, label }: { href: string | null | undefined; label?: string }) {
+  if (!href) return null;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-mono text-xs text-muted underline decoration-edgeStrong underline-offset-2 hover:text-ink"
+    >
+      {label ?? "source"} →
     </a>
   );
 }

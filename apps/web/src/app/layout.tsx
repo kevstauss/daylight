@@ -6,9 +6,10 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import { Mark } from "@/components/mark";
 import { MainNav } from "@/components/main-nav";
+import { GlobalSearch } from "@/components/global-search";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { flags } from "@/lib/flags";
-import { CREDIT_LINE, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
+import { CREDIT_LINE, FUNDING_URL, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
 
 // Applies a saved theme choice before first paint (no flash). System pref is the default.
 const NO_FLASH = `(function(){try{var t=localStorage.getItem('daylight-theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`;
@@ -51,6 +52,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <body className="min-h-screen bg-paper font-sans text-ink antialiased">
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: NO_FLASH }} />
+        <a href="#main" className="skip-link">Skip to main content</a>
         <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-5 sm:px-8">
           <header className="border-b border-edgeStrong">
             <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 py-4">
@@ -62,9 +64,12 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                 <span className="kicker hidden sm:inline">federal .gov watch</span>
               </Link>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                <MainNav items={nav} rssHref={f.feed ? "/ledger/feed.xml" : "/feed.xml"} />
+                <MainNav items={nav} rssHref="/feed.xml" />
                 <ThemeToggle />
               </div>
+            </div>
+            <div className="pb-2">
+              <GlobalSearch variant="compact" />
             </div>
             <div className="flex items-center gap-2 pb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
               <span className="inline-block h-[7px] w-[7px] shrink-0 rounded-full border border-alarm bg-alarm/60" />
@@ -72,9 +77,14 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             </div>
           </header>
 
-          <main className="flex-1 py-9">{children}</main>
+          <main id="main" tabIndex={-1} className="flex-1 py-9 focus:outline-none">
+            {children}
+          </main>
 
-          <footer className="border-t border-edge py-7 text-xs leading-relaxed text-faint">
+          <footer
+            aria-label="Site information"
+            className="border-t border-edge py-7 text-xs leading-relaxed text-faint"
+          >
             <p className="max-w-measure">
               Daylight records that things <strong className="font-semibold text-muted">exist</strong>{" "}
               and how they <strong className="font-semibold text-muted">change</strong>, using only
@@ -88,8 +98,14 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <Link href="/methods" className="link">Methods</Link>
               <Link href="/watchlist" className="link">Watchlist</Link>
               <Link href="/changelog" className="link">Changelog</Link>
+              <Link href="/corrections" className="link">Corrections</Link>
               <Link href="/feed.xml" className="link">Global feed</Link>
               <a href="https://github.com/kevstauss/daylight" className="link">Source</a>
+              {FUNDING_URL ? (
+                <a href={FUNDING_URL} target="_blank" rel="noopener noreferrer" className="link">
+                  Support
+                </a>
+              ) : null}
             </p>
             <p className="mt-2.5 font-mono">{CREDIT_LINE}</p>
           </footer>

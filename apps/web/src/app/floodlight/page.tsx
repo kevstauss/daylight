@@ -25,6 +25,38 @@ function trackersOf(row: ScorecardRow): Tracker[] {
   }
 }
 
+interface VendorChip {
+  vendor: string;
+  category: string;
+  hosts: string[];
+  firstPartyProxied: boolean;
+}
+
+/**
+ * The scorecard already dedupes on vendor+host, so one vendor on multiple hosts
+ * appears as several entries. On the compact list that reads as a duplicate, so
+ * collapse to one chip per vendor (keeping the proxied/third-party split, which
+ * is a real semantic difference) and surface each distinct host in the label.
+ */
+function collapseVendors(trackers: Tracker[]): VendorChip[] {
+  const byVendor = new Map<string, VendorChip>();
+  for (const t of trackers) {
+    const key = `${t.vendor}|${t.firstPartyProxied}`;
+    const chip = byVendor.get(key);
+    if (chip) {
+      if (!chip.hosts.includes(t.host)) chip.hosts.push(t.host);
+    } else {
+      byVendor.set(key, {
+        vendor: t.vendor,
+        category: t.category,
+        hosts: [t.host],
+        firstPartyProxied: t.firstPartyProxied,
+      });
+    }
+  }
+  return [...byVendor.values()];
+}
+
 export default async function FloodlightPage({
   searchParams,
 }: {
@@ -81,7 +113,7 @@ export default async function FloodlightPage({
                         </Link>
                       </div>
                       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-                        <span className="text-muted">{r.tracker_count ?? 0} trackers</span>
+                        <span className="text-muted">{r.tracker_count ?? 0} tracker{(r.tracker_count ?? 0) === 1 ? "" : "s"}</span>
                         <span className={r.session_replay ? "text-alarm" : "text-faint"}>
                           session replay {r.session_replay ? "ON" : "off"}
                         </span>
@@ -95,13 +127,20 @@ export default async function FloodlightPage({
                       </div>
                       {trackers.length > 0 ? (
                         <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          {trackers.map((t, i) => (
+                          {collapseVendors(trackers).map((t) => (
                             <span
-                              key={`${t.vendor}-${i}`}
+                              key={`${t.vendor}-${t.firstPartyProxied}`}
                               className={`rounded border px-1.5 py-0.5 font-mono text-[10px] ${t.firstPartyProxied ? "border-alarm/50 text-alarm" : "border-edge text-muted"}`}
-                              title={`${t.category} · ${t.host}`}
+                              // Same vendor on multiple hosts collapses to "vendor ×N" (each host is a
+                              // distinct endpoint, not a duplicate). Don't signal the reverse-proxy
+                              // disguise by color alone (WCAG 1.4.1): a visible "· proxied" marker + an
+                              // aria-label carrying category and every host.
+                              aria-label={`${t.vendor}${t.firstPartyProxied ? ", reverse-proxied first-party analytics" : ""} — ${t.category}, on ${t.hosts.length} host${t.hosts.length === 1 ? "" : "s"}: ${t.hosts.join(", ")}`}
+                              title={`${t.category} · ${t.hosts.join(", ")}${t.firstPartyProxied ? " · reverse-proxied" : ""}`}
                             >
                               {t.vendor}
+                              {t.hosts.length > 1 ? <span aria-hidden="true"> ×{t.hosts.length}</span> : null}
+                              {t.firstPartyProxied ? <span aria-hidden="true"> · proxied</span> : null}
                             </span>
                           ))}
                         </div>

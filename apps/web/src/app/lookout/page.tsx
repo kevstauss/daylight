@@ -46,15 +46,33 @@ export default async function LookoutPage({
         </p>
       </div>
 
+      <form action="/lookout" method="get" className="flex gap-2">
+        {severity ? <input type="hidden" name="severity" value={severity} /> : null}
+        <input
+          type="search"
+          name="q"
+          defaultValue={q}
+          aria-label="Search subdomains"
+          placeholder="Search a subdomain, apex, or owner (e.g. analytics, previews, ndstudio)…"
+          className="w-full rounded border border-edge bg-panel px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-accent"
+        />
+        <button
+          type="submit"
+          className="rounded border border-edge bg-panel px-4 py-2 font-mono text-xs text-ink hover:border-ink"
+        >
+          Search
+        </button>
+      </form>
+
       <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
         <Link
-          href="/lookout"
+          href={q ? `/lookout?q=${encodeURIComponent(q)}` : "/lookout"}
           className={`rounded border px-3 py-1.5 ${!severity ? "border-ink text-ink" : "border-edge text-muted hover:text-ink"}`}
         >
           all
         </Link>
         <Link
-          href="/lookout?severity=high"
+          href={q ? `/lookout?q=${encodeURIComponent(q)}&severity=high` : "/lookout?severity=high"}
           className={`rounded border px-3 py-1.5 ${severity === "high" ? "border-alarm text-alarm" : "border-edge text-muted hover:text-ink"}`}
         >
           high only

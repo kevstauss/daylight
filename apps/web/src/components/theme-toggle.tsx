@@ -47,10 +47,14 @@ export function ThemeToggle() {
       onClick={cycle}
       aria-label={LABEL[mode]}
       title={LABEL[mode]}
-      className="rounded-sm border border-edgeStrong px-2 py-0.5 font-mono text-[12px] leading-none text-muted transition-colors hover:border-ink hover:text-ink"
+      className="inline-flex min-h-6 min-w-6 items-center justify-center rounded-sm border border-edgeStrong px-2 py-1 font-mono text-[12px] leading-none text-muted transition-colors hover:border-ink hover:text-ink"
     >
       <span aria-hidden suppressHydrationWarning>
         {mounted ? GLYPH[mode] : "◐"}
+      </span>
+      {/* Announce the tri-state change to screen readers (the glyph alone is silent). */}
+      <span role="status" className="sr-only">
+        {mounted ? LABEL[mode] : ""}
       </span>
     </button>
   );

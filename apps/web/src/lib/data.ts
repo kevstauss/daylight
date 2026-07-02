@@ -4,6 +4,7 @@
 import {
   getDb,
   type ChangeRow,
+  type CorrectionRow,
   type DomainRow,
   type ScanRow,
   type GapRow,
@@ -15,7 +16,7 @@ import {
 import { changeToEntry, type FeedEntry } from "@daylight/feeds";
 import type { FlagKind } from "@daylight/core";
 
-export type { ChangeRow, DomainRow, GapRow, ScanRow, ScorecardRow, SnapshotRow, SubdomainRow } from "@daylight/db";
+export type { ChangeRow, CorrectionRow, DomainRow, GapRow, ScanRow, ScorecardRow, SnapshotRow, SubdomainRow } from "@daylight/db";
 export type { FlagKind } from "@daylight/core";
 
 export function statusRows(): ScanRow[] {
@@ -24,6 +25,17 @@ export function statusRows(): ScanRow[] {
 
 export function globalChanges(limit = 50): ChangeRow[] {
   return getDb().listChanges({ limit });
+}
+
+/** Generic filtered change list — backs the public /api/v1/changes endpoint. */
+export function listChangesFiltered(f: {
+  module?: string;
+  severity?: string;
+  flag?: FlagKind;
+  since?: string;
+  limit?: number;
+}): ChangeRow[] {
+  return getDb().listChanges(f);
 }
 
 export function ledgerChanges(
@@ -57,6 +69,16 @@ export function domainHistoryRows(name: string): ChangeRow[] {
   return getDb().domainHistory(name);
 }
 
+/** A single change by id — the /change/{id} permalink. */
+export function changeById(id: number): ChangeRow | null {
+  return getDb().getChange(id);
+}
+
+/** The public corrections/retractions ledger. */
+export function correctionsRows(limit = 100): CorrectionRow[] {
+  return getDb().listCorrections(limit);
+}
+
 export function searchRegistry(filter: SearchFilter): DomainRow[] {
   return getDb().searchDomains(filter);
 }
@@ -79,6 +101,25 @@ export function lookoutChanges(opts: { severity?: string; limit?: number } = {})
 
 export function subdomainsForApex(apex: string): SubdomainRow[] {
   return getDb().subdomainsByApex(apex);
+}
+
+/** A single subdomain by fqdn (for /domain/{fqdn} when the name isn't an apex). */
+export function subdomainRow(fqdn: string): SubdomainRow | null {
+  return getDb().getSubdomain(fqdn);
+}
+
+/** Scorecards captured for a specific host (subdomain view). Matches on the URL's host. */
+export function scorecardsForHost(host: string): ScorecardRow[] {
+  const h = host.trim().toLowerCase();
+  return getDb()
+    .listScorecards({ limit: 1000 })
+    .filter((s) => {
+      try {
+        return new URL(s.url).host.toLowerCase() === h;
+      } catch {
+        return s.url.toLowerCase().includes(h);
+      }
+    });
 }
 
 export function searchSubdomains(f: { q?: string; severity?: string; limit?: number }): SubdomainRow[] {

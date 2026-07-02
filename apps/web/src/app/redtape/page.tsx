@@ -44,7 +44,7 @@ export default function RedtapePage() {
           Assessment (E-Gov Act §208) and, for a system of records, a System of Records Notice
           (Privacy Act). This page lists sites where, <strong>as of the date shown</strong>, a
           published filing could not be found — with the collection evidence and the exact searches
-          run, so anyone can re-check. Every entry here has been <strong>reviewed by a human</strong>
+          run, so anyone can re-check. Every entry here has been <strong>reviewed by a human</strong>{" "}
           before publication. We state what was and wasn&rsquo;t found; we never assert illegality.
         </p>
       </div>
