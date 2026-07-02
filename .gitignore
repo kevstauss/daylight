@@ -25,5 +25,8 @@ data/
 .vscode/
 .idea/
 
-# the docs zip is unpacked into daylight-docs/ — keep the docs, ignore any re-zips
+# stray zip archives
 *.zip
+
+# local research / scratch notes — not part of the shipped repo
+drey_research.md
