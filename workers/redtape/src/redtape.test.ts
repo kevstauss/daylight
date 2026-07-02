@@ -187,11 +187,11 @@ describe("sweep is idempotent (safe for the weekly cron)", () => {
       NOW,
     );
 
-    const r1 = await runRedtapeSweep({ db, watchlist, researcher: noFiling, now: NOW });
+    const r1 = await runRedtapeSweep({ db, watchlist, researcher: noFiling, now: NOW, paceMs: 0 });
     expect(r1.assessed).toBeGreaterThanOrEqual(1);
     const queued = db.reviewQueueGaps(500).length;
 
-    const r2 = await runRedtapeSweep({ db, watchlist, researcher: noFiling, now: NOW });
+    const r2 = await runRedtapeSweep({ db, watchlist, researcher: noFiling, now: NOW, paceMs: 0 });
     expect(r2.assessed).toBe(0); // unchanged evidence → nothing re-assessed
     expect(r2.skipped).toBeGreaterThanOrEqual(1);
     expect(db.reviewQueueGaps(500).length).toBe(queued); // no duplicate gaps piled up
