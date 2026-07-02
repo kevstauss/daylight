@@ -14,6 +14,7 @@ const nextConfig = {
     "@daylight/fingerprints",
     "@daylight/floodlight",
     "@daylight/receipts",
+    "@daylight/redtape",
   ],
   // Native / heavy server-only packages — never bundle; require at runtime.
   serverExternalPackages: ["better-sqlite3", "playwright", "playwright-core"],

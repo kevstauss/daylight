@@ -639,6 +639,24 @@ export class DaylightDb {
       .run({ id, published: r.published ? 1 : 0, note: r.reviewerNote ?? null });
   }
 
+  /** All gaps for a domain (any state) — used to dedup re-assessment by evidence. */
+  gapsByDomain(domain: string): GapRow[] {
+    return this.sql
+      .prepare(`SELECT * FROM gaps WHERE domain = ? ORDER BY created_at DESC`)
+      .all(domain.trim().toLowerCase()) as GapRow[];
+  }
+
+  /** Pull a gap back to the review queue (un-publish, mark unreviewed) — e.g. when an
+   *  auto-re-check finds a filing now exists. Removing a possibly-stale public claim is the
+   *  fail-safe direction; a human still confirms via /review. */
+  requeueGap(id: number, note: string): void {
+    this.sql
+      .prepare(
+        `UPDATE gaps SET human_reviewed = 0, published = 0, reviewer_note = @note WHERE id = @id`,
+      )
+      .run({ id, note });
+  }
+
   close(): void {
     this.sql.close();
   }

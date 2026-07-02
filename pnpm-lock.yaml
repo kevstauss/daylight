@@ -50,6 +50,9 @@ importers:
       '@daylight/receipts':
         specifier: workspace:*
         version: link:../../workers/receipts
+      '@daylight/redtape':
+        specifier: workspace:*
+        version: link:../../workers/redtape
       marked:
         specifier: ^14.1.4
         version: 14.1.4

@@ -14,3 +14,4 @@ export {
   type RunRedtapeOptions,
   type RunRedtapeResult,
 } from "./run.js";
+export { runRedtapeSweep, buildCandidates, type RedtapeSweepResult } from "./sweep.js";

@@ -22,6 +22,7 @@ primary_region = "iad"
   DAYLIGHT_LOOKOUT_CRON = "40 1 * * *"     # daily 01:40 — new certs/subdomains appear continuously
   DAYLIGHT_FLOODLIGHT_CRON = "0 3 * * 1"   # weekly Mon 03:00 — tracker setups change slowly (browser-heavy)
   DAYLIGHT_RECEIPTS_CRON = "0 4 * * 1,4"   # Mon+Thu 04:00 — takedowns are time-sensitive, so 2x/week
+  DAYLIGHT_REDTAPE_CRON = "0 5 * * 1,4"    # Mon+Thu 05:00 — after Floodlight; idempotent + re-checks published gaps
   # Ledger increments — live as of v0.2.
   FLAG_LEDGER_REGISTRY = "1"
   FLAG_LEDGER_FEED = "1"

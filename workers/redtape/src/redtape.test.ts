@@ -1,7 +1,11 @@
+import { fileURLToPath } from "node:url";
+import { loadWatchlist } from "@daylight/core";
 import { createDb, type DaylightDb, type GapRow } from "@daylight/db";
 import { beforeEach, describe, expect, it } from "vitest";
-import { claudeResearcher, parseAgentJson, runRedtapeAssessment, searchSorns } from "./index.js";
+import { claudeResearcher, parseAgentJson, runRedtapeAssessment, runRedtapeSweep, searchSorns } from "./index.js";
 import type { Researcher, ResearcherInput } from "./types.js";
+
+const watchlist = loadWatchlist(fileURLToPath(new URL("../../../config/watchlist.yaml", import.meta.url)));
 
 const NOW = "2026-07-01T12:00:00.000Z";
 
@@ -152,6 +156,37 @@ describe("§7.6 a blank trail is not a documented negative", () => {
     const r = await runRedtapeAssessment({ db, candidate, researcher: malformed, now: NOW }); // manual, []
     db.reviewGap(r.gapId, { published: true }); // a reviewer publishes a trail-less manual gap
     expect(db.publicGaps()).toHaveLength(0); // still withheld — no re-checkable negative
+  });
+});
+
+describe("sweep is idempotent (safe for the weekly cron)", () => {
+  it("assesses a candidate once, then skips it while its evidence is unchanged", async () => {
+    // Floodlight collection evidence for a watched apex.
+    db.upsertScorecard(
+      {
+        url: "https://trumpaccounts.gov/",
+        domain: "trumpaccounts.gov",
+        trackerCount: 3,
+        sessionReplay: true,
+        firstPartyProxied: false,
+        privacyNoticeUrl: null,
+        requestCount: 40,
+        engineVersion: "floodlight/0.4",
+        severity: "high",
+        trackersJson: "[]",
+        reasonsJson: "[]",
+      },
+      NOW,
+    );
+
+    const r1 = await runRedtapeSweep({ db, watchlist, researcher: noFiling, now: NOW });
+    expect(r1.assessed).toBeGreaterThanOrEqual(1);
+    const queued = db.reviewQueueGaps(500).length;
+
+    const r2 = await runRedtapeSweep({ db, watchlist, researcher: noFiling, now: NOW });
+    expect(r2.assessed).toBe(0); // unchanged evidence → nothing re-assessed
+    expect(r2.skipped).toBeGreaterThanOrEqual(1);
+    expect(db.reviewQueueGaps(500).length).toBe(queued); // no duplicate gaps piled up
   });
 });
 

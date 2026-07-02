@@ -50,31 +50,40 @@ export function parseAgentJson(raw: string): ResearcherOutput | null {
   };
 }
 
-export function buildPrompt(input: ResearcherInput): string {
+// Stable across every assessment → sent as a cached system prompt (prompt caching), so the
+// instruction block is charged once per 5-min window instead of on every candidate + turn.
+const SYSTEM_INSTRUCTIONS = [
+  "You are a compliance research assistant for a public, strictly neutral watchdog. Determine",
+  "whether the federal .gov site the user names has a published Privacy Impact Assessment (E-Gov",
+  "Act §208) and/or System of Records Notice (Privacy Act) covering the PII collection observed.",
+  "",
+  "You MUST use the search_federal_register tool to ACTUALLY search — do not rely on memory.",
+  "Run SEVERAL targeted queries: the domain, the operating agency, the program/system name, the",
+  "specific data collected, and terms like 'System of Records' / 'Privacy Impact Assessment'.",
+  "Base your conclusion only on what the tool returns plus clearly-labeled public knowledge.",
+  "",
+  "Classify: no_filing (nothing covers this collection), incomplete_filing (a filing exists but",
+  "omits this specific processor/collection), covered (a filing plainly covers it).",
+  "Be neutral and precise; NEVER assert illegality. Label every claim fact vs inference.",
+  "",
+  "When finished searching, respond with JSON ONLY (no prose, no markdown fences) with keys:",
+  "pia_found, pia_refs[], sorn_found, sorn_refs[], gap_assessment (no_filing|incomplete_filing|covered),",
+  "confidence (0..1), queries_run[] (the exact searches you ran), sources_checked[] (e.g.",
+  "'federalregister.gov/api'), fact_vs_inference_notes. If you find no filing, say so and list the",
+  "queries + sources so the negative is independently re-checkable.",
+].join("\n");
+
+export function buildUserInput(input: ResearcherInput): string {
   return [
-    "You are a compliance research assistant for a public, strictly neutral watchdog. Determine",
-    "whether the federal .gov site below has a published Privacy Impact Assessment (E-Gov Act §208)",
-    "and/or System of Records Notice (Privacy Act) covering the PII collection observed.",
-    "",
-    "You MUST use the search_federal_register tool to ACTUALLY search — do not rely on memory.",
-    "Run SEVERAL targeted queries: the domain, the operating agency, the program/system name, the",
-    "specific data collected, and terms like 'System of Records' / 'Privacy Impact Assessment'.",
-    "Base your conclusion only on what the tool returns plus clearly-labeled public knowledge.",
-    "",
-    "Classify: no_filing (nothing covers this collection), incomplete_filing (a filing exists but",
-    "omits this specific processor/collection), covered (a filing plainly covers it).",
-    "Be neutral and precise; NEVER assert illegality. Label every claim fact vs inference.",
-    "",
-    "When finished searching, respond with JSON ONLY (no prose, no markdown fences) with keys:",
-    "pia_found, pia_refs[], sorn_found, sorn_refs[], gap_assessment (no_filing|incomplete_filing|covered),",
-    "confidence (0..1), queries_run[] (the exact searches you ran), sources_checked[] (e.g.",
-    "'federalregister.gov/api'), fact_vs_inference_notes. If you find no filing, say so and list the",
-    "queries + sources so the negative is independently re-checkable.",
-    "",
     `domain: ${input.domain}`,
     `url: ${input.url ?? "(none)"}`,
     `collection evidence: ${JSON.stringify(input.collectsPiiEvidence)}`,
   ].join("\n");
+}
+
+/** Full prompt (system + input) — kept for reference/compat. */
+export function buildPrompt(input: ResearcherInput): string {
+  return `${SYSTEM_INSTRUCTIONS}\n\n${buildUserInput(input)}`;
 }
 
 const FR_TOOL = {
@@ -128,14 +137,24 @@ export function claudeResearcher(
   return async (input: ResearcherInput): Promise<string> => {
     if (!apiKey) throw new Error("Redtape researcher needs ANTHROPIC_API_KEY (agent is deferred)");
     const messages: { role: "user" | "assistant"; content: unknown }[] = [
-      { role: "user", content: buildPrompt(input) },
+      { role: "user", content: buildUserInput(input) },
     ];
+    // Cached system prompt (stable across candidates + turns) — prompt caching charges it once
+    // per ~5-min window rather than on every request.
+    const system = [{ type: "text", text: SYSTEM_INSTRUCTIONS, cache_control: { type: "ephemeral" } }];
 
     for (let turn = 0; turn < maxTurns; turn++) {
+      // Incremental cache: mark the last content block of the last message so the growing
+      // tool-result conversation is read from cache on the next turn instead of re-charged.
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && Array.isArray(lastMsg.content) && lastMsg.content.length > 0) {
+        const blocks = lastMsg.content as Record<string, unknown>[];
+        blocks[blocks.length - 1]!.cache_control = { type: "ephemeral" };
+      }
       const res = await doFetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model, max_tokens: 2000, tools: [FR_TOOL], messages }),
+        body: JSON.stringify({ model, max_tokens: 2000, system, tools: [FR_TOOL], messages }),
       });
       if (!res.ok) throw new Error(`Anthropic API ${res.status}`);
       const data = (await res.json()) as { content?: ContentBlock[]; stop_reason?: string };

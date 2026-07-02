@@ -9,9 +9,10 @@ export async function register(): Promise<void> {
   const lookoutCron = process.env.DAYLIGHT_LOOKOUT_CRON?.trim();
   const floodlightCron = process.env.DAYLIGHT_FLOODLIGHT_CRON?.trim();
   const receiptsCron = process.env.DAYLIGHT_RECEIPTS_CRON?.trim();
-  if (!ledgerCron && !lookoutCron && !floodlightCron && !receiptsCron) return;
+  const redtapeCron = process.env.DAYLIGHT_REDTAPE_CRON?.trim();
+  if (!ledgerCron && !lookoutCron && !floodlightCron && !receiptsCron && !redtapeCron) return;
 
-  const [{ default: cron }, core, db, ledger, lookout, floodlight, receipts, receiptsSweep, repo] =
+  const [{ default: cron }, core, db, ledger, lookout, floodlight, receipts, receiptsSweep, redtape, repo] =
     await Promise.all([
       import("node-cron"),
       import("@daylight/core"),
@@ -21,6 +22,7 @@ export async function register(): Promise<void> {
       import("@daylight/floodlight"),
       import("@daylight/receipts"),
       import("@daylight/receipts/sweep"),
+      import("@daylight/redtape"),
       import("./lib/repoFile"),
     ]);
 
@@ -158,6 +160,37 @@ export async function register(): Promise<void> {
       console.log(`[receipts:cron] scheduled '${receiptsCron}' (UTC)`);
     } else {
       console.warn(`[receipts] invalid DAYLIGHT_RECEIPTS_CRON: ${receiptsCron}`);
+    }
+  }
+
+  // ---- Redtape sweep (idempotent; assesses new collection evidence, re-checks published gaps) ----
+  const runRedtape = async (): Promise<void> => {
+    if (!process.env.ANTHROPIC_API_KEY?.trim()) {
+      console.warn("[redtape:cron] skipped — ANTHROPIC_API_KEY not set");
+      return;
+    }
+    const wl = loadWl();
+    if (!wl) return;
+    const database = db.createDb(db.resolveDbPath());
+    const scanId = database.recordScanStart("redtape");
+    try {
+      const r = await redtape.runRedtapeSweep({ db: database, watchlist: wl, researcher: redtape.claudeResearcher() });
+      database.recordScanFinish(scanId, { ok: true, itemsSeen: r.candidates, changesEmitted: r.assessed + r.requeued });
+      console.log(`[redtape:cron] ${r.assessed} assessed, ${r.skipped} unchanged, ${r.requeued} re-queued`);
+    } catch (err) {
+      database.recordScanFinish(scanId, { ok: false, error: String(err), itemsSeen: 0, changesEmitted: 0 });
+      console.error("[redtape] sweep error", err);
+    } finally {
+      database.close();
+    }
+  };
+
+  if (redtapeCron) {
+    if (cron.validate(redtapeCron)) {
+      cron.schedule(redtapeCron, () => void runRedtape(), { timezone: "UTC" });
+      console.log(`[redtape:cron] scheduled '${redtapeCron}' (UTC)`);
+    } else {
+      console.warn(`[redtape] invalid DAYLIGHT_REDTAPE_CRON: ${redtapeCron}`);
     }
   }
 }
