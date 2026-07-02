@@ -23,20 +23,22 @@ const parseArr = (json: string | null): string[] => {
   }
 };
 
-/** Build Redtape candidates from Floodlight collection evidence on the watched apexes. */
-export function buildCandidates(db: DaylightDb, watchlist: Watchlist): ResearcherInput[] {
+/** Build Redtape candidates from EVERY Floodlight scorecard that shows collection/tracking —
+ *  every scanned federal .gov, not only the watched apexes (the scanner is already .gov-only). */
+export function buildCandidates(db: DaylightDb): ResearcherInput[] {
+  const byDomain = new Map<string, { url: string | null; evidence: Set<string> }>();
+  for (const c of db.listScorecards({ limit: 2000 })) {
+    const e = byDomain.get(c.domain) ?? { url: null, evidence: new Set<string>() };
+    e.url = e.url ?? c.url;
+    if (c.session_replay) e.evidence.add("session replay detected");
+    if (c.first_party_proxied) e.evidence.add("first-party reverse-proxied analytics");
+    if (c.tracker_count) e.evidence.add(`${c.tracker_count} third-party trackers`);
+    if (!c.privacy_notice_url) e.evidence.add("no linked privacy notice");
+    byDomain.set(c.domain, e);
+  }
   const candidates: ResearcherInput[] = [];
-  for (const domain of watchlist.apexDomains) {
-    const evidence = new Set<string>();
-    let url: string | null = null;
-    for (const c of db.scorecardsByDomain(domain)) {
-      url = url ?? c.url;
-      if (c.session_replay) evidence.add("session replay detected");
-      if (c.first_party_proxied) evidence.add("first-party reverse-proxied analytics");
-      if (c.tracker_count) evidence.add(`${c.tracker_count} third-party trackers`);
-      if (!c.privacy_notice_url) evidence.add("no linked privacy notice");
-    }
-    if (evidence.size > 0) candidates.push({ domain, url, collectsPiiEvidence: [...evidence] });
+  for (const [domain, e] of byDomain) {
+    if (e.evidence.size > 0) candidates.push({ domain, url: e.url, collectsPiiEvidence: [...e.evidence] });
   }
   return candidates;
 }
@@ -52,15 +54,15 @@ export function buildCandidates(db: DaylightDb, watchlist: Watchlist): Researche
  */
 export async function runRedtapeSweep(opts: {
   db: DaylightDb;
-  watchlist: Watchlist;
   researcher: Researcher;
+  watchlist?: Watchlist; // no longer used for scoping — every scanned .gov is a candidate
   now?: string;
   log?: (msg: string) => void;
 }): Promise<RedtapeSweepResult> {
-  const { db, watchlist, researcher } = opts;
+  const { db, researcher } = opts;
   const out: RedtapeSweepResult = { candidates: 0, assessed: 0, skipped: 0, requeued: 0 };
 
-  const candidates = buildCandidates(db, watchlist);
+  const candidates = buildCandidates(db);
   out.candidates = candidates.length;
 
   for (const candidate of candidates) {
