@@ -70,6 +70,14 @@ describe("§7.1 no false gap — a known SORN is `covered`, not a gap", () => {
     expect(gap(r.gapId).sorn_found).toBe(1);
     expect(db.publicGaps()).toHaveLength(0); // unreviewed → not public
   });
+
+  it("hides `covered` from the human review queue but keeps real gaps", async () => {
+    const c = await runRedtapeAssessment({ db, candidate, researcher: covered, now: NOW });
+    const g = await runRedtapeAssessment({ db, candidate: { ...candidate, domain: "ndstudio.gov" }, researcher: noFiling, now: NOW });
+    const queued = db.reviewQueueGaps(500).map((row) => row.id);
+    expect(queued).not.toContain(c.gapId); // covered = a filing exists → not a gap to review
+    expect(queued).toContain(g.gapId); // a real no_filing gap still surfaces
+  });
 });
 
 describe("§7.2 incomplete filing — Trump Accounts SORN omits the analytics processor", () => {

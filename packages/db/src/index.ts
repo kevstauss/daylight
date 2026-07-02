@@ -622,11 +622,21 @@ export class DaylightDb {
       .all() as GapRow[];
   }
 
-  /** Internal review queue — unreviewed rows (never a public path). */
+  /**
+   * Internal review queue — unreviewed rows that are actual gaps (never a public path).
+   * Excludes 'covered' assessments: the researcher found a filing that covers the collection, so
+   * there's no gap to decide on. They stay in the table (audit + the re-check-published path) but
+   * don't clutter the human queue — otherwise a sweep over dozens of established agencies (which
+   * nearly all have SORNs) buries the few real gaps under a wall of non-findings.
+   */
   reviewQueueGaps(limit = 200): GapRow[] {
     const n = Math.max(1, Math.min(limit, 1000));
     return this.sql
-      .prepare(`SELECT * FROM gaps WHERE human_reviewed = 0 ORDER BY created_at ASC LIMIT ${n}`)
+      .prepare(
+        `SELECT * FROM gaps
+         WHERE human_reviewed = 0 AND (gap_assessment IS NULL OR gap_assessment != 'covered')
+         ORDER BY created_at ASC LIMIT ${n}`,
+      )
       .all() as GapRow[];
   }
 
