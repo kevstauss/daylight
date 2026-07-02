@@ -10,6 +10,11 @@
 app = "daylight-watchdog"
 primary_region = "iad"
 
+# 512MB swap: pure OOM insurance for the browser-heavy Floodlight sweep. A transient memory
+# spike swaps to disk instead of getting OOM-killed mid-sweep. Slower under pressure, but a
+# batch sweep tolerates that; staying alive is what matters.
+swap_size_mb = 512
+
 [build]
   dockerfile = "Dockerfile"
 
