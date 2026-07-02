@@ -41,9 +41,12 @@ swap_size_mb = 512
   # network egress filter. Needs the browser in the image (Dockerfile) + a ~2GB machine.
   FLAG_FLOODLIGHT = "1"
   FLAG_FLOODLIGHT_SCAN = "1"
-  # Receipts (Phase 4): removal-ledger engine is live; the ledger fills once the live
-  # snapshot capture + Wayback push are enabled (pending a scheduler/host decision).
+  # Receipts (Phase 4): live snapshot capture + removal ledger are wired and run via
+  # DAYLIGHT_RECEIPTS_CRON. DAYLIGHT_WAYBACK pushes each snapshot to the Internet Archive
+  # (Wayback SPN2) so a removed tracker/clause/seal keeps a tamper-evident third-party copy;
+  # it's opt-in because it's an external, rate-limited call.
   FLAG_RECEIPTS = "1"
+  DAYLIGHT_WAYBACK = "1"
   # Redtape (Phase 5): gap-finder + human gate are live. The public /redtape list only ever
   # shows human-reviewed + published rows (gate enforced in the DB layer). Wiring the AI
   # researcher needs ANTHROPIC_API_KEY + DAYLIGHT_REDTAPE_MODEL and a review workflow.
