@@ -245,6 +245,42 @@ describe("tool-use researcher actually searches before concluding", () => {
     expect(searches).toContain("trumpaccounts SORN"); // it really searched
     expect(parseAgentJson(raw)?.gap_assessment).toBe("incomplete_filing");
   });
+
+  it("never sends more than 4 cache_control blocks, even on a long multi-turn run", async () => {
+    // Anthropic caps cache_control at 4 blocks/request. A well-documented agency drives many
+    // search turns; if the breakpoint isn't cleared each turn the count grows past 4 and the API
+    // 400s — silently killing exactly those assessments. This locks the incremental cache at
+    // <=4 (system anchor + one moving breakpoint) while still proving caching is on (>0).
+    let maxBreakpoints = 0;
+    const fetchImpl = async (...args: unknown[]): Promise<Response> => {
+      const init = args[1] as { body?: string } | undefined;
+      const body = JSON.parse(init?.body ?? "{}") as {
+        system?: { cache_control?: unknown }[];
+        messages?: { content?: { cache_control?: unknown }[] }[];
+      };
+      let count = 0;
+      for (const b of body.system ?? []) if (b.cache_control) count++;
+      for (const m of body.messages ?? []) if (Array.isArray(m.content)) for (const b of m.content) if (b.cache_control) count++;
+      maxBreakpoints = Math.max(maxBreakpoints, count);
+      // Always request another search → drives the full maxTurns budget.
+      return new Response(
+        JSON.stringify({
+          stop_reason: "tool_use",
+          content: [{ type: "tool_use", id: "t1", name: "search_federal_register", input: { query: "q" } }],
+        }),
+        { status: 200 },
+      );
+    };
+    const researcher = claudeResearcher({
+      apiKey: "test-key",
+      maxTurns: 6,
+      fetchImpl,
+      search: async () => [{ documentNumber: "1", title: "SORN", url: "https://fr/d/1", publicationDate: "2026-01-01" }],
+    });
+    await researcher({ domain: "eac.gov", url: null, collectsPiiEvidence: ["email input"] });
+    expect(maxBreakpoints).toBeGreaterThan(0); // caching is actually engaged
+    expect(maxBreakpoints).toBeLessThanOrEqual(4); // never exceeds Anthropic's limit
+  });
 });
 
 describe("Federal Register client parses SORN notices", () => {

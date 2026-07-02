@@ -144,8 +144,17 @@ export function claudeResearcher(
     const system = [{ type: "text", text: SYSTEM_INSTRUCTIONS, cache_control: { type: "ephemeral" } }];
 
     for (let turn = 0; turn < maxTurns; turn++) {
-      // Incremental cache: mark the last content block of the last message so the growing
-      // tool-result conversation is read from cache on the next turn instead of re-charged.
+      // Incremental cache: keep ONE moving breakpoint at the end of the (now-stable) message
+      // prefix so the growing tool-result conversation is read from cache next turn. Anthropic
+      // allows at most 4 cache_control blocks per request, so we must CLEAR the prior turn's
+      // breakpoint before setting the new one — otherwise a long run (system + one per turn)
+      // exceeds 4 and the API 400s, which silently killed assessments of well-documented
+      // agencies (the ones that need the most search turns). system[] holds the other breakpoint.
+      for (const m of messages) {
+        if (Array.isArray(m.content)) {
+          for (const b of m.content as Record<string, unknown>[]) delete b.cache_control;
+        }
+      }
       const lastMsg = messages[messages.length - 1];
       if (lastMsg && Array.isArray(lastMsg.content) && lastMsg.content.length > 0) {
         const blocks = lastMsg.content as Record<string, unknown>[];
