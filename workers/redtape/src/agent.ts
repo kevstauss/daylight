@@ -163,7 +163,10 @@ export function claudeResearcher(
       const res = await doFetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model, max_tokens: 2000, system, tools: [FR_TOOL], messages }),
+        // 4000: the final answer packs pia/sorn refs + a full query trail + fact-vs-inference
+        // notes into one JSON object; 2000 truncated it on well-documented agencies (long trails),
+        // producing unparseable output that fell back to a useless "manual" gap.
+        body: JSON.stringify({ model, max_tokens: 4000, system, tools: [FR_TOOL], messages }),
       });
       if (!res.ok) throw new Error(`Anthropic API ${res.status}`);
       const data = (await res.json()) as { content?: ContentBlock[]; stop_reason?: string };
