@@ -77,7 +77,16 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
     channel: opts.channel ?? process.env.DAYLIGHT_BROWSER_CHANNEL,
     args: ["--no-sandbox", "--disable-dev-shm-usage", ...pinArgs],
   });
+  // Hard overall cap on a single capture. The per-op goto/networkidle timeouts don't bound the
+  // whole thing, and one slow/heavy site (or a CPU-starved machine) can stall an entire sweep.
+  // On timeout we abandon this page and the finally still closes the browser (no leak).
+  const overallMs = (opts.timeoutMs ?? 20000) + 25000;
+  const overallTimeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`capture exceeded ${overallMs}ms`)), overallMs),
+  );
   try {
+    return await Promise.race([
+      (async (): Promise<LiveCapture> => {
     const context = await browser.newContext({
       userAgent: ua,
       viewport: { width: 1280, height: 900 },
@@ -184,8 +193,11 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
       gated,
       finalUrl,
     };
+      })(),
+      overallTimeout,
+    ]);
   } finally {
-    await browser.close();
+    await browser.close().catch(() => {});
   }
 }
 

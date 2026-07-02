@@ -45,9 +45,10 @@ primary_region = "iad"
   FLAG_REDTAPE = "1"
 
 [[vm]]
-  # 2GB: the Next.js read-path + in-process crons + a headless Chromium spawn for live
-  # Floodlight/Receipts capture. (Was 512MB before the browser was enabled.)
-  size = "shared-cpu-1x"
+  # shared-cpu-2x / 2GB: the Next.js read-path + in-process crons + headless Chromium capture.
+  # A fractional CPU (shared-cpu-1x) makes big-site captures drag and time out; 2 vCPUs let them
+  # complete. (Scale down to shared-cpu-1x if live capture is ever disabled.)
+  size = "shared-cpu-2x"
   memory = "2gb"
 
 [[mounts]]
