@@ -177,7 +177,13 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
   // Hard overall cap on a single capture. The per-op goto/networkidle timeouts don't bound the
   // whole thing, and one slow/heavy site (or a CPU-starved machine) can stall an entire sweep.
   // On timeout we abandon this page and the finally still closes the browser (no leak).
-  const overallMs = (opts.timeoutMs ?? 20000) + 25000;
+  // The cap must budget for the OPTIONAL heavy steps too: Receipts (unlike Floodlight scoring)
+  // also runs page.content() (≤12s) and a fullPage screenshot (≤15s). Without their budget the
+  // flat +25000 was calibrated only for the lighter scoring path, so heavy pages (several of them
+  // watchlisted NDS sites) blew the cap and produced NO snapshot and NO Wayback copy. Add the
+  // budget back only when those steps actually run, so Floodlight's 45s cap is unchanged.
+  const heavyOpsMs = (opts.skipHtml ? 0 : 12000) + (opts.skipScreenshot ? 0 : 15000);
+  const overallMs = (opts.timeoutMs ?? 20000) + 25000 + heavyOpsMs;
   let overallTimer: ReturnType<typeof setTimeout> | undefined;
   const overallTimeout = new Promise<never>((_, reject) => {
     overallTimer = setTimeout(() => reject(new Error(`capture exceeded ${overallMs}ms`)), overallMs);
