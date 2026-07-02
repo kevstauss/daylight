@@ -28,13 +28,24 @@ async function main(): Promise<void> {
   const watchlist = loadWatchlist(findWatchlist());
   const db = createDb(resolveDbPath());
   const researcher = claudeResearcher();
+  // Record a scan for /status — same as the cron path (instrumentation.ts) and every other
+  // worker CLI. Without this a manual `assess` run left /status showing the last CRON run.
+  const scanId = db.recordScanStart("redtape");
   try {
     // Idempotent: only NEW/changed candidates get assessed; published gaps get re-checked.
     const r = await runRedtapeSweep({ db, watchlist, researcher, log: (m) => console.log(m) });
+    db.recordScanFinish(scanId, {
+      ok: true,
+      itemsSeen: r.candidates,
+      changesEmitted: r.assessed + r.requeued,
+    });
     // eslint-disable-next-line no-console
     console.log(
       `[redtape] sweep complete — ${r.candidates} candidates, ${r.assessed} assessed, ${r.skipped} unchanged, ${r.requeued} re-queued`,
     );
+  } catch (err) {
+    db.recordScanFinish(scanId, { ok: false, error: String(err), itemsSeen: 0, changesEmitted: 0 });
+    throw err;
   } finally {
     db.close();
   }
