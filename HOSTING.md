@@ -70,8 +70,11 @@ Set these once (`-a daylight-watchdog`), then `fly deploy`:
 # safe to leave unset until you want gap-finding. Use YOUR existing Anthropic key.
 fly secrets set ANTHROPIC_API_KEY="sk-ant-..." -a daylight-watchdog
 
-# Cheap model for Redtape drafting (default is claude-sonnet-5; Haiku is plenty for FR search).
-fly secrets set DAYLIGHT_REDTAPE_MODEL="claude-haiku-4-5-20251001" -a daylight-watchdog
+# Optional model override for Redtape drafting. Leave UNSET — the default (claude-sonnet-5) is
+# the right call for this low-volume, legally-sensitive, multi-turn tool-use + strict-JSON task;
+# the cost delta at 2x/week is dollars. Only switch to Haiku if you scale to hundreds of domains
+# on a frequent cadence.
+# fly secrets set DAYLIGHT_REDTAPE_MODEL="claude-haiku-4-5-20251001" -a daylight-watchdog
 
 # Gate for the internal /review queue (any long random string). /review 404s until this is set;
 # nothing publishes without a human clicking Publish there.
@@ -82,8 +85,12 @@ fly secrets set DAYLIGHT_REVIEW_TOKEN="$(openssl rand -hex 24)" -a daylight-watc
 # a placeholder mailbox and warns loudly in prod otherwise.
 fly secrets set DAYLIGHT_CONTACT="tips@daylight.watch" -a daylight-watchdog
 
-# Turn ON the independent Wayback archive push during Receipts sweeps (recommended for go-live).
-fly secrets set DAYLIGHT_WAYBACK="1" -a daylight-watchdog
+# Independent Wayback (Internet Archive) archiving is ON by default in fly.toml [env]
+# (DAYLIGHT_WAYBACK="1"). For reliable, non-rate-limited archiving, add your IA S3 keys (from
+# https://archive.org/account/s3.php) — this upgrades Receipts to the AUTHENTICATED SPN2 API
+# (12 concurrent / 100k-per-day). Without them it falls back to the anonymous, heavily
+# rate-limited endpoint (a burst of pages will mostly 429).
+fly secrets set IA_S3_ACCESS_KEY="..." IA_S3_SECRET="..." -a daylight-watchdog
 
 # OPTIONAL — a funding/donation link shown in the footer + /methods. Omit to hide it entirely.
 # Recommended platform: GitHub Sponsors (no fees, developer-native). Alternatives: Ko-fi / Buy Me a
