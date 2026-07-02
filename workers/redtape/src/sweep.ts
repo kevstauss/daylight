@@ -1,4 +1,4 @@
-import { sha256, type Watchlist } from "@daylight/core";
+import { SENSITIVE_PII_KINDS, sha256, type Watchlist } from "@daylight/core";
 import type { DaylightDb } from "@daylight/db";
 import { parseAgentJson } from "./agent.js";
 import { runRedtapeAssessment } from "./run.js";
@@ -64,6 +64,22 @@ export function buildCandidates(db: DaylightDb, watchlist?: Watchlist): Research
     if (c.tracker_count) {
       e.evidence.add(`${c.tracker_count} third-party trackers`);
       if (c.tracker_count >= HIGH_TRACKER_MIN) e.strong = true;
+    }
+    // Persisted PII form fields (task 10). A form collecting SENSITIVE PII (SSN/DOB/passport/photo)
+    // is the canonical §208 gap and worth a human's time on its own; ordinary PII collected with NO
+    // linked privacy notice is likewise a strong trigger ("a form collecting PII, no PIA").
+    const formFields = parseArr(c.form_fields_json);
+    if (formFields.length > 0) {
+      const sensitive = formFields.filter((k) => SENSITIVE_PII_KINDS.has(k));
+      if (sensitive.length > 0) {
+        e.evidence.add(`collects sensitive PII: ${sensitive.sort().join(", ")}`);
+        e.strong = true;
+      } else if (!c.privacy_notice_url) {
+        e.evidence.add(`collects PII (${formFields.sort().join(", ")}) with no linked privacy notice`);
+        e.strong = true;
+      } else {
+        e.evidence.add(`collects PII via form: ${formFields.sort().join(", ")}`);
+      }
     }
     if (!c.privacy_notice_url) e.evidence.add("no linked privacy notice"); // supporting only, not a trigger
     if (watched.has(c.domain)) e.strong = true; // a specifically-watched domain is newsworthy regardless

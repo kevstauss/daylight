@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { loadWatchlist } from "@daylight/core";
 import { createDb, type DaylightDb, type GapRow } from "@daylight/db";
 import { beforeEach, describe, expect, it } from "vitest";
-import { claudeResearcher, parseAgentJson, runRedtapeAssessment, runRedtapeSweep, searchSorns } from "./index.js";
+import { buildCandidates, claudeResearcher, parseAgentJson, runRedtapeAssessment, runRedtapeSweep, searchSorns } from "./index.js";
 import type { Researcher, ResearcherInput } from "./types.js";
 
 const watchlist = loadWatchlist(fileURLToPath(new URL("../../../config/watchlist.yaml", import.meta.url)));
@@ -62,6 +62,42 @@ beforeEach(() => {
 });
 
 const gap = (id: number): GapRow => db.getGap(id)!;
+
+const scorecard = (over: Record<string, unknown> = {}) => ({
+  url: "https://passports.gov/apply",
+  domain: "passports.gov",
+  trackerCount: 0,
+  sessionReplay: false,
+  firstPartyProxied: false,
+  privacyNoticeUrl: null,
+  requestCount: 5,
+  engineVersion: "floodlight/0.4",
+  severity: "notable",
+  trackersJson: "[]",
+  reasonsJson: "[]",
+  ...over,
+});
+
+describe("task 10 — persisted form fields make a PII collector a Redtape candidate", () => {
+  it("a form collecting SENSITIVE PII (ssn/passport/photo) is a strong candidate even with zero trackers", () => {
+    db.upsertScorecard(scorecard({ formFieldsJson: JSON.stringify(["passport", "photo", "ssn"]) }), NOW);
+    const c = buildCandidates(db).find((x) => x.domain === "passports.gov");
+    expect(c).toBeTruthy();
+    expect(c!.collectsPiiEvidence.some((e) => /sensitive PII/.test(e))).toBe(true);
+  });
+
+  it("ordinary PII with NO privacy notice is a strong candidate; the same PII WITH a notice is not", () => {
+    db.upsertScorecard(scorecard({ formFieldsJson: JSON.stringify(["name", "address"]) }), NOW);
+    expect(buildCandidates(db).some((x) => x.domain === "passports.gov")).toBe(true);
+
+    const db2 = createDb(":memory:");
+    db2.upsertScorecard(
+      scorecard({ privacyNoticeUrl: "https://passports.gov/privacy", formFieldsJson: JSON.stringify(["name", "address"]) }),
+      NOW,
+    );
+    expect(buildCandidates(db2).some((x) => x.domain === "passports.gov")).toBe(false);
+  });
+});
 
 describe("§7.1 no false gap — a known SORN is `covered`, not a gap", () => {
   it("classifies covered and does not publish it as a gap", async () => {

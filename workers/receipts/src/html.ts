@@ -1,12 +1,10 @@
-import { sha256 } from "@daylight/core";
+import { classifyFormFields, parseInputAttrs, sha256 } from "@daylight/core";
 import { classifyUrl, registrableDomain } from "@daylight/fingerprints";
 import type { Snapshot } from "./types.js";
 
 const URL_RE = /(?:src|href)\s*=\s*["']([^"']+)["']/gi;
-const INPUT_RE = /<input\b[^>]*?\btype\s*=\s*["']([a-z]+)["'][^>]*>/gi;
 const SEAL_RE = /<img\b[^>]*(?:alt|src)\s*=\s*["'][^"']*seal[^"']*["'][^>]*>/i;
 const PRIVACY_LINK_RE = /<a\b[^>]*href\s*=\s*["']([^"']*)["'][^>]*>([^<]*)<\/a>/gi;
-const PII_TYPES = new Set(["email", "tel", "password", "file"]);
 
 function extractTrackers(html: string): string[] {
   const keys = new Set<string>();
@@ -37,13 +35,10 @@ function extractPrivacy(html: string): { hash: string | null; text: string | nul
   return { hash: null, text: null };
 }
 
+// Shared with Floodlight's live DOM capture so the fixture path and live path emit the SAME
+// normalized PII kinds (type + autocomplete + name/id/placeholder patterns), not just input types.
 function extractFormFields(html: string): string[] {
-  const kinds = new Set<string>();
-  for (const m of html.matchAll(INPUT_RE)) {
-    const t = (m[1] ?? "").toLowerCase();
-    if (PII_TYPES.has(t)) kinds.add(t);
-  }
-  return [...kinds].sort();
+  return classifyFormFields(parseInputAttrs(html));
 }
 
 const safeHost = (url: string): string => {
