@@ -5,7 +5,7 @@ import { redact } from "@daylight/redact";
 import { EXPECTED_HEADER } from "./csv.js";
 import { diff } from "./diff.js";
 import { resolveChange } from "./emit.js";
-import type { OrgResolver } from "./heuristics.js";
+import { CONCENTRATION_SENTINEL, contactConcentration, type OrgResolver } from "./heuristics.js";
 import { canonicalHash, normalizeCsv, recordsToMap } from "./normalize.js";
 import { DEFAULT_SOURCE_URL, fetchCsv } from "./fetch.js";
 
@@ -115,12 +115,13 @@ export async function runLedger(opts: RunLedgerOptions): Promise<RunLedgerResult
 
       if (emit) {
         for (const raw of rawChanges) {
-          const rec = current.get(raw.domain);
-          // 'removed' has no current record to classify; emit it as-is.
+          // 'removed' has no CURRENT record; classify against its PREVIOUS row so H5 + watches can
+          // weigh the removal (org/apex/contact live only in prior state).
+          const rec = current.get(raw.domain) ?? previous.get(raw.domain);
           const { change, hits } = rec
             ? resolveChange(raw, rec, watchlist, orgOf, subs)
             : { change: raw, hits: [] as WatchSubscription[] };
-          const id = db.insertChange(change);
+          const id = db.insertChange({ ...change, sourceUrl });
           changeIds.push(id);
           changesEmitted++;
 
@@ -133,6 +134,38 @@ export async function runLedger(opts: RunLedgerOptions): Promise<RunLedgerResult
             });
             alertsFired++;
           }
+        }
+
+        // Cross-record CONTACT CONCENTRATION pass (H9): one foreign, non-allowlisted contact apex
+        // serving ≥3 distinct orgs. Idempotent — an observation keyed by the exact org set gates
+        // re-emission, so a stable concentration is reported once, not on every daily run.
+        for (const cluster of contactConcentration(records, watchlist)) {
+          const concHash = sha256(
+            JSON.stringify(["ledger-concentration", cluster.contactApex, [...cluster.orgs].sort()]),
+          );
+          const seen = db.insertObservation({
+            module: "ledger",
+            domain: `${CONCENTRATION_SENTINEL}${cluster.contactApex}`,
+            observedAt: now,
+            sourceUrl,
+            contentHash: concHash,
+            payload: { orgs: cluster.orgs, domains: cluster.domains },
+          });
+          if (!seen.inserted) continue; // this exact concentration already reported
+          const shown = cluster.domains.slice(0, 6).join(", ");
+          const more = cluster.domains.length > 6 ? ", …" : "";
+          const id = db.insertChange({
+            module: "ledger",
+            domain: cluster.contactApex,
+            detectedAt: now,
+            kind: "modified",
+            field: "securityContactConcentration",
+            severity: "high",
+            reason: `security contact @${cluster.contactApex} is foreign to ${cluster.orgs.length} organizations it is the contact of record for (${shown}${more})`,
+            sourceUrl,
+          });
+          changeIds.push(id);
+          changesEmitted++;
         }
       }
 

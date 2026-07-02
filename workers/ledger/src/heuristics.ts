@@ -126,8 +126,92 @@ export function classifyChange(
     }
   }
 
+  // H5 — a removal is the "quietly vanished" signal Receipts is built around; Ledger should treat
+  // its OWN removals with weight, not bury them as unranked info. A watchlisted apex dropping out
+  // of the registry is high; any other removal is at least notable. (rec here is the PREVIOUS
+  // record — a removed domain has no current row, so the caller passes prior state.)
+  const org = rec.org && rec.org.trim() ? rec.org.trim() : "unknown organization";
+  if (change.kind === "removed") {
+    const watchlisted = wl.apexDomains.includes(rec.domain);
+    candidates.push({
+      severity: watchlisted ? "high" : "notable",
+      reason: watchlisted
+        ? `watchlisted domain ${rec.domain} was removed from the federal registry (${org})`
+        : `${rec.domain} was removed from the federal registry (${org})`,
+      rank: 5,
+    });
+  } else if (wl.apexDomains.includes(rec.domain)) {
+    // H5 floor — any change touching a watchlisted apex is at least notable (never silent info).
+    // Lowest rank, so a more specific H1–H4 reason always wins the tie; this only raises info.
+    candidates.push({
+      severity: "notable",
+      reason:
+        change.kind === "modified" && change.field
+          ? `${change.field} changed on watchlisted domain ${rec.domain}`
+          : `change on watchlisted domain ${rec.domain}`,
+      rank: 0,
+    });
+  }
+
   if (candidates.length === 0) return { severity: "info", reason: undefined };
   candidates.sort((a, b) => SEV_ORDER[b.severity] - SEV_ORDER[a.severity] || b.rank - a.rank);
   const top = candidates[0]!;
   return { severity: top.severity, reason: top.reason };
+}
+
+/** Sentinel-domain prefix for the concentration idempotency observation (keyed by contact apex),
+ *  so a stable concentration is reported once — not re-emitted on every run. Shared by the daily
+ *  run and the git-history backfill. */
+export const CONCENTRATION_SENTINEL = "__ledger_concentration__:";
+
+/** One contact apex that is the security-contact-of-record for multiple DISTINCT organizations. */
+export interface ContactConcentration {
+  contactApex: string; // e.g. "ndstudio.gov"
+  orgs: string[]; // the distinct owning organizations it is the contact for
+  domains: string[]; // the .gov domains sharing this foreign contact
+}
+
+/**
+ * Cross-record concentration heuristic. contactDomainMismatch (H1) is per-row; this is the
+ * complementary AGGREGATE: it groups the full current registry by the registrable apex of each
+ * row's security contact and flags when ONE foreign, non-allowlisted contact apex is the
+ * security-contact-of-record for `minOrgs`+ DISTINCT owning organizations.
+ *
+ * That structural signature — one small office quietly becoming the security contact across
+ * several unrelated agencies — is the 5 U.S.C. §3161 takeover pattern, and it reproduces the
+ * Bobba finding (akash@ndstudio.gov) *without* a hand-added watchlist entry. Same-apex contacts
+ * (a domain listing its own apex), allowlisted central mailboxes, and single-org clusters are
+ * excluded so a normal shared-services contact never trips it.
+ */
+export function contactConcentration(
+  records: DomainRecord[],
+  wl: Watchlist,
+  minOrgs = 3,
+): ContactConcentration[] {
+  const groups = new Map<string, { orgs: Map<string, string>; domains: Set<string> }>();
+  for (const rec of records) {
+    const d = emailDomain(rec.securityContactEmail);
+    if (!d) continue;
+    const apex = registrableApex(d);
+    if (apex === registrableApex(rec.domain)) continue; // the domain's own apex — not foreign
+    if (wl.centralSecurityAllowlist.includes(d) || wl.centralSecurityAllowlist.includes(apex)) {
+      continue; // recognized central mailbox — legitimately shared, never a concentration
+    }
+    let g = groups.get(apex);
+    if (!g) {
+      g = { orgs: new Map(), domains: new Set() };
+      groups.set(apex, g);
+    }
+    const orgKey = normalizeOrg(rec.org);
+    if (orgKey) g.orgs.set(orgKey, rec.org.trim());
+    g.domains.add(rec.domain);
+  }
+
+  const out: ContactConcentration[] = [];
+  for (const [apex, g] of groups) {
+    if (g.orgs.size >= minOrgs) {
+      out.push({ contactApex: apex, orgs: [...g.orgs.values()], domains: [...g.domains].sort() });
+    }
+  }
+  return out.sort((a, b) => b.orgs.length - a.orgs.length || a.contactApex.localeCompare(b.contactApex));
 }

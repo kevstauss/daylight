@@ -11,8 +11,11 @@ export {
 export { diff } from "./diff.js";
 export {
   classifyChange,
+  contactConcentration,
   contactDomainMismatch,
   registrableApex,
+  CONCENTRATION_SENTINEL,
+  type ContactConcentration,
   type ContactMismatch,
   type OrgResolver,
 } from "./heuristics.js";

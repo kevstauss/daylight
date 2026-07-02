@@ -57,6 +57,14 @@ describe("git-history backfill — dated historical changes", () => {
     expect(trumprx[0]!.severity).toBe("high"); // person-watch elevation
   });
 
+  it("stamps each change with its commit-pinned blob source_url (task 12)", async () => {
+    await backfillHistory({ db, watchlist: wl, commits, getCsv });
+    const usadf = db.domainHistory("usadf.gov")[0]!; // added at c2
+    expect(usadf.source_url).toBe("https://github.com/cisagov/dotgov-data/blob/c2/current-federal.csv");
+    const trumprx = db.domainHistory("trumprx.gov").find((c) => c.kind === "modified")!; // c3
+    expect(trumprx.source_url).toBe("https://github.com/cisagov/dotgov-data/blob/c3/current-federal.csv");
+  });
+
   it("leaves the domains table at the latest revision + fires the person-watch (dated)", async () => {
     await backfillHistory({ db, watchlist: wl, commits, getCsv });
     expect(db.getDomain("usadf.gov")).not.toBeNull();

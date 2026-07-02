@@ -4,7 +4,7 @@ import type { DaylightDb } from "@daylight/db";
 import { diff } from "./diff.js";
 import { resolveChange } from "./emit.js";
 import { fetchCsv, userAgent } from "./fetch.js";
-import type { OrgResolver } from "./heuristics.js";
+import { CONCENTRATION_SENTINEL, contactConcentration, type OrgResolver } from "./heuristics.js";
 import { canonicalHash, normalizeCsv, recordsToMap } from "./normalize.js";
 
 const REPO = "cisagov/dotgov-data";
@@ -137,12 +137,16 @@ export async function backfillHistory(opts: BackfillHistoryOptions): Promise<Bac
       // commits emit real dated diffs.
       if (prev.size > 0) {
         const orgOf: OrgResolver = (d) => current.get(d)?.org ?? prev.get(d)?.org ?? null;
+        // Commit-pinned blob URL — the exact public artifact this dated diff was read from, so a
+        // reader can re-verify any historical change against the file that produced it (task 12).
+        const blobUrl = `https://github.com/${REPO}/blob/${commit.sha}/${CSV_PATH}`;
         for (const raw of diff(prev, current, commit.date)) {
-          const rec = current.get(raw.domain);
+          // 'removed' has no record in THIS commit; classify against the PREVIOUS one (H5 + watches).
+          const rec = current.get(raw.domain) ?? prev.get(raw.domain);
           const resolved = rec
             ? resolveChange(raw, rec, watchlist, orgOf, subs)
             : { change: raw, hits: [] as WatchSubscription[] };
-          pending.push(resolved);
+          pending.push({ change: { ...resolved.change, sourceUrl: blobUrl }, hits: resolved.hits });
         }
       }
       prev.clear();
@@ -204,6 +208,38 @@ export async function backfillHistory(opts: BackfillHistoryOptions): Promise<Bac
           payload: rec,
         });
       }
+
+      // Contact-concentration pass (H9) over the FINAL registry state, dated to the last commit —
+      // so a backfill reproduces a structural concentration (e.g. akash@ndstudio.gov across ≥3
+      // orgs) without a hand-added watchlist entry. Idempotent via the concentration observation.
+      for (const cluster of contactConcentration(finalRecords, watchlist)) {
+        const concHash = sha256(
+          JSON.stringify(["ledger-concentration", cluster.contactApex, [...cluster.orgs].sort()]),
+        );
+        const seen = db.insertObservation({
+          module: "ledger",
+          domain: `${CONCENTRATION_SENTINEL}${cluster.contactApex}`,
+          observedAt: now,
+          sourceUrl,
+          contentHash: concHash,
+          payload: { orgs: cluster.orgs, domains: cluster.domains },
+        });
+        if (!seen.inserted) continue;
+        const shown = cluster.domains.slice(0, 6).join(", ");
+        const more = cluster.domains.length > 6 ? ", …" : "";
+        db.insertChange({
+          module: "ledger",
+          domain: cluster.contactApex,
+          detectedAt: now,
+          kind: "modified",
+          field: "securityContactConcentration",
+          severity: "high",
+          reason: `security contact @${cluster.contactApex} is foreign to ${cluster.orgs.length} organizations it is the contact of record for (${shown}${more})`,
+          sourceUrl,
+        });
+        changesEmitted++;
+      }
+
       db.insertObservation({
         module: "ledger",
         domain: HISTORY_SENTINEL,

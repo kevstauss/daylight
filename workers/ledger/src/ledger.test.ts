@@ -7,6 +7,7 @@ import { changeToEntry, renderRss } from "@daylight/feeds";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   classifyChange,
+  contactConcentration,
   contactDomainMismatch,
   diff,
   normalizeCsv,
@@ -193,7 +194,9 @@ describe("§5.10.6 feed — high change surfaces with a working deep link", () =
     });
 
     expect(entries.some((e) => e.domain === "usadf.gov" && e.severity === "high")).toBe(true);
-    expect(xml).toContain("https://daylight.example/domain/usadf.gov");
+    // Feed items now link to their /change/{id} permalink; the domain still shows in the title.
+    expect(xml).toContain("https://daylight.example/change/");
+    expect(xml).toContain("usadf.gov");
     expect(xml).toContain("<category>high</category>");
     // The severity filter must return ONLY high rows (not a pass-through of everything).
     expect(highRows.length).toBeGreaterThan(0);
@@ -312,6 +315,121 @@ describe("review hardening — removals, H4 isolation, person-watch elevation, H
     });
     expect(classifyChange(added(exec), exec, wl).severity).toBe("notable");
     expect(classifyChange(added(jud), jud, wl).severity).toBe("info");
+  });
+
+  it("H5: a removed watchlisted apex is `high`; a removed ordinary apex is `notable`", () => {
+    const removed = (domain: string): Change => ({
+      module: "ledger",
+      domain,
+      detectedAt: NOW,
+      kind: "removed",
+      severity: "info",
+    });
+    const wlRec = mkRec({ domain: "usadf.gov", org: "United States African Development Foundation" });
+    const other = mkRec({ domain: "random.gov", org: "Random Agency" });
+    const wlOut = classifyChange(removed("usadf.gov"), wlRec, wl);
+    expect(wlOut.severity).toBe("high"); // usadf.gov is a watchlisted apex
+    expect(wlOut.reason).toContain("removed from the federal registry");
+    expect(classifyChange(removed("random.gov"), other, wl).severity).toBe("notable");
+  });
+
+  it("H5 floor: any change on a watchlisted apex is at least notable (never silent info)", () => {
+    // A domainType change carries no H1–H4 trigger, so pre-H5 it was `info`.
+    const rec = mkRec({ domain: "realfood.gov", org: "Executive Office of the President", domainType: "Federal - Executive" });
+    const modified: Change = {
+      module: "ledger",
+      domain: "realfood.gov",
+      detectedAt: NOW,
+      kind: "modified",
+      field: "domainType",
+      oldValue: "Federal - Executive",
+      newValue: "Federal - Executive (Reassigned)",
+      severity: "info",
+    };
+    expect(classifyChange(modified, rec, wl).severity).toBe("notable");
+  });
+
+  it("runLedger classifies a removed watchlisted apex high and fires its person-watch on removal", async () => {
+    const db = createDb(":memory:");
+    // Baseline (after.csv) has usadf.gov with contact akash@ndstudio.gov; before.csv drops it.
+    await runLedger({ db, watchlist: wl, csvText: read("after.csv"), now: NOW, emitChanges: false });
+    await runLedger({ db, watchlist: wl, csvText: read("before.csv"), now: NOW });
+    const removed = db.domainHistory("usadf.gov").find((c) => c.kind === "removed");
+    expect(removed?.severity).toBe("high"); // usadf.gov is watchlisted → H5 high
+    expect(db.listAlerts(removed?.id).some((a) => a.subscription_pattern === "@ndstudio.gov")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// H9 contact-domain CONCENTRATION — one foreign apex, many distinct orgs.
+// Backtest: akash@ndstudio.gov reproduces as the seed case (structural, no watchlist entry).
+// ---------------------------------------------------------------------------
+
+const CONCENTRATION_CSV =
+  [
+    "Domain name,Domain type,Organization name,Suborganization name,City,State,Security contact email",
+    "ndstudio.gov,Federal - Executive,Executive Office of the President,White House Office,Washington,DC,dl.eop.cloudadmin@eop.gov",
+    "usadf.gov,Federal - Executive,United States African Development Foundation,African Development Foundation,Washington,DC,akash@ndstudio.gov",
+    "imls.gov,Federal - Executive,Institute of Museum and Library Sciences,,Washington,DC,akash@ndstudio.gov",
+    "mbda.gov,Federal - Executive,Minority Business Development Agency,,Washington,DC,akash@ndstudio.gov",
+  ].join("\n") + "\n";
+
+describe("H9 contact-domain concentration — backtest reproduces akash@ndstudio.gov", () => {
+  it("flags ndstudio.gov as the security contact of record across ≥3 distinct orgs", () => {
+    const { records } = normalizeCsv(CONCENTRATION_CSV);
+    const clusters = contactConcentration(records, wl);
+    const nd = clusters.find((c) => c.contactApex === "ndstudio.gov");
+    expect(nd).toBeTruthy();
+    expect(nd!.orgs.length).toBeGreaterThanOrEqual(3);
+    expect(nd!.domains).toEqual(["imls.gov", "mbda.gov", "usadf.gov"]);
+  });
+
+  it("does NOT flag a 2-org cluster (after.csv: ndstudio serves only trumprx + usadf)", () => {
+    const { records } = normalizeCsv(read("after.csv"));
+    expect(contactConcentration(records, wl)).toHaveLength(0);
+  });
+
+  it("does NOT flag an allowlisted central mailbox shared across many orgs", () => {
+    const allowlisted =
+      [
+        "Domain name,Domain type,Organization name,Suborganization name,City,State,Security contact email",
+        "a.gov,Federal - Executive,Agency A,,Washington,DC,soc@cisa.gov",
+        "b.gov,Federal - Executive,Agency B,,Washington,DC,soc@cisa.gov",
+        "c.gov,Federal - Executive,Agency C,,Washington,DC,soc@cisa.gov",
+      ].join("\n") + "\n";
+    const { records } = normalizeCsv(allowlisted);
+    expect(contactConcentration(records, wl)).toHaveLength(0); // cisa.gov is allowlisted
+  });
+
+  it("runLedger emits exactly one high concentration change, idempotent on rerun", async () => {
+    const db = createDb(":memory:");
+    await runLedger({ db, watchlist: wl, csvText: CONCENTRATION_CSV, now: NOW });
+    const conc = db
+      .domainHistory("ndstudio.gov")
+      .filter((c) => c.field === "securityContactConcentration");
+    expect(conc).toHaveLength(1);
+    expect(conc[0]!.severity).toBe("high");
+    expect(conc[0]!.reason).toContain("foreign to 3 organizations");
+
+    // A byte-different re-run (benign city edit) bypasses the file short-circuit but the
+    // concentration is unchanged → the idempotency observation must suppress a duplicate emit.
+    const rerunCsv = CONCENTRATION_CSV.replace("Washington,DC,dl.eop", "Reston,VA,dl.eop");
+    const rerun = await runLedger({ db, watchlist: wl, csvText: rerunCsv, now: NOW });
+    expect(rerun.shortCircuited).toBe(false);
+    expect(
+      db.domainHistory("ndstudio.gov").filter((c) => c.field === "securityContactConcentration"),
+    ).toHaveLength(1);
+  });
+});
+
+describe("task 12 — every emitted change carries a re-verifiable source_url", () => {
+  it("runLedger stamps changes with the run's source_url", async () => {
+    const db = createDb(":memory:");
+    const SRC = "https://example.gov/current-federal.csv";
+    await runLedger({ db, watchlist: wl, csvText: read("before.csv"), now: NOW, emitChanges: false });
+    await runLedger({ db, watchlist: wl, csvText: read("after.csv"), now: NOW, sourceUrl: SRC });
+    const usadf = db.domainHistory("usadf.gov").find((c) => c.kind === "added");
+    expect(usadf?.source_url).toBe(SRC);
   });
 });
 

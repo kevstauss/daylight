@@ -26,19 +26,23 @@ export function evaluateWatches(
 ): WatchSubscription[] {
   const hits: WatchSubscription[] = [];
   const isAdd = change.kind === "added";
+  // A removal is watch-worthy too: a watched identity/org disappearing from the registry is the
+  // "quietly vanished" event Receipts exists for (§5.6, H5). `rec` here is the PREVIOUS record, so
+  // its contact/org/suborg still carry the values that are being removed.
+  const isRemove = change.kind === "removed";
   const isContactChange = change.kind === "modified" && change.field === "securityContactEmail";
   const isOrgChange = change.kind === "modified" && change.field === "org";
   const isSuborgChange = change.kind === "modified" && change.field === "suborg";
 
   for (const s of subs) {
     if (s.kind === "person") {
-      if ((isAdd || isContactChange) && matchPerson(s.pattern, rec.securityContactEmail)) {
+      if ((isAdd || isRemove || isContactChange) && matchPerson(s.pattern, rec.securityContactEmail)) {
         hits.push(s);
       }
     } else if (s.kind === "org") {
-      if ((isAdd || isOrgChange) && matchesAny(rec.org, [s.pattern])) hits.push(s);
+      if ((isAdd || isRemove || isOrgChange) && matchesAny(rec.org, [s.pattern])) hits.push(s);
     } else if (s.kind === "suborg") {
-      if ((isAdd || isSuborgChange) && matchesAny(rec.suborg, [s.pattern])) hits.push(s);
+      if ((isAdd || isRemove || isSuborgChange) && matchesAny(rec.suborg, [s.pattern])) hits.push(s);
     }
   }
   return hits;
