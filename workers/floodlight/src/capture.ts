@@ -3,6 +3,7 @@ import net from "node:net";
 import { promises as dns } from "node:dns";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
+import { classifyFormFields } from "@daylight/core";
 import type { DaylightDb } from "@daylight/db";
 import { assertScannableUrl, hostAllowed, isAllowedByRobots, isBlockedIp, isGatedNavigation } from "./guards.js";
 import { runFloodlightScan } from "./scan.js";
@@ -261,21 +262,31 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
     // above: that aborts the whole capture (no scorecard persisted) and the sweep retries it, so a
     // scorecard is only ever written from real, fully-read DOM facts. The heavy-page budget is
     // reclaimed by skipping page.content() below, not by short-circuiting this read.
-    const dom = await page.evaluate(() => {
+    // Read raw input attributes in-page (types/autocomplete/name/id/placeholder/accept); the PII
+    // classification itself runs Node-side (classifyFormFields) so it shares one vocabulary with
+    // the Receipts fixture path. The evaluate must stay a pure inline function (see probe note).
+    const rawDom = await page.evaluate(() => {
       const links = Array.from(document.querySelectorAll("a"));
       const pv = links.find(
         (a) =>
           /privacy/i.test(a.textContent || "") || /privacy/i.test(a.getAttribute("href") || ""),
       ) as HTMLAnchorElement | undefined;
       const hasSeal = !!document.querySelector('img[alt*="seal" i], img[src*="seal" i]');
-      const types = Array.from(document.querySelectorAll("input")).map((i) =>
-        (i.getAttribute("type") || "text").toLowerCase(),
-      );
-      const pii = Array.from(
-        new Set(types.filter((t) => ["email", "tel", "password", "file"].includes(t))),
-      );
-      return { privacyNoticeUrl: pv ? pv.href || null : null, hasSeal, formFields: pii };
+      const inputs = Array.from(document.querySelectorAll("input")).map((i) => ({
+        type: (i.getAttribute("type") || "text").toLowerCase(),
+        autocomplete: (i.getAttribute("autocomplete") || "").toLowerCase(),
+        name: (i.getAttribute("name") || "").toLowerCase(),
+        id: (i.getAttribute("id") || "").toLowerCase(),
+        placeholder: (i.getAttribute("placeholder") || "").toLowerCase(),
+        accept: (i.getAttribute("accept") || "").toLowerCase(),
+      }));
+      return { privacyNoticeUrl: pv ? pv.href || null : null, hasSeal, inputs };
     });
+    const dom = {
+      privacyNoticeUrl: rawDom.privacyNoticeUrl,
+      hasSeal: rawDom.hasSeal,
+      formFields: classifyFormFields(rawDom.inputs),
+    };
 
     // Fail toward "gated": the URL/IdP signal plus high-precision runtime signals (HTTP 401,
     // a WWW-Authenticate challenge, or a password field) — so custom walls are still caught.
@@ -328,6 +339,8 @@ export interface ScanResult {
   ok: boolean;
   gated: boolean;
   domain: string | null;
+  /** The persisted scorecard key (redacted URL) — lets the caller deep-link to /floodlight/{url}. */
+  url?: string;
   severity?: string;
   error?: string;
 }
@@ -364,7 +377,13 @@ export async function captureAndScore(
   // the caller continues (and the retry pass gives it another go).
   try {
     const result = runFloodlightScan(db, live.capture);
-    return { ok: true, gated: false, domain: result.scorecard.domain, severity: result.scorecard.severity };
+    return {
+      ok: true,
+      gated: false,
+      domain: result.scorecard.domain,
+      url: result.scorecard.url,
+      severity: result.scorecard.severity,
+    };
   } catch (err) {
     return { ok: false, gated: false, domain: null, error: err instanceof Error ? err.message : String(err) };
   }

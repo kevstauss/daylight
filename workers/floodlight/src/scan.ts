@@ -108,6 +108,9 @@ export function runFloodlightScan(db: DaylightDb, capture: PageCapture, now?: st
           sessionReplay: scorecard.sessionReplay,
           firstPartyProxied: scorecard.firstPartyProxied,
           privacyNoticeUrl: scorecard.privacyNoticeUrl,
+          // Normalized PII kinds (e.g. 'ssn','photo') — not raw PII, so no redaction needed. Persisted
+          // so Redtape can see a form collecting sensitive PII even when tracking is light.
+          formFieldsJson: JSON.stringify(scorecard.formFields),
           requestCount: scorecard.requestCount,
           engineVersion: scorecard.engineVersion,
           severity: scorecard.severity,

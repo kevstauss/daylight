@@ -210,3 +210,101 @@ describe("§7 reverse-proxy disguise — precision (no false HIGH on content pag
     expect(sc.trackers.filter((t) => t.firstPartyProxied)).toHaveLength(1);
   });
 });
+
+describe("§7 AutoMonitor — path-shaped, host-agnostic (catches the renamed endpoint)", () => {
+  it("POST {session_id, events[]} to api.example.gov/collect (renamed host) → first_party_proxied, high", () => {
+    const renamed = capture(
+      "https://example.gov/",
+      [
+        {
+          url: "https://api.example.gov/collect",
+          method: "POST",
+          resourceType: "fetch",
+          postBody: JSON.stringify({ session_id: "z", events: [{ t: "click" }, { t: "scroll" }] }),
+        },
+      ],
+      dom(),
+    );
+    const sc = analyzeCapture(renamed);
+    expect(sc.firstPartyProxied).toBe(true);
+    expect(sc.severity).toBe("high");
+    expect(sc.trackers.some((t) => /AutoMonitor/i.test(t.vendor))).toBe(true);
+  });
+
+  it("the same {session_id, events[]} body as a GET content nav (no beacon) is NOT flagged", () => {
+    const contentNav = capture(
+      "https://example.gov/",
+      [{ url: "https://example.gov/events/calendar", method: "GET", resourceType: "document" }],
+      dom({ privacyNoticeUrl: "https://example.gov/privacy" }),
+    );
+    const sc = analyzeCapture(contentNav);
+    expect(sc.firstPartyProxied).toBe(false);
+    expect(sc.severity).not.toBe("high");
+  });
+});
+
+describe("§7 reverse-proxy shape breadth (beyond PostHog)", () => {
+  const firstPartyBeacon = (host: string, path: string, body?: unknown): PageCapture =>
+    capture(
+      "https://example.gov/",
+      [{ url: `https://${host}${path}`, method: "POST", resourceType: "fetch", postBody: body === undefined ? undefined : JSON.stringify(body) }],
+      dom(),
+    );
+
+  it("Amplitude {api_key, events[]} → first_party_proxied", () => {
+    const sc = analyzeCapture(firstPartyBeacon("collect.example.gov", "/2/httpapi", { api_key: "amp", events: [{ event_type: "x" }] }));
+    expect(sc.firstPartyProxied).toBe(true);
+    expect(sc.trackers.some((t) => /Amplitude/i.test(t.vendor))).toBe(true);
+  });
+
+  it("Segment {batch, writeKey} → first_party_proxied", () => {
+    const sc = analyzeCapture(firstPartyBeacon("t.example.gov", "/v1/batch", { batch: [{ type: "track" }], writeKey: "wk" }));
+    expect(sc.firstPartyProxied).toBe(true);
+    expect(sc.trackers.some((t) => /Segment/i.test(t.vendor))).toBe(true);
+  });
+
+  it("Plausible /api/event {name,url,domain} → first_party_proxied", () => {
+    const sc = analyzeCapture(firstPartyBeacon("example.gov", "/api/event", { name: "pageview", url: "https://example.gov/", domain: "example.gov" }));
+    expect(sc.firstPartyProxied).toBe(true);
+    expect(sc.trackers.some((t) => /Plausible/i.test(t.vendor))).toBe(true);
+  });
+
+  it("GA4 / server-side GTM /g/collect beacon → first_party_proxied", () => {
+    const sc = analyzeCapture(firstPartyBeacon("sgtm.example.gov", "/g/collect"));
+    expect(sc.firstPartyProxied).toBe(true);
+    expect(sc.trackers.some((t) => /GA4/i.test(t.vendor))).toBe(true);
+  });
+
+  it("Matomo matomo.php beacon → first_party_proxied", () => {
+    const sc = analyzeCapture(firstPartyBeacon("stats.example.gov", "/matomo.php"));
+    expect(sc.firstPartyProxied).toBe(true);
+    expect(sc.trackers.some((t) => /Matomo/i.test(t.vendor))).toBe(true);
+  });
+
+  it("a bare rrweb event array (session-replay body) → first_party_proxied + session_replay", () => {
+    const sc = analyzeCapture(firstPartyBeacon("example.gov", "/rr", [{ type: 2, timestamp: 1, data: {} }]));
+    expect(sc.firstPartyProxied).toBe(true);
+    expect(sc.sessionReplay).toBe(true);
+  });
+
+  it("a benign event-log array with a STRING type is NOT session replay / high (no false 'records keystrokes')", () => {
+    // rrweb events use a NUMERIC type enum; a generic telemetry body must not mint a replay HIGH.
+    const sc = analyzeCapture(
+      firstPartyBeacon("example.gov", "/beacon", [{ type: "pageview", timestamp: 1700000000 }]),
+    );
+    expect(sc.sessionReplay).toBe(false);
+    expect(sc.firstPartyProxied).toBe(false);
+    expect(sc.severity).not.toBe("high");
+  });
+
+  it("a bare /s/ segment on a third party (qualtrics) does NOT mint session replay / high", () => {
+    const qualtrics = capture(
+      "https://realfood.gov/",
+      [{ url: "https://siteintercept.qualtrics.com/s/abc", method: "GET", resourceType: "script" }],
+      dom({ privacyNoticeUrl: "https://realfood.gov/privacy" }),
+    );
+    const sc = analyzeCapture(qualtrics);
+    expect(sc.sessionReplay).toBe(false);
+    expect(sc.severity).not.toBe("high");
+  });
+});

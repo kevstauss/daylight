@@ -40,6 +40,7 @@ export interface Scorecard {
   sessionReplay: boolean;
   firstPartyProxied: boolean;
   privacyNoticeUrl: string | null;
+  formFields: string[]; // normalized PII field kinds (e.g. ['email','ssn','photo']) — persisted for Redtape
   requestCount: number;
   engineVersion: string;
   severity: Severity;

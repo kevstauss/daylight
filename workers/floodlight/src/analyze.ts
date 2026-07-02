@@ -20,7 +20,11 @@ const safePath = (url: string): string => {
   }
 };
 
-const SESSION_REPLAY_PATH = /\/(s|rec|record|replay|rrweb)\b/i;
+// Genuine session-replay path markers only. A bare `/s/` or `/rec/` segment is intentionally
+// EXCLUDED: it turns up on ordinary third parties (qualtrics.com/s/…, cdn /rec/…) and would mint a
+// false HIGH. Known replay vendors are caught by their fingerprint category regardless of path;
+// this regex is the backstop for unknown replay hosts and must not over-fire.
+const SESSION_REPLAY_PATH = /\/(rrweb|replay|session[-_]?replay|record(?:ing)?s?)\b/i;
 const isSessionReplayPath = (path: string): boolean => SESSION_REPLAY_PATH.test(path);
 
 /**
@@ -44,10 +48,10 @@ export function analyzeCapture(capture: PageCapture): Scorecard {
 
     if (firstParty) {
       // H1 — a first-party endpoint shaped like analytics = reverse-proxy disguise.
-      const proxied = looksProxiedAnalytics(host, path, req.postBody, req.method, req.resourceType);
+      const proxied = looksProxiedAnalytics(path, req.postBody, req.method, req.resourceType);
       if (proxied.matched) {
         firstPartyProxied = true;
-        if (/posthog/i.test(proxied.vendor) && isSessionReplayPath(path)) sessionReplay = true;
+        if (proxied.sessionReplay || isSessionReplayPath(path)) sessionReplay = true;
         // Dedup on vendor+host (the granularity trackerKey diffs on). An analytics endpoint
         // fires many beacons per load; without this, one finding becomes N duplicate
         // high-severity "tracker added" changes flooding the Receipts review feed.
@@ -100,6 +104,7 @@ export function analyzeCapture(capture: PageCapture): Scorecard {
     sessionReplay,
     firstPartyProxied,
     privacyNoticeUrl,
+    formFields: capture.dom.formFields,
     requestCount: capture.requests.length,
     engineVersion: ENGINE_VERSION,
     severity,
