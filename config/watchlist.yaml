@@ -19,7 +19,6 @@ subdomain_apexes:             # Lookout also enumerates certs under these (subdo
 comparators:                  # legit original -> for shadow-vs-real diffs (Floodlight / Receipts)
   vote.gov: eac.gov
   passports.gov: travel.state.gov
-  login: login.gov
 
 person_watch:                 # Ledger fires (high) when these appear as any contact
   - "@ndstudio.gov"
