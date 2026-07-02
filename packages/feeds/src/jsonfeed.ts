@@ -1,8 +1,11 @@
-import { domainLink, type FeedEntry, type FeedMeta } from "./entry.js";
+import { entryLink, type FeedEntry, type FeedMeta } from "./entry.js";
 
 export interface JsonFeedItem {
   id: string;
   url: string;
+  /** The exact public source artifact (commit blob / crt.sh / wayback) — JSON Feed's
+   *  `external_url` is semantically "the source page elsewhere," so it renders as "source →". */
+  external_url?: string;
   title: string;
   content_text: string;
   date_published: string;
@@ -29,7 +32,8 @@ export function renderJsonFeed(entries: FeedEntry[], meta: FeedMeta): JsonFeed {
     description: meta.description,
     items: entries.map((e) => ({
       id: `daylight-change-${e.id}`,
-      url: domainLink(site, e.domain),
+      url: entryLink(site, e),
+      ...(e.sourceUrl ? { external_url: e.sourceUrl } : {}),
       title: e.title,
       content_text: e.summary && e.summary.trim() ? e.summary.trim() : e.title,
       date_published: e.detectedAt,

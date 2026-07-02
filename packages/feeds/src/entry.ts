@@ -8,6 +8,11 @@ export interface FeedEntry {
   severity: Severity;
   title: string;
   summary?: string;
+  /** Canonical permalink for this item (relative or absolute). Defaults to the domain page when
+   *  unset; change-based entries point at their /change/{id} permalink for precise citation. */
+  link?: string;
+  /** The exact public source artifact (commit blob / crt.sh / wayback) — a "source →" link. */
+  sourceUrl?: string | null;
 }
 
 export interface FeedMeta {
@@ -28,6 +33,7 @@ export interface ChangeLike {
   new_value: string | null;
   severity: string;
   reason: string | null;
+  source_url?: string | null;
 }
 
 const asSeverity = (s: string): Severity =>
@@ -62,10 +68,20 @@ export function changeToEntry(c: ChangeLike): FeedEntry {
     severity: asSeverity(c.severity),
     title: synthesizeTitle(c),
     summary: c.reason ?? undefined,
+    link: `/change/${c.id}`,
+    sourceUrl: c.source_url ?? undefined,
   };
 }
 
 /** Absolute deep link to a domain's page. */
 export function domainLink(siteUrl: string, domain: string): string {
   return `${siteUrl.replace(/\/+$/, "")}/domain/${encodeURIComponent(domain)}`;
+}
+
+/** The canonical link for a feed item: its explicit permalink (resolved against the origin) or,
+ *  when unset, the domain page. */
+export function entryLink(siteUrl: string, e: FeedEntry): string {
+  const site = siteUrl.replace(/\/+$/, "");
+  if (!e.link) return domainLink(site, e.domain);
+  return /^https?:\/\//i.test(e.link) ? e.link : `${site}${e.link.startsWith("/") ? "" : "/"}${e.link}`;
 }

@@ -1,4 +1,4 @@
-import { domainLink, type FeedEntry, type FeedMeta } from "./entry.js";
+import { entryLink, type FeedEntry, type FeedMeta } from "./entry.js";
 
 /** Minimal, correct XML text escaping for element content + attributes. */
 export function xmlEscape(s: string): string {
@@ -23,8 +23,12 @@ export function renderRss(entries: FeedEntry[], meta: FeedMeta): string {
 
   const items = entries
     .map((e) => {
-      const link = domainLink(site, e.domain);
-      const desc = e.summary && e.summary.trim() ? e.summary.trim() : e.title;
+      const link = entryLink(site, e);
+      const base = e.summary && e.summary.trim() ? e.summary.trim() : e.title;
+      // Receipts-forward: append the exact public source artifact so every feed item is
+      // one-click re-verifiable (a commit blob / crt.sh query / Wayback URL). Rendered in the
+      // description because RSS 2.0 has no clean per-item "source artifact" element.
+      const desc = e.sourceUrl ? `${base}\n\nSource: ${e.sourceUrl}` : base;
       return [
         "    <item>",
         `      <title>${xmlEscape(e.title)}</title>`,

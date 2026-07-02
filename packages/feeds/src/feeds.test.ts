@@ -26,7 +26,8 @@ describe("feeds", () => {
   it("renders valid-looking RSS with a working deep link and escaped content", () => {
     const xml = renderRss([changeToEntry(change)], meta);
     expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
-    expect(xml).toContain("<link>https://daylight.example/domain/usadf.gov</link>");
+    // Feed items link to the citable /change/{id} permalink (not the domain timeline).
+    expect(xml).toContain("<link>https://daylight.example/change/42</link>");
     expect(xml).toContain("<category>high</category>");
     expect(xml).toContain("daylight-change-42");
     // ampersand-free reason here, but ensure escaping path is active
@@ -44,7 +45,22 @@ describe("feeds", () => {
   it("renders JSON Feed 1.1 with tags", () => {
     const feed = renderJsonFeed([changeToEntry(change)], meta);
     expect(feed.version).toBe("https://jsonfeed.org/version/1.1");
-    expect(feed.items[0]?.url).toBe("https://daylight.example/domain/usadf.gov");
+    expect(feed.items[0]?.url).toBe("https://daylight.example/change/42");
     expect(feed.items[0]?.tags).toContain("high");
+  });
+
+  it("surfaces the source artifact when a change carries a source_url (task 12)", () => {
+    const src = "https://github.com/cisagov/dotgov-data/blob/abc123/current-federal.csv";
+    const withSource = changeToEntry({ ...change, source_url: src });
+    const xml = renderRss([withSource], meta);
+    expect(xml).toContain(`Source: ${src}`);
+    const feed = renderJsonFeed([withSource], meta);
+    expect(feed.items[0]?.external_url).toBe(src);
+  });
+
+  it("omits the source line entirely when a change has no source_url", () => {
+    const feed = renderJsonFeed([changeToEntry(change)], meta);
+    expect(feed.items[0]?.external_url).toBeUndefined();
+    expect(renderRss([changeToEntry(change)], meta)).not.toContain("Source:");
   });
 });
