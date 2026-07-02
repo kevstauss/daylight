@@ -4,6 +4,7 @@ import { openConnection, resolveDbPath, type Sqlite } from "./client.js";
 import type {
   AlertRow,
   ChangeRow,
+  CorrectionRow,
   DomainRow,
   GapRow,
   ObservationRow,
@@ -189,8 +190,8 @@ export class DaylightDb {
     const info = this.sql
       .prepare(
         `INSERT INTO changes
-           (module, domain, detected_at, kind, field, old_value, new_value, severity, reason)
-         VALUES (@module, @domain, @detectedAt, @kind, @field, @oldValue, @newValue, @severity, @reason)`,
+           (module, domain, detected_at, kind, field, old_value, new_value, severity, reason, source_url)
+         VALUES (@module, @domain, @detectedAt, @kind, @field, @oldValue, @newValue, @severity, @reason, @sourceUrl)`,
       )
       .run({
         module: change.module,
@@ -202,6 +203,7 @@ export class DaylightDb {
         newValue: change.newValue ?? null,
         severity: change.severity,
         reason: change.reason ?? null,
+        sourceUrl: change.sourceUrl ?? null,
       });
     return Number(info.lastInsertRowid);
   }
@@ -312,6 +314,14 @@ export class DaylightDb {
         `SELECT * FROM changes WHERE domain = ? ORDER BY detected_at ASC, id ASC`,
       )
       .all(name.trim().toLowerCase()) as ChangeRow[];
+  }
+
+  /** A single change by id — powers the /change/{id} permalink + cite block. */
+  getChange(id: number): ChangeRow | null {
+    const row = this.sql.prepare(`SELECT * FROM changes WHERE id = ?`).get(id) as
+      | ChangeRow
+      | undefined;
+    return row ?? null;
   }
 
   // ---- scans / status -----------------------------------------------------
@@ -457,17 +467,20 @@ export class DaylightDb {
       .prepare(
         `INSERT INTO scorecards
            (url, domain, scanned_at, tracker_count, session_replay, first_party_proxied,
-            privacy_notice_url, request_count, engine_version, severity, trackers_json, reasons_json)
+            privacy_notice_url, request_count, engine_version, severity, trackers_json, reasons_json,
+            form_fields_json)
          VALUES
            (@url, @domain, @scannedAt, @trackerCount, @sessionReplay, @firstPartyProxied,
-            @privacyNoticeUrl, @requestCount, @engineVersion, @severity, @trackersJson, @reasonsJson)
+            @privacyNoticeUrl, @requestCount, @engineVersion, @severity, @trackersJson, @reasonsJson,
+            @formFieldsJson)
          ON CONFLICT(url) DO UPDATE SET
            domain = excluded.domain, scanned_at = excluded.scanned_at,
            tracker_count = excluded.tracker_count, session_replay = excluded.session_replay,
            first_party_proxied = excluded.first_party_proxied,
            privacy_notice_url = excluded.privacy_notice_url, request_count = excluded.request_count,
            engine_version = excluded.engine_version, severity = excluded.severity,
-           trackers_json = excluded.trackers_json, reasons_json = excluded.reasons_json`,
+           trackers_json = excluded.trackers_json, reasons_json = excluded.reasons_json,
+           form_fields_json = excluded.form_fields_json`,
       )
       .run({
         url: sc.url,
@@ -482,6 +495,7 @@ export class DaylightDb {
         severity: sc.severity,
         trackersJson: sc.trackersJson,
         reasonsJson: sc.reasonsJson,
+        formFieldsJson: sc.formFieldsJson ?? null,
       });
   }
 
@@ -658,13 +672,58 @@ export class DaylightDb {
 
   /** Pull a gap back to the review queue (un-publish, mark unreviewed) — e.g. when an
    *  auto-re-check finds a filing now exists. Removing a possibly-stale public claim is the
-   *  fail-safe direction; a human still confirms via /review. */
+   *  fail-safe direction; a human still confirms via /review. The un-publish is logged as a
+   *  PUBLIC correction (see corrections table) — we never quietly remove our own claims. */
   requeueGap(id: number, note: string): void {
+    const gap = this.getGap(id);
     this.sql
       .prepare(
         `UPDATE gaps SET human_reviewed = 0, published = 0, reviewer_note = @note WHERE id = @id`,
       )
       .run({ id, note });
+    if (gap) {
+      this.insertCorrection({
+        domain: gap.domain,
+        module: "redtape",
+        kind: "retraction",
+        reason: note,
+        refId: id,
+        createdAt: nowIso(),
+      });
+    }
+  }
+
+  // ---- corrections (public retraction/amendment ledger) -------------------
+
+  insertCorrection(c: {
+    domain: string;
+    module: string;
+    kind: string;
+    reason: string;
+    refId?: number | null;
+    createdAt: string;
+  }): number {
+    const info = this.sql
+      .prepare(
+        `INSERT INTO corrections (domain, module, kind, reason, ref_id, created_at)
+         VALUES (@domain, @module, @kind, @reason, @refId, @createdAt)`,
+      )
+      .run({
+        domain: c.domain,
+        module: c.module,
+        kind: c.kind,
+        reason: c.reason,
+        refId: c.refId ?? null,
+        createdAt: c.createdAt,
+      });
+    return Number(info.lastInsertRowid);
+  }
+
+  listCorrections(limit = 100): CorrectionRow[] {
+    const n = Math.max(1, Math.min(limit, 1000));
+    return this.sql
+      .prepare(`SELECT * FROM corrections ORDER BY created_at DESC, id DESC LIMIT ${n}`)
+      .all() as CorrectionRow[];
   }
 
   close(): void {
@@ -713,6 +772,8 @@ export interface ScorecardInput {
   severity: string;
   trackersJson: string;
   reasonsJson: string;
+  /** JSON array of normalized PII field kinds (optional; defaults to null). */
+  formFieldsJson?: string | null;
 }
 
 export interface SubdomainInput {

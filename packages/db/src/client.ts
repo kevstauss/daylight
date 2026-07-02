@@ -24,5 +24,23 @@ export function openConnection(path: string): Sqlite {
   db.pragma("foreign_keys = ON");
   db.pragma("busy_timeout = 5000");
   db.exec(SCHEMA_SQL);
+  applyAdditiveColumns(db);
   return db;
+}
+
+/**
+ * Idempotent additive-column upgrades for DBs created before a column existed. SCHEMA_SQL uses
+ * CREATE TABLE IF NOT EXISTS, so it never alters an existing table — this fills the gap for
+ * nullable columns added over time (no data migration, safe on every open). Keep in lockstep
+ * with SCHEMA_SQL; each entry is a no-op once the column is present.
+ */
+function applyAdditiveColumns(db: Sqlite): void {
+  const ensure = (table: string, column: string, decl: string): void => {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (!cols.some((c) => c.name === column)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${decl}`);
+    }
+  };
+  ensure("changes", "source_url", "TEXT");
+  ensure("scorecards", "form_fields_json", "TEXT");
 }

@@ -35,6 +35,10 @@ export interface Change {
   newValue?: string | null;
   severity: Severity;
   reason?: string; // human-readable ("security contact changed to @ndstudio.gov")
+  /** The exact public artifact this change was observed in — a commit-pinned CSV blob (Ledger
+   *  backfill), the daily source CSV (Ledger live), a crt.sh query (Lookout), or a Wayback URL
+   *  (Receipts). Renders as "source →" so any change is one-click re-verifiable. */
+  sourceUrl?: string | null;
 }
 
 export type WatchKind = "person" | "org" | "suborg" | "domain" | "subdomain_flag";

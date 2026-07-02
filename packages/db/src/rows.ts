@@ -34,6 +34,7 @@ export interface ChangeRow {
   new_value: string | null;
   severity: string;
   reason: string | null;
+  source_url: string | null;
 }
 
 export interface ScanRow {
@@ -85,6 +86,7 @@ export interface ScorecardRow {
   severity: string | null;
   trackers_json: string | null;
   reasons_json: string | null;
+  form_fields_json: string | null;
 }
 
 export interface SnapshotRow {
@@ -118,6 +120,16 @@ export interface GapRow {
   human_reviewed: number | null;
   reviewer_note: string | null;
   published: number | null;
+  created_at: string;
+}
+
+export interface CorrectionRow {
+  id: number;
+  domain: string;
+  module: string;
+  kind: string;
+  reason: string;
+  ref_id: number | null;
   created_at: string;
 }
 

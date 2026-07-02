@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS changes (
   old_value TEXT,
   new_value TEXT,
   severity TEXT NOT NULL,
-  reason TEXT
+  reason TEXT,
+  source_url TEXT                      -- the exact public artifact (commit blob / crt.sh / wayback)
 );
 CREATE INDEX IF NOT EXISTS ix_changes_feed ON changes(detected_at DESC, severity);
 
@@ -99,7 +100,8 @@ CREATE TABLE IF NOT EXISTS scorecards (
   engine_version TEXT,
   severity TEXT,
   trackers_json TEXT,                 -- JSON array of {vendor,category,host,path,firstPartyProxied}
-  reasons_json TEXT                   -- JSON array of human-readable reasons
+  reasons_json TEXT,                  -- JSON array of human-readable reasons
+  form_fields_json TEXT               -- JSON array of normalized PII field kinds (Redtape reads this)
 );
 CREATE INDEX IF NOT EXISTS ix_scorecard_domain ON scorecards(domain, scanned_at DESC);
 
@@ -142,4 +144,18 @@ CREATE TABLE IF NOT EXISTS gaps (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_gaps_domain ON gaps(domain, created_at DESC);
+
+-- Corrections/retractions ledger: a public, dated record of every time Daylight amends or
+-- retracts one of its OWN published claims. Silent un-publishing would be the exact "quiet
+-- removal" Receipts exists to expose, so we log it in the same feed format as everything else.
+CREATE TABLE IF NOT EXISTS corrections (
+  id INTEGER PRIMARY KEY,
+  domain TEXT NOT NULL,
+  module TEXT NOT NULL,                -- which module's claim was corrected (e.g. 'redtape')
+  kind TEXT NOT NULL,                  -- 'retraction' | 'amendment'
+  reason TEXT NOT NULL,                -- public, human-readable reason
+  ref_id INTEGER,                      -- the gap/change id this corrects (nullable)
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_corrections_feed ON corrections(created_at DESC);
 `;
