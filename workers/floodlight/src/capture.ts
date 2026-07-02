@@ -2,6 +2,7 @@
 import net from "node:net";
 import { promises as dns } from "node:dns";
 import { chromium } from "playwright";
+import type { Page } from "playwright";
 import type { DaylightDb } from "@daylight/db";
 import { assertScannableUrl, hostAllowed, isAllowedByRobots, isBlockedIp, isGatedNavigation } from "./guards.js";
 import { runFloodlightScan } from "./scan.js";
@@ -67,6 +68,73 @@ function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
   return Promise.race([p.catch(() => fallback), timeout]).finally(() => {
     if (timer) clearTimeout(timer);
   });
+}
+
+// Canonical locations agencies publish a privacy notice at, tried when the page links none.
+const CANONICAL_PRIVACY_PATHS = [
+  "/privacy",
+  "/privacy-policy",
+  "/privacy-statement",
+  "/privacy-notice",
+  "/privacy-act",
+  "/privacy.html",
+];
+// A path that should never legitimately exist — used to detect soft-404 catch-alls.
+const SOFT404_PROBE_PATH = "/__daylight-privacy-probe-should-not-exist__";
+
+/**
+ * Fallback privacy-notice detection, run INSIDE the page so every request rides the exact SSRF
+ * controls the navigation uses — the context.route re-validation AND the --host-resolver-rules IP
+ * pin. (A Node-side context.request would bypass both and re-resolve the host unpinned, reopening
+ * the DNS-rebinding hole the pin exists to close.) Some agencies serve a notice at a canonical
+ * path without linking it from a JS-rendered homepage (e.g. eac.gov /privacy-statement), which
+ * the DOM scan alone reports as a FALSE "no privacy notice".
+ *
+ * Robustness (a false "has a notice" is the damaging direction — it suppresses a real gap):
+ *  - GET, not HEAD (some servers fake HEAD status);
+ *  - the body must actually read like a privacy notice (contains /privacy/i);
+ *  - reject soft-404 catch-alls (sites that 200 every path, e.g. realfood.gov) by comparing each
+ *    hit's body against a deliberately-bogus path's response;
+ *  - redirects are followed in-page (each hop is route-guarded), but only a SAME-ORIGIN final URL
+ *    counts. All fetches run in parallel, each AbortController-bounded to 4s.
+ */
+async function probePrivacyInPage(page: Page): Promise<string | null> {
+  try {
+    return await page.evaluate(
+      async ({ paths, bogus }): Promise<string | null> => {
+        const origin = location.origin;
+        const get = async (path: string): Promise<{ ok: boolean; url: string; len: number; body: string }> => {
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 4000);
+          try {
+            const r = await fetch(path, { method: "GET", redirect: "follow", credentials: "omit", signal: ctrl.signal });
+            const sameOrigin = new URL(r.url, origin).origin === origin;
+            const ok = r.ok && sameOrigin;
+            const body = ok ? (await r.text()).slice(0, 20000) : "";
+            return { ok, url: r.url, len: body.length, body };
+          } catch {
+            return { ok: false, url: "", len: 0, body: "" };
+          } finally {
+            clearTimeout(timer);
+          }
+        };
+        const [bog, ...hits] = await Promise.all([bogus, ...paths].map(get));
+        if (!bog) return null;
+        for (let i = 0; i < paths.length; i++) {
+          const res = hits[i];
+          if (!res || !res.ok) continue;
+          // soft-404 catch-all: the bogus path also 200'd and this body ~matches it
+          if (bog.ok && Math.abs(res.len - bog.len) < 64) continue;
+          if (!/privacy/i.test(res.body)) continue; // must actually read like a notice
+          return res.url;
+        }
+        return null;
+      },
+      { paths: CANONICAL_PRIVACY_PATHS, bogus: SOFT404_PROBE_PATH },
+    );
+  } catch {
+    return null; // probe is best-effort — any failure just leaves the notice unknown
+  }
 }
 
 export interface LiveCapture {
@@ -212,6 +280,18 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
       hasPasswordField: dom.formFields.includes("password"),
     });
 
+    // Snapshot the passively-loaded request log BEFORE the active privacy probe below, so the
+    // probe's own same-host fetches never enter the tracker scorecard.
+    const capturedRequests = requests.slice();
+
+    // If the page linked no privacy notice, fall back to probing canonical paths in-page (skipped
+    // when gated or in tests). Corrects false "no privacy notice" flags on agencies that publish
+    // one at a fixed path without linking it from the homepage.
+    const privacyNoticeUrl =
+      dom.privacyNoticeUrl ??
+      (!gated && !opts.allowPrivate ? await withTimeout(probePrivacyInPage(page), 6000, null) : null);
+    const domFacts = { ...dom, privacyNoticeUrl };
+
     // page.content() has no native timeout and serializes the whole DOM; on a frame-heavy page
     // it can take 30s+ and blow the overall cap. Skip it for Floodlight (scoring ignores html);
     // bound it for Receipts so a slow page degrades to "" instead of hanging.
@@ -224,7 +304,7 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
         : await page.screenshot({ fullPage: true, timeout: 15000 }).catch(() => null);
 
     return {
-      capture: { url, requests, dom },
+      capture: { url, requests: capturedRequests, dom: domFacts },
       html,
       screenshotPng: screenshotPng ?? null,
       gated,
