@@ -19,6 +19,7 @@
     "ledger": "pnpm --filter @daylight/ledger start",
     "ledger:seed": "pnpm --filter @daylight/ledger seed",
     "ledger:history": "pnpm --filter @daylight/ledger history",
+    "analytics:reset": "pnpm --filter @daylight/db reset:analytics",
     "ci": "pnpm typecheck && pnpm test",
     "redtape:assess": "pnpm --filter @daylight/redtape assess"
   },

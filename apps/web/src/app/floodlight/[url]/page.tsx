@@ -164,20 +164,22 @@ function TrackerTable({ title, rows }: { title: string; rows: Tracker[] }) {
         {title} ({rows.length})
       </Eyebrow>
       <Panel className="mt-1 overflow-hidden">
-        <table className="w-full text-sm">
-          <tbody className="divide-y divide-edge">
-            {rows.map((t, i) => (
-              <tr key={i} className="align-top">
-                <td className="px-4 py-2 text-ink">{t.vendor}</td>
-                <td className="px-4 py-2 font-mono text-xs text-faint">{t.category}</td>
-                <td className="break-all px-4 py-2 font-mono text-xs text-muted">
-                  {t.host}
-                  {t.path}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <tbody className="divide-y divide-edge">
+              {rows.map((t, i) => (
+                <tr key={i} className="align-top">
+                  <td className="px-4 py-2 text-ink">{t.vendor}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-faint">{t.category}</td>
+                  <td className="break-all px-4 py-2 font-mono text-xs text-muted">
+                    {t.host}
+                    {t.path}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Panel>
     </section>
   );

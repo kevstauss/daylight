@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { classifyHit, classifyReferer, normalizePath } from "./analytics.js";
+import {
+  classifyHit,
+  classifyReferer,
+  isExcludedClientIp,
+  normalizePath,
+} from "./analytics.js";
 
 describe("normalizePath", () => {
   it("keeps root and known static routes (case/slash normalized)", () => {
@@ -91,5 +96,40 @@ describe("classifyHit", () => {
       refKind: "gov",
       refHost: "irs.gov",
     });
+  });
+});
+
+describe("isExcludedClientIp", () => {
+  it("excludes nobody when the IP or allowlist is empty/unset", () => {
+    expect(isExcludedClientIp("203.0.113.7", undefined)).toBe(false);
+    expect(isExcludedClientIp("203.0.113.7", "")).toBe(false);
+    expect(isExcludedClientIp("203.0.113.7", "   ")).toBe(false);
+    expect(isExcludedClientIp(null, "203.0.113.7")).toBe(false);
+    expect(isExcludedClientIp("", "203.0.113.7")).toBe(false);
+  });
+
+  it("matches an exact IPv4, but not a different address", () => {
+    expect(isExcludedClientIp("203.0.113.7", "203.0.113.7")).toBe(true);
+    expect(isExcludedClientIp("203.0.113.8", "203.0.113.7")).toBe(false);
+    // an exact entry is a full match — not a prefix of a longer address
+    expect(isExcludedClientIp("203.0.113.70", "203.0.113.7")).toBe(false);
+  });
+
+  it("supports a trailing-dot IPv4 prefix as a range", () => {
+    expect(isExcludedClientIp("203.0.113.42", "203.0.113.")).toBe(true);
+    expect(isExcludedClientIp("203.0.114.42", "203.0.113.")).toBe(false);
+  });
+
+  it("supports a trailing-colon IPv6 prefix, case-insensitively", () => {
+    expect(isExcludedClientIp("2001:DB8:abcd::1", "2001:db8:")).toBe(true);
+    expect(isExcludedClientIp("2001:dead::1", "2001:db8:")).toBe(false);
+  });
+
+  it("accepts a comma/space-separated list and trims entries", () => {
+    const list = "203.0.113.7, 198.51.100. ,  2001:db8:";
+    expect(isExcludedClientIp("203.0.113.7", list)).toBe(true);
+    expect(isExcludedClientIp("198.51.100.9", list)).toBe(true);
+    expect(isExcludedClientIp("2001:db8::5", list)).toBe(true);
+    expect(isExcludedClientIp("8.8.8.8", list)).toBe(false);
   });
 });

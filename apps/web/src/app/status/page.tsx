@@ -22,33 +22,35 @@ export default function StatusPage() {
         </p>
       </div>
 
-      <Panel>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-edge text-left font-mono text-[11px] uppercase tracking-wide text-faint">
-              <th scope="col" className="px-4 py-2 font-normal">Module</th>
-              <th scope="col" className="px-4 py-2 font-normal">State</th>
-              <th scope="col" className="px-4 py-2 font-normal">Last run</th>
-              <th scope="col" className="px-4 py-2 font-normal">Expected</th>
-              <th scope="col" className="px-4 py-2 font-normal">Items</th>
-              <th scope="col" className="px-4 py-2 font-normal">Changes</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-edge">
-            {report.map((m) => (
-              <tr key={m.module}>
-                <td className="px-4 py-2.5 font-mono text-ink">{m.module}</td>
-                <td className="px-4 py-2.5">{renderState(m)}</td>
-                <td className="px-4 py-2.5">
-                  <Timestamp iso={m.lastRun} />
-                </td>
-                <td className="px-4 py-2.5 font-mono text-xs text-faint">{m.expected}</td>
-                <td className="px-4 py-2.5 font-mono text-muted">{m.itemsSeen ?? "—"}</td>
-                <td className="px-4 py-2.5 font-mono text-muted">{m.changesEmitted ?? "—"}</td>
+      <Panel className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-edge text-left font-mono text-[11px] uppercase tracking-wide text-faint">
+                <th scope="col" className="px-4 py-2 font-normal">Module</th>
+                <th scope="col" className="px-4 py-2 font-normal">State</th>
+                <th scope="col" className="px-4 py-2 font-normal">Last run</th>
+                <th scope="col" className="px-4 py-2 font-normal">Expected</th>
+                <th scope="col" className="px-4 py-2 font-normal">Items</th>
+                <th scope="col" className="px-4 py-2 font-normal">Changes</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-edge">
+              {report.map((m) => (
+                <tr key={m.module}>
+                  <td className="whitespace-nowrap px-4 py-2.5 font-mono text-ink">{m.module}</td>
+                  <td className="px-4 py-2.5">{renderState(m)}</td>
+                  <td className="px-4 py-2.5">
+                    <Timestamp iso={m.lastRun} />
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-faint">{m.expected}</td>
+                  <td className="px-4 py-2.5 font-mono text-muted">{m.itemsSeen ?? "—"}</td>
+                  <td className="px-4 py-2.5 font-mono text-muted">{m.changesEmitted ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Panel>
 
       {!anyRun ? (

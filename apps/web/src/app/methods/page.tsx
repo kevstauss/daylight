@@ -196,22 +196,24 @@ export default function MethodsPage() {
       </p>
       <div className="not-prose mt-2">
         <Panel className="overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-edge text-left font-mono text-[11px] uppercase tracking-wide text-faint">
-                <th scope="col" className="px-4 py-2 font-normal">Source</th>
-                <th scope="col" className="px-4 py-2 font-normal">Cadence</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-edge">
-              {DATA_SOURCES.map((s) => (
-                <tr key={s.name} className="align-top">
-                  <td className="px-4 py-2 text-muted">{s.name}</td>
-                  <td className="px-4 py-2 text-muted">{s.cadence}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-edge text-left font-mono text-[11px] uppercase tracking-wide text-faint">
+                  <th scope="col" className="px-4 py-2 font-normal">Source</th>
+                  <th scope="col" className="px-4 py-2 font-normal">Cadence</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-edge">
+                {DATA_SOURCES.map((s) => (
+                  <tr key={s.name} className="align-top">
+                    <td className="px-4 py-2 text-muted">{s.name}</td>
+                    <td className="px-4 py-2 text-muted">{s.cadence}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Panel>
       </div>
 

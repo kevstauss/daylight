@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { flag } from "@daylight/core";
+import { flag, isExcludedClientIp } from "@daylight/core";
 
 // Per-request nonce-based Content-Security-Policy. This is the one place a strict CSP can live
 // with Next's inline hydration scripts + our inline no-flash theme script: each request gets a
@@ -47,11 +47,20 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   const isPrefetch =
     (request.headers.get("sec-purpose") ?? "").includes("prefetch") ||
     (request.headers.get("purpose") ?? request.headers.get("x-purpose")) === "prefetch";
+  // Leave the operator's own visits out of the counts (they'd swamp a low-traffic launch). The
+  // client IP is read transiently ONLY for this decision and never stored/logged — /privacy's
+  // "no IP is ever written" pledge holds. Fly-Client-IP is the real client on Fly; fall back to
+  // the first X-Forwarded-For hop. DAYLIGHT_ANALYTICS_EXCLUDE_IPS unset ⇒ excludes nobody.
+  const clientIp =
+    request.headers.get("fly-client-ip") ??
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    null;
   if (
     flag("FLAG_ANALYTICS") &&
     request.method === "GET" &&
     request.headers.get("dnt") !== "1" &&
     !isPrefetch &&
+    !isExcludedClientIp(clientIp, process.env.DAYLIGHT_ANALYTICS_EXCLUDE_IPS) &&
     (dest === "document" || dest === null)
   ) {
     try {

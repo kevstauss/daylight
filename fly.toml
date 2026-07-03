@@ -56,6 +56,11 @@ swap_size_mb = 512
   # agent / cookie / session — the /privacy page publishes the exact retained schema. Unset in dev
   # (see .env.example) so `pnpm dev` doesn't write. Honors Do-Not-Track and skips prefetches.
   FLAG_ANALYTICS = "1"
+  # Keep the operator's own visits out of the counts (they'd inflate a low-traffic launch). Exact
+  # IPs or trailing-dot/colon prefixes, comma/space-separated. The IP is read transiently to skip
+  # recording and never stored (see /privacy). Set your own IP here (or via `fly secrets set`),
+  # then redeploy. To clear already-inflated data: `fly ssh console -C "pnpm analytics:reset --yes"`.
+  # DAYLIGHT_ANALYTICS_EXCLUDE_IPS = "203.0.113.7"
 
 [[vm]]
   # shared-cpu-2x / 2GB: the Next.js read-path + in-process crons + headless Chromium capture.

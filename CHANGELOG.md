@@ -5,6 +5,16 @@ Plain-language record of what Daylight can do, and when each piece went live.
 Everything Daylight does is **observational and built on already-public data**. See
 `/methods` for every source, the bot's contact, and the observational-only scope.
 
+## Unreleased — Analytics: exclude operator traffic + reset; mobile table fix
+
+**Counts you can trust at low traffic.** The operator's own visits can now be left out of the
+`/privacy` analytics: set `DAYLIGHT_ANALYTICS_EXCLUDE_IPS` (exact IPs or trailing-dot/colon
+prefixes) and matching requests aren't recorded. The client IP is read transiently only to make
+that skip decision and is **never stored or logged** — the "no IP is ever written" pledge holds.
+A new `pnpm analytics:reset` CLI wipes already-recorded hits for a clean start (`--yes` to confirm;
+`fly ssh console -C "pnpm analytics:reset --yes"` in prod). Also: the `/status` table no longer
+forces a page-wide horizontal scroll on mobile — wide tables now scroll within their own block.
+
 ## Unreleased — Privacy page + first-party analytics
 
 **We measure others; here's exactly what we do.** A new public `/privacy` page states the

@@ -125,6 +125,35 @@ export function classifyReferer(
   return { kind: "other", host: "" };
 }
 
+/**
+ * Should this request be left OUT of the counts because it comes from the operator? A transient,
+ * storage-free control check: the caller (middleware) reads the client IP only to decide whether
+ * to record a hit, and never stores, logs, or writes it anywhere — so /privacy's "no IP is ever
+ * written" pledge stays literally true. `allowlist` is DAYLIGHT_ANALYTICS_EXCLUDE_IPS: a comma/
+ * space-separated list of exact IPs (e.g. `203.0.113.7`) or prefixes ending in `.`/`:` for a
+ * range (e.g. `203.0.113.` for an IPv4 block, `2001:db8:` for an IPv6 one). Empty/unset ⇒ excludes
+ * nobody. Matching is case-insensitive (IPv6 hex) and comparison is on the raw string, so the same
+ * IP written in two forms (compressed vs. expanded IPv6) must be listed as it arrives in the header.
+ */
+export function isExcludedClientIp(
+  ip: string | null | undefined,
+  allowlist: string | null | undefined,
+): boolean {
+  if (!ip || !allowlist) return false;
+  const client = ip.trim().toLowerCase();
+  if (!client) return false;
+  for (const raw of allowlist.split(/[\s,]+/)) {
+    const entry = raw.trim().toLowerCase();
+    if (!entry) continue;
+    if (entry.endsWith(".") || entry.endsWith(":")) {
+      if (client.startsWith(entry)) return true; // prefix / range
+    } else if (client === entry) {
+      return true; // exact
+    }
+  }
+  return false;
+}
+
 /** Full classification for one request, or null when the path is excluded from analytics. */
 export function classifyHit(
   pathname: string,

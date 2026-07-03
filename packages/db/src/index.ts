@@ -816,6 +816,13 @@ export class DaylightDb {
     return row.d ?? null;
   }
 
+  /** Wipe every analytics row and return how many were removed. Operator maintenance only (the
+   *  `pnpm analytics:reset` CLI): lets a low-traffic launch clear counts inflated by the
+   *  operator's own testing. Touches only the aggregate table — no visitor data exists to lose. */
+  resetAnalytics(): number {
+    return this.sql.prepare(`DELETE FROM analytics_hits`).run().changes;
+  }
+
   close(): void {
     this.sql.close();
   }
