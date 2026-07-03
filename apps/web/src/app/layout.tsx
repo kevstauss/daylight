@@ -57,7 +57,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <a href="#main" className="skip-link">Skip to main content</a>
         <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-5 sm:px-8">
           <header className="border-b border-edgeStrong">
-            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 py-4">
+            <div className="flex items-center justify-between gap-x-6 pb-3 pt-4">
               <Link href="/" className="group flex items-center gap-2.5">
                 <Mark className="h-6 w-6 shrink-0 text-ink" />
                 <span className="text-[22px] font-extrabold leading-none tracking-[-0.02em] text-ink">
@@ -65,12 +65,21 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                 </span>
                 <span className="kicker hidden sm:inline">federal .gov watch</span>
               </Link>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                <MainNav items={modules} meta={meta} rssHref="/feed.xml" />
+              <div className="flex shrink-0 items-center gap-2">
+                <Link
+                  href="/feed.xml"
+                  aria-label="Global RSS feed"
+                  className="inline-flex h-7 items-center rounded-sm border border-edgeStrong px-2 font-mono text-[11px] text-muted transition-colors hover:border-ink hover:text-ink"
+                >
+                  RSS
+                </Link>
                 <ThemeToggle />
               </div>
             </div>
-            <p className="-mt-1 max-w-measure pb-2.5 text-[13px] leading-snug text-muted">
+            <div className="pb-3">
+              <MainNav items={modules} meta={meta} />
+            </div>
+            <p className="max-w-measure pb-2.5 text-[13px] leading-snug text-muted">
               {HEADER_TAGLINE}
             </p>
             <div className="flex items-center gap-2 pb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-faint">

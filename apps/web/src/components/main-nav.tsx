@@ -18,11 +18,9 @@ export interface NavItem {
 export function MainNav({
   items,
   meta = [],
-  rssHref,
 }: {
   items: NavItem[];
   meta?: NavItem[];
-  rssHref: string;
 }) {
   const pathname = usePathname() || "/";
   const active = (item: NavItem): boolean =>
@@ -63,14 +61,6 @@ export function MainNav({
           {n.label}
         </Link>
       ))}
-
-      <Link
-        href={rssHref}
-        aria-label="Global RSS feed"
-        className="inline-flex h-7 items-center rounded-sm border border-edgeStrong px-2 font-mono text-[11px] text-muted transition-colors hover:border-ink hover:text-ink"
-      >
-        RSS
-      </Link>
     </nav>
   );
 }
