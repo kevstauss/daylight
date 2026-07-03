@@ -3,6 +3,7 @@ import {
   classifyHit,
   classifyReferer,
   isExcludedClientIp,
+  isExcludedUserAgent,
   normalizePath,
 } from "./analytics.js";
 
@@ -131,5 +132,65 @@ describe("isExcludedClientIp", () => {
     expect(isExcludedClientIp("198.51.100.9", list)).toBe(true);
     expect(isExcludedClientIp("2001:db8::5", list)).toBe(true);
     expect(isExcludedClientIp("8.8.8.8", list)).toBe(false);
+  });
+});
+
+describe("isExcludedUserAgent", () => {
+  const CHROME =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+
+  it("excludes Claude Code's real fetcher UA (the reported inflation source)", () => {
+    // Captured verbatim from httpbin.org/user-agent via Claude Code's WebFetch.
+    expect(
+      isExcludedUserAgent("Claude-User (claude-code/2.1.199; +https://support.anthropic.com/)"),
+    ).toBe(true);
+    expect(isExcludedUserAgent("ClaudeBot/1.0 (+https://www.anthropic.com/claudebot)")).toBe(true);
+    expect(isExcludedUserAgent("anthropic-ai")).toBe(true);
+  });
+
+  it("excludes other AI, search, and SEO crawlers (case-insensitively)", () => {
+    expect(isExcludedUserAgent("Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)")).toBe(true);
+    expect(isExcludedUserAgent("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")).toBe(true);
+    expect(isExcludedUserAgent("Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)")).toBe(true);
+    expect(isExcludedUserAgent("CCBot/2.0 (https://commoncrawl.org/faq/)")).toBe(true);
+    expect(isExcludedUserAgent("SomethingUnknown Spider/1.0")).toBe(true); // generic "spider" marker
+    expect(isExcludedUserAgent("MysteryCrawler/9")).toBe(true); // generic "crawler" marker
+  });
+
+  it("counts real human browsers — no false positives", () => {
+    expect(isExcludedUserAgent(CHROME)).toBe(false); // 'AppleWebKit' must not trip 'applebot'
+    expect(
+      isExcludedUserAgent(
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+      ),
+    ).toBe(false);
+    // The "CUBOT" phone brand contains the substring "bot" — must NOT be excluded (why we avoid bare "bot").
+    expect(
+      isExcludedUserAgent("Mozilla/5.0 (Linux; Android 12; CUBOT_KingKong ...) AppleWebKit/537.36"),
+    ).toBe(false);
+  });
+
+  it("still counts legit programmatic consumers by default (feed/API pulls metric)", () => {
+    // Generic HTTP tools are intentionally NOT in the built-in list — a real API/feed consumer.
+    expect(isExcludedUserAgent("curl/8.4.0")).toBe(false);
+    expect(isExcludedUserAgent("python-requests/2.31.0")).toBe(false);
+    expect(isExcludedUserAgent("NetNewsWire/6.1.4")).toBe(false); // RSS reader
+  });
+
+  it("does not exclude a missing or blank UA (header-less RSS readers still count)", () => {
+    expect(isExcludedUserAgent(null)).toBe(false);
+    expect(isExcludedUserAgent(undefined)).toBe(false);
+    expect(isExcludedUserAgent("")).toBe(false);
+    expect(isExcludedUserAgent("   ")).toBe(false);
+  });
+
+  it("extends the built-ins with DAYLIGHT_ANALYTICS_EXCLUDE_UA (comma/space-separated, additive)", () => {
+    // Built-ins still apply even when extras are supplied.
+    expect(isExcludedUserAgent("ClaudeBot/1.0", "curl/, myscript")).toBe(true);
+    // Extra tokens opt additional clients out.
+    expect(isExcludedUserAgent("curl/8.4.0", "curl/, myscript")).toBe(true);
+    expect(isExcludedUserAgent("MyScript/1.0", "curl/, myscript")).toBe(true);
+    // A normal browser is untouched by the extras.
+    expect(isExcludedUserAgent(CHROME, "curl/, myscript")).toBe(false);
   });
 });

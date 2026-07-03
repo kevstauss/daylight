@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { flag, isExcludedClientIp } from "@daylight/core";
+import { flag, isExcludedClientIp, isExcludedUserAgent } from "@daylight/core";
 
 // Per-request nonce-based Content-Security-Policy. This is the one place a strict CSP can live
 // with Next's inline hydration scripts + our inline no-flash theme script: each request gets a
@@ -55,12 +55,19 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     request.headers.get("fly-client-ip") ??
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     null;
+  // Also leave out automated clients — bots, crawlers, and AI assistants (incl. this codebase's own
+  // Claude Code fetches, whose UA carries "claude"/"anthropic"). Like the IP above, the User-Agent
+  // is read transiently ONLY for this skip decision and never stored/logged — the "no user-agent is
+  // ever written" pledge on /privacy holds. Built-in signatures always apply; extend via
+  // DAYLIGHT_ANALYTICS_EXCLUDE_UA. A "visit" should mean a person, and feed/API pulls should mean a
+  // real consumer — neither means us running the site or a search-engine indexer.
   if (
     flag("FLAG_ANALYTICS") &&
     request.method === "GET" &&
     request.headers.get("dnt") !== "1" &&
     !isPrefetch &&
     !isExcludedClientIp(clientIp, process.env.DAYLIGHT_ANALYTICS_EXCLUDE_IPS) &&
+    !isExcludedUserAgent(request.headers.get("user-agent"), process.env.DAYLIGHT_ANALYTICS_EXCLUDE_UA) &&
     (dest === "document" || dest === null)
   ) {
     try {

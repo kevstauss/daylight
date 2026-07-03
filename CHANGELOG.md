@@ -12,8 +12,16 @@ Everything Daylight does is **observational and built on already-public data**. 
 prefixes) and matching requests aren't recorded. The client IP is read transiently only to make
 that skip decision and is **never stored or logged** — the "no IP is ever written" pledge holds.
 A new `pnpm analytics:reset` CLI wipes already-recorded hits for a clean start (`--yes` to confirm;
-`fly ssh console -C "pnpm analytics:reset --yes"` in prod). Also: the `/status` table no longer
-forces a page-wide horizontal scroll on mobile — wide tables now scroll within their own block.
+`fly ssh console -C "pnpm analytics:reset --yes"` in prod).
+
+**Bots don't count as visitors.** Automated clients — search-engine and SEO crawlers, and AI
+assistants/answer-engines including Daylight's own Claude Code fetches (whose User-Agent carries
+`claude`/`anthropic`) — are now excluded from the counts by a built-in User-Agent list, so "visits"
+means people. Like the IP above, the User-Agent is read transiently only for that skip decision and
+is **never stored or logged**. Generic HTTP tools (`curl`/`python`/`wget`) are deliberately not on
+the list, so real API and feed consumers still count; extend it with `DAYLIGHT_ANALYTICS_EXCLUDE_UA`
+if a bot slips through. Also: the `/status` table no longer forces a page-wide horizontal scroll on
+mobile — wide tables now scroll within their own block.
 
 ## Unreleased — Privacy page + first-party analytics
 

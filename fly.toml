@@ -61,6 +61,11 @@ swap_size_mb = 512
   # recording and never stored (see /privacy). Set your own IP here (or via `fly secrets set`),
   # then redeploy. To clear already-inflated data: `fly ssh console -C "pnpm analytics:reset --yes"`.
   # DAYLIGHT_ANALYTICS_EXCLUDE_IPS = "203.0.113.7"
+  # Bots/crawlers/AI assistants (incl. Claude Code, whose UA carries "claude"/"anthropic") are
+  # dropped from the counts by a built-in User-Agent list — no config needed. The UA is read
+  # transiently and never stored. Add extra substrings here (appended to the built-ins) if a bot
+  # slips through; generic HTTP tools are intentionally not built in so real API/feed pulls count.
+  # DAYLIGHT_ANALYTICS_EXCLUDE_UA = "somebot, anotherbot"
 
 [[vm]]
   # shared-cpu-2x / 2GB: the Next.js read-path + in-process crons + headless Chromium capture.

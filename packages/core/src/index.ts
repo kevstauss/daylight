@@ -25,4 +25,11 @@ export {
   parseInputAttrs,
 } from "./formfields.js";
 export type { RefKind, HitClass } from "./analytics.js";
-export { classifyHit, classifyReferer, normalizePath, isExcludedClientIp } from "./analytics.js";
+export {
+  classifyHit,
+  classifyReferer,
+  normalizePath,
+  isExcludedClientIp,
+  isExcludedUserAgent,
+  DEFAULT_BOT_UA_SIGNATURES,
+} from "./analytics.js";

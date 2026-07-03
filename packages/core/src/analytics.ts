@@ -154,6 +154,81 @@ export function isExcludedClientIp(
   return false;
 }
 
+/**
+ * Built-in User-Agent substrings (lower-case) that mark a request as an automated client — an AI
+ * assistant/answer crawler, a search-engine indexer, an SEO scraper, or a self-identified crawler —
+ * rather than a person. Matched case-insensitively as a substring of the UA.
+ *
+ * Deliberately NARROW: it lists *branded* bots only and omits generic HTTP-client tokens
+ * (`curl`/`wget`/`python-requests`/`go-http-client`). Those are how legitimate API + feed consumers
+ * pull, and the /privacy "feed / API pulls" figure is meant to count them — excluding them would
+ * distort a metric, and the false-positive risk (e.g. the "CUBOT" phone brand contains "bot") isn't
+ * worth it. If a specific bot slips through, add it via DAYLIGHT_ANALYTICS_EXCLUDE_UA rather than
+ * broadening this to bare "bot".
+ */
+export const DEFAULT_BOT_UA_SIGNATURES: readonly string[] = [
+  // AI assistants + training/answer crawlers. "claude" catches Claude Code's fetcher
+  // (`Claude-User (claude-code/…; +https://support.anthropic.com/)`), ClaudeBot, and
+  // Claude-SearchBot; "anthropic" catches anthropic-ai and that same support URL.
+  "claude",
+  "anthropic",
+  "gptbot",
+  "chatgpt-user",
+  "oai-searchbot",
+  "perplexitybot",
+  "ccbot", // Common Crawl
+  "bytespider",
+  "amazonbot",
+  "applebot", // Applebot / Applebot-Extended (not "AppleWebKit", which lacks this substring)
+  "meta-externalagent",
+  "facebookexternalhit",
+  // Search-engine crawlers — indexers, not visitors.
+  "googlebot",
+  "bingbot",
+  "duckduckbot",
+  "yandexbot",
+  "baiduspider",
+  // SEO / commercial crawlers.
+  "ahrefsbot",
+  "semrushbot",
+  "mj12bot",
+  "dotbot",
+  "petalbot",
+  "dataforseobot",
+  // Self-identified crawlers of any stripe.
+  "crawler",
+  "spider",
+];
+
+/**
+ * Should this request be left OUT of the counts because it's an automated client (a bot, crawler,
+ * or AI assistant) rather than a human visit? Same transient, storage-free discipline as
+ * {@link isExcludedClientIp}: the caller (middleware) reads the `User-Agent` header ONLY to decide
+ * whether to record a hit and never stores, logs, or writes it — so /privacy's "user-agents are
+ * never written" pledge stays literally true. `extra` is DAYLIGHT_ANALYTICS_EXCLUDE_UA: additional
+ * comma/space-separated substrings *appended* to DEFAULT_BOT_UA_SIGNATURES (the built-ins always
+ * apply, so Claude/AI crawlers are excluded out of the box). A missing UA is NOT excluded — some
+ * legitimate non-browser clients (e.g. RSS readers) send none, and we count those.
+ */
+export function isExcludedUserAgent(
+  ua: string | null | undefined,
+  extra?: string | null | undefined,
+): boolean {
+  if (!ua) return false;
+  const agent = ua.toLowerCase();
+  if (!agent.trim()) return false;
+  for (const sig of DEFAULT_BOT_UA_SIGNATURES) {
+    if (agent.includes(sig)) return true;
+  }
+  if (extra) {
+    for (const raw of extra.split(/[\s,]+/)) {
+      const sig = raw.trim().toLowerCase();
+      if (sig && agent.includes(sig)) return true;
+    }
+  }
+  return false;
+}
+
 /** Full classification for one request, or null when the path is excluded from analytics. */
 export function classifyHit(
   pathname: string,
