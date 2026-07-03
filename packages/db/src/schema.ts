@@ -158,4 +158,20 @@ CREATE TABLE IF NOT EXISTS corrections (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_corrections_feed ON corrections(created_at DESC);
+
+-- First-party analytics (aggregate-only). One row per (day, normalized path, referrer class), a
+-- running count. There is DELIBERATELY no column that could identify a visitor: no IP, no user-
+-- agent, no cookie, no session id. \`path\` is a route pattern (never a raw domain/id/url) and
+-- \`ref_host\` is retained ONLY for public federal .gov referrers (ref_kind='gov'); every other
+-- referrer collapses to a coarse class with no host. This is the exact schema /privacy publishes
+-- as proof of what Daylight keeps on its own visitors — Floodlight's standard, applied to us.
+CREATE TABLE IF NOT EXISTS analytics_hits (
+  day TEXT NOT NULL,                   -- UTC date, YYYY-MM-DD
+  path TEXT NOT NULL,                  -- normalized route pattern (e.g. '/floodlight', '/domain/:name')
+  ref_kind TEXT NOT NULL,              -- 'direct' | 'gov' | 'search' | 'other'
+  ref_host TEXT NOT NULL DEFAULT '',   -- public .gov apex when ref_kind='gov', else ''
+  count INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, path, ref_kind, ref_host)
+);
+CREATE INDEX IF NOT EXISTS ix_analytics_day ON analytics_hits(day);
 `;

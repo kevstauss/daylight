@@ -114,6 +114,7 @@ These live in `fly.toml [env]` (non-secret) — review, don't re-set:
 | `DAYLIGHT_SITE_URL` | `https://daylight.watch` | Public origin (feeds/canonical/UA). |
 | `DAYLIGHT_*_CRON` | see §1 | Enables each scheduled worker. |
 | `FLAG_LEDGER_*` / `FLAG_LOOKOUT` / `FLAG_FLOODLIGHT[_SCAN]` / `FLAG_RECEIPTS` / `FLAG_REDTAPE` | `1` | Surface gates. Flip a flag to `0` and redeploy to hide an unfinished surface without a branch. |
+| `FLAG_ANALYTICS` | `1` | First-party, aggregate-only analytics behind `/privacy`. Middleware records a per-day count per route + coarse referrer class (with the `.gov` apex when a federal site links in) into `analytics_hits` — **no IP / user-agent / cookie / session ever stored**; honors Do-Not-Track; skips prefetches. `/privacy` publishes the exact retained schema. Flip to `0` to stop counting (the page then shows the pledge + schema with no live data). |
 
 New surfaces added in this pass need **no new config** — the public JSON API (`/api/v1/*`),
 `/change/{id}` permalinks, `/compare`, `/corrections`, and `/status.json` are all read-path over the
@@ -229,7 +230,7 @@ empty, so even without step 1 you won't get a flood of phantom "added" events.)
    and that a change with a working `source →` link shows on the home feed.
 9. **Redtape workflow** (§6): once assessments accumulate, review at `/review` and Publish the real
    gaps. Nothing is public until you do.
-10. **Announce**: write a `/changelog` entry; the feeds and `/api/v1/*` are live for reporters/tools.
+10. **Announce**: add a `CHANGELOG.md` entry; the feeds and `/api/v1/*` are live for reporters/tools.
 
 ---
 

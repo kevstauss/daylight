@@ -726,6 +726,96 @@ export class DaylightDb {
       .all() as CorrectionRow[];
   }
 
+  // ---- analytics (first-party, aggregate-only; powers /privacy) -----------
+  // Every method here reads or writes ONLY aggregate counts. The table holds no per-visitor data
+  // (no IP/UA/cookie column exists), so none of these can leak one. See schema.ts + /privacy.
+
+  /** Increment the running count for one (day, path, referrer-class) bucket. Called from the
+   *  request path (middleware), so it stays a single prepared UPSERT — cheap and lock-friendly. */
+  recordHit(h: { day: string; path: string; refKind: string; refHost: string }): void {
+    this.sql
+      .prepare(
+        `INSERT INTO analytics_hits (day, path, ref_kind, ref_host, count)
+         VALUES (@day, @path, @refKind, @refHost, 1)
+         ON CONFLICT(day, path, ref_kind, ref_host) DO UPDATE SET count = count + 1`,
+      )
+      .run(h);
+  }
+
+  /** Per-day visit totals (summed across paths) on/after `sinceDay` (YYYY-MM-DD), oldest first. */
+  analyticsDailyTotals(sinceDay: string): { day: string; count: number }[] {
+    return this.sql
+      .prepare(
+        `SELECT day, SUM(count) AS count FROM analytics_hits
+         WHERE day >= @sinceDay GROUP BY day ORDER BY day ASC`,
+      )
+      .all({ sinceDay }) as { day: string; count: number }[];
+  }
+
+  /** Most-visited normalized routes in the window (all paths, incl. the /feed + /api consumption
+   *  buckets — the caller splits those out). */
+  analyticsTopPaths(sinceDay: string, limit = 12): { path: string; count: number }[] {
+    const n = Math.max(1, Math.min(limit, 100));
+    return this.sql
+      .prepare(
+        `SELECT path, SUM(count) AS count FROM analytics_hits
+         WHERE day >= @sinceDay GROUP BY path ORDER BY count DESC, path ASC LIMIT ${n}`,
+      )
+      .all({ sinceDay }) as { path: string; count: number }[];
+  }
+
+  /** Every path's total in the window (uncapped — the normalized path set is small). Lets the
+   *  caller separate human page views from the /feed + /api consumption buckets. */
+  analyticsPathTotals(sinceDay: string): { path: string; count: number }[] {
+    return this.sql
+      .prepare(
+        `SELECT path, SUM(count) AS count FROM analytics_hits
+         WHERE day >= @sinceDay GROUP BY path ORDER BY count DESC, path ASC`,
+      )
+      .all({ sinceDay }) as { path: string; count: number }[];
+  }
+
+  /** Page-view totals by referrer class (direct/gov/search/other) in the window. Excludes the
+   *  /feed + /api consumption buckets so the "where visitors come from" mix reflects humans. */
+  analyticsRefKindTotals(sinceDay: string): { ref_kind: string; count: number }[] {
+    return this.sql
+      .prepare(
+        `SELECT ref_kind, SUM(count) AS count FROM analytics_hits
+         WHERE day >= @sinceDay AND path NOT IN ('/feed', '/api')
+         GROUP BY ref_kind ORDER BY count DESC`,
+      )
+      .all({ sinceDay }) as { ref_kind: string; count: number }[];
+  }
+
+  /** The headline .gov panel: which federal domains sent visitors here, by public apex. */
+  analyticsGovReferrers(sinceDay: string, limit = 50): { ref_host: string; count: number }[] {
+    const n = Math.max(1, Math.min(limit, 500));
+    return this.sql
+      .prepare(
+        `SELECT ref_host, SUM(count) AS count FROM analytics_hits
+         WHERE day >= @sinceDay AND ref_kind = 'gov' AND ref_host <> ''
+           AND path NOT IN ('/feed', '/api')
+         GROUP BY ref_host ORDER BY count DESC, ref_host ASC LIMIT ${n}`,
+      )
+      .all({ sinceDay }) as { ref_host: string; count: number }[];
+  }
+
+  /** Total recorded visits in the window. */
+  analyticsTotalVisits(sinceDay: string): number {
+    const row = this.sql
+      .prepare(`SELECT COALESCE(SUM(count), 0) AS n FROM analytics_hits WHERE day >= @sinceDay`)
+      .get({ sinceDay }) as { n: number };
+    return row.n;
+  }
+
+  /** Earliest day with any recorded hit (for the "counting since …" line), or null if empty. */
+  analyticsFirstDay(): string | null {
+    const row = this.sql.prepare(`SELECT MIN(day) AS d FROM analytics_hits`).get() as {
+      d: string | null;
+    };
+    return row.d ?? null;
+  }
+
   close(): void {
     this.sql.close();
   }

@@ -51,6 +51,11 @@ swap_size_mb = 512
   # shows human-reviewed + published rows (gate enforced in the DB layer). Wiring the AI
   # researcher needs ANTHROPIC_API_KEY + DAYLIGHT_REDTAPE_MODEL and a review workflow.
   FLAG_REDTAPE = "1"
+  # First-party, aggregate-only analytics shown on /privacy. Records a per-day count per route +
+  # coarse referrer class (with the .gov apex when a federal site links in). Stores NO IP / user-
+  # agent / cookie / session — the /privacy page publishes the exact retained schema. Unset in dev
+  # (see .env.example) so `pnpm dev` doesn't write. Honors Do-Not-Track and skips prefetches.
+  FLAG_ANALYTICS = "1"
 
 [[vm]]
   # shared-cpu-2x / 2GB: the Next.js read-path + in-process crons + headless Chromium capture.

@@ -103,3 +103,49 @@ describe("scans / status", () => {
     expect(status[0]?.changes_emitted).toBe(3);
   });
 });
+
+describe("analytics (aggregate-only)", () => {
+  it("upserts per (day,path,ref) and aggregates over a window", () => {
+    db.recordHit({ day: "2026-07-01", path: "/floodlight", refKind: "gov", refHost: "epa.gov" });
+    db.recordHit({ day: "2026-07-01", path: "/floodlight", refKind: "gov", refHost: "epa.gov" });
+    db.recordHit({ day: "2026-07-01", path: "/registry", refKind: "direct", refHost: "" });
+    db.recordHit({ day: "2026-07-02", path: "/floodlight", refKind: "search", refHost: "" });
+
+    expect(db.analyticsTotalVisits("2026-07-01")).toBe(4);
+    expect(db.analyticsTotalVisits("2026-07-02")).toBe(1);
+    expect(db.analyticsFirstDay()).toBe("2026-07-01");
+
+    expect(db.analyticsDailyTotals("2026-07-01")).toEqual([
+      { day: "2026-07-01", count: 3 },
+      { day: "2026-07-02", count: 1 },
+    ]);
+
+    expect(db.analyticsTopPaths("2026-07-01", 10)[0]).toEqual({ path: "/floodlight", count: 3 });
+
+    // The .gov panel: only ref_kind='gov' rows, keyed by public apex.
+    expect(db.analyticsGovReferrers("2026-07-01", 10)).toEqual([{ ref_host: "epa.gov", count: 2 }]);
+
+    const kinds = Object.fromEntries(
+      db.analyticsRefKindTotals("2026-07-01").map((k) => [k.ref_kind, k.count]),
+    );
+    expect(kinds).toMatchObject({ gov: 2, direct: 1, search: 1 });
+  });
+
+  it("separates feed/api consumption from human page views", () => {
+    db.recordHit({ day: "2026-07-01", path: "/registry", refKind: "direct", refHost: "" });
+    db.recordHit({ day: "2026-07-01", path: "/feed", refKind: "direct", refHost: "" });
+    db.recordHit({ day: "2026-07-01", path: "/feed", refKind: "direct", refHost: "" });
+    db.recordHit({ day: "2026-07-01", path: "/api", refKind: "direct", refHost: "" });
+
+    const byPath = Object.fromEntries(
+      db.analyticsPathTotals("2026-07-01").map((p) => [p.path, p.count]),
+    );
+    expect(byPath).toMatchObject({ "/registry": 1, "/feed": 2, "/api": 1 });
+
+    // The referrer mix counts the page view, not the 3 consumption pulls.
+    const kinds = Object.fromEntries(
+      db.analyticsRefKindTotals("2026-07-01").map((k) => [k.ref_kind, k.count]),
+    );
+    expect(kinds.direct).toBe(1);
+  });
+});

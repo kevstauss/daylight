@@ -1,10 +1,20 @@
 # Changelog
 
 Plain-language record of what Daylight can do, and when each piece went live.
-Rendered publicly at `/changelog`.
 
 Everything Daylight does is **observational and built on already-public data**. See
 `/methods` for every source, the bot's contact, and the observational-only scope.
+
+## Unreleased — Privacy page + first-party analytics
+
+**We measure others; here's exactly what we do.** A new public `/privacy` page states the
+data pledge — no cookies, no third parties, no IP addresses or user-agents, Do-Not-Track
+honored — and then shows it live. Analytics are first-party and aggregate-only: one small
+table of per-day, per-page counts with **no column that could identify a visitor**. The page
+also surfaces which federal `.gov` pages link to Daylight (read from the referrer, never from
+anyone's network), a self-scorecard against Floodlight's own checks, and aggregate feed/API
+pull counts. A "visit" is a real page load — link prefetches are structurally excluded, so the
+numbers don't inflate themselves. Plus a reader-support link and a proper mobile nav menu.
 
 ## Unreleased — Hardening pass (adversarial review fixes)
 

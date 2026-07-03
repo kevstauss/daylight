@@ -6,8 +6,10 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import { Mark } from "@/components/mark";
 import { MainNav } from "@/components/main-nav";
+import { MobileNav } from "@/components/mobile-nav";
 import { GlobalSearch } from "@/components/global-search";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SupportBanner } from "@/components/support-banner";
 import { flags } from "@/lib/flags";
 import { CREDIT_LINE, FUNDING_URL, HEADER_TAGLINE, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
 
@@ -47,6 +49,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const meta = [
     { href: "/watchlist", label: "Watchlist" },
     { href: "/methods", label: "Methods" },
+    { href: "/privacy", label: "Privacy" },
     { href: "/status", label: "Status" },
   ];
 
@@ -74,15 +77,17 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                   RSS
                 </Link>
                 <ThemeToggle />
+                <MobileNav items={modules} meta={meta} />
               </div>
             </div>
-            <div className="pb-3">
+            {/* Inline nav on sm+; on mobile it collapses into the MobileNav hamburger above. */}
+            <div className="hidden pb-3 sm:block">
               <MainNav items={modules} meta={meta} />
             </div>
             <p className="max-w-measure pb-2.5 text-[13px] leading-snug text-muted">
               {HEADER_TAGLINE}
             </p>
-            <div className="flex items-center gap-2 pb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
+            <div className="hidden items-center gap-2 pb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-faint sm:flex">
               <span className="inline-block h-[7px] w-[7px] shrink-0 rounded-full border border-alarm bg-alarm/60" />
               observational · public data only · every record timestamped &amp; source-linked
             </div>
@@ -94,6 +99,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <main id="main" tabIndex={-1} className="flex-1 py-9 focus:outline-none">
             {children}
           </main>
+
+          <SupportBanner />
 
           <footer
             aria-label="Site information"
@@ -111,8 +118,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
               <Link href="/methods" className="link">Methods</Link>
               <Link href="/watchlist" className="link">Watchlist</Link>
-              <Link href="/changelog" className="link">Changelog</Link>
               <Link href="/corrections" className="link">Corrections</Link>
+              <Link href="/privacy" className="link">Privacy</Link>
               <Link href="/feed.xml" className="link">Global feed</Link>
               <a href="https://github.com/kevstauss/daylight" className="link">Source</a>
               {FUNDING_URL ? (

@@ -200,6 +200,48 @@ export function reviewGap(id: number, opts: { published: boolean; reviewerNote?:
   getDb().reviewGap(id, opts);
 }
 
+// ---- Analytics (first-party, aggregate-only) — powers /privacy ------------
+
+export interface AnalyticsSummary {
+  firstDay: string | null;
+  /** Human page views, all-time (excludes the /feed + /api consumption buckets). */
+  totalVisits: number;
+  govVisits: number;
+  /** Programmatic consumption, all-time — aggregate counts only, no idea who is pulling. */
+  feedPulls: number;
+  apiPulls: number;
+  /** Most-visited pages, page views only (consumption filtered out). */
+  topPaths: { path: string; count: number }[];
+  refKinds: { kind: string; count: number }[];
+  govReferrers: { host: string; count: number }[];
+}
+
+// All-time sentinel: every YYYY-MM-DD is >= this, so `day >= sinceDay` matches every row.
+const ALL_TIME = "0000-00-00";
+// Paths that are programmatic consumption, not human page views (see normalizePath in core).
+const CONSUMPTION_PATHS = new Set(["/feed", "/api"]);
+
+/** Assemble the /privacy dashboard over all recorded history. Every field is an aggregate; the
+ *  underlying analytics_hits table holds no per-visitor data (no IP/UA/cookie column exists). */
+export function analyticsSummary(): AnalyticsSummary {
+  const db = getDb();
+  const paths = db.analyticsPathTotals(ALL_TIME);
+  const byPath = new Map(paths.map((p) => [p.path, p.count]));
+  const pageViews = paths.filter((p) => !CONSUMPTION_PATHS.has(p.path));
+  const refKinds = db.analyticsRefKindTotals(ALL_TIME).map((r) => ({ kind: r.ref_kind, count: r.count }));
+
+  return {
+    firstDay: db.analyticsFirstDay(),
+    totalVisits: pageViews.reduce((n, p) => n + p.count, 0),
+    govVisits: refKinds.find((r) => r.kind === "gov")?.count ?? 0,
+    feedPulls: byPath.get("/feed") ?? 0,
+    apiPulls: byPath.get("/api") ?? 0,
+    topPaths: [...pageViews].sort((a, b) => b.count - a.count).slice(0, 12),
+    refKinds,
+    govReferrers: db.analyticsGovReferrers(ALL_TIME, 50).map((r) => ({ host: r.ref_host, count: r.count })),
+  };
+}
+
 export function gapToFeedEntry(g: GapRow): FeedEntry {
   const severity = g.gap_assessment === "no_filing" ? "high" : g.gap_assessment === "incomplete_filing" ? "notable" : "info";
   const date = g.created_at.slice(0, 10);

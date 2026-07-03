@@ -24,3 +24,5 @@ export {
   hasSensitivePii,
   parseInputAttrs,
 } from "./formfields.js";
+export type { RefKind, HitClass } from "./analytics.js";
+export { classifyHit, classifyReferer, normalizePath } from "./analytics.js";

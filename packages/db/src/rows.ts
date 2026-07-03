@@ -133,6 +133,15 @@ export interface CorrectionRow {
   created_at: string;
 }
 
+/** One aggregate analytics bucket. Holds no per-visitor data by construction (see schema.ts). */
+export interface AnalyticsHitRow {
+  day: string;
+  path: string;
+  ref_kind: string;
+  ref_host: string;
+  count: number;
+}
+
 /** Map a persisted domains row back to the normalized DomainRecord contract. */
 export function rowToDomainRecord(row: DomainRow): DomainRecord {
   return {
