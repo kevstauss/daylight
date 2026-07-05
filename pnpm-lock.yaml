@@ -232,6 +232,12 @@ importers:
       '@daylight/feeds':
         specifier: workspace:*
         version: link:../../packages/feeds
+      '@daylight/floodlight':
+        specifier: workspace:*
+        version: link:../floodlight
+      '@daylight/redact':
+        specifier: workspace:*
+        version: link:../../packages/redact
 
 packages:
 

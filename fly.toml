@@ -52,6 +52,12 @@ swap_size_mb = 512
   # shows human-reviewed + published rows (gate enforced in the DB layer). Wiring the AI
   # researcher needs ANTHROPIC_API_KEY + DAYLIGHT_REDTAPE_MODEL and a review workflow.
   FLAG_REDTAPE = "1"
+  # Redtape live page reads (Phase 2): lets the AI researcher directly fetch a site's own privacy
+  # page + an agency PIA inventory page, through the canonical SSRF guard (guards.ts): .gov-only,
+  # public-IP-only + re-validated per redirect hop, robots-respecting, PII-redacted, and
+  # existence-only at any access wall. The Federal-Register + server-side web_search tools already
+  # run without it. Enabled — takes effect when the Phase 2 code deploys.
+  FLAG_REDTAPE_FETCH = "1"
   # Foundry (Phase 6): vendor build-graph (CT×registry join). The /foundry page is computed-on-read;
   # the scan (DAYLIGHT_FOUNDRY_CRON) records a /status heartbeat + emits new unlaunched-project changes.
   FLAG_FOUNDRY = "1"

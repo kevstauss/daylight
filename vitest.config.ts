@@ -14,6 +14,7 @@ export default defineConfig({
       "@daylight/enrich": r("./packages/enrich/src/index.ts"),
       "@daylight/lookout": r("./workers/lookout/src/index.ts"),
       "@daylight/fingerprints": r("./packages/fingerprints/src/index.ts"),
+      "@daylight/floodlight/guards": r("./workers/floodlight/src/guards.ts"),
       "@daylight/floodlight": r("./workers/floodlight/src/index.ts"),
       "@daylight/receipts": r("./workers/receipts/src/index.ts"),
       "@daylight/redtape": r("./workers/redtape/src/index.ts"),

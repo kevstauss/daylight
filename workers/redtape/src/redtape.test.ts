@@ -325,6 +325,138 @@ describe("tool-use researcher actually searches before concluding", () => {
     expect(maxBreakpoints).toBeGreaterThan(0); // caching is actually engaged
     expect(maxBreakpoints).toBeLessThanOrEqual(4); // never exceeds Anthropic's limit
   });
+
+  it("adds Anthropic server-side web_search to the tool list, version-gated by model", async () => {
+    const bodies: { tools?: { type: string; name: string }[] }[] = [];
+    const fetchImpl = async (...args: unknown[]): Promise<Response> => {
+      const init = args[1] as { body?: string } | undefined;
+      bodies.push(JSON.parse(init?.body ?? "{}"));
+      return new Response(JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: "{}" }] }), { status: 200 });
+    };
+    // Modern model → dynamic-filtering variant; older model → the basic variant.
+    await claudeResearcher({ apiKey: "k", model: "claude-sonnet-5", fetchImpl, search: async () => [] })(candidate);
+    await claudeResearcher({ apiKey: "k", model: "claude-opus-4-5", fetchImpl, search: async () => [] })(candidate);
+    const types = (b: (typeof bodies)[number]) => (b.tools ?? []).map((t) => t.type);
+    expect(types(bodies[0]!)).toContain("web_search_20260209");
+    expect(types(bodies[1]!)).toContain("web_search_20250305");
+    // The Federal Register client tool is still present alongside web_search.
+    expect((bodies[0]!.tools ?? []).some((t) => t.name === "search_federal_register")).toBe(true);
+  });
+
+  it("resumes after a server web_search pause_turn instead of returning early", async () => {
+    let call = 0;
+    const fetchImpl = async (): Promise<Response> => {
+      call++;
+      if (call === 1) {
+        // Server-side web_search hit its per-turn cap → pause_turn, with inline server blocks.
+        return new Response(
+          JSON.stringify({
+            stop_reason: "pause_turn",
+            content: [
+              { type: "server_tool_use", id: "s1", name: "web_search", input: { query: "cms pia" } },
+              { type: "web_search_tool_result", tool_use_id: "s1", content: [] },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          stop_reason: "end_turn",
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                pia_found: true,
+                pia_refs: ["security.cms.gov/pia/quantum-metric"],
+                sorn_found: true,
+                sorn_refs: ["09-70-0560"],
+                gap_assessment: "covered",
+                confidence: 0.7,
+                queries_run: ["cms pia"],
+                sources_checked: ["security.cms.gov/pia"],
+                fact_vs_inference_notes: "PIA plainly covers session replay (fact).",
+              }),
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    };
+    const raw = await claudeResearcher({ apiKey: "k", fetchImpl, search: async () => [] })(candidate);
+    expect(call).toBe(2); // it resumed after pause_turn rather than returning the paused turn
+    expect(parseAgentJson(raw)?.gap_assessment).toBe("covered");
+  });
+
+  it("answers an unknown client tool_use with an error result rather than dropping it", async () => {
+    let call = 0;
+    let secondBody: { messages: { content: { type: string; is_error?: boolean; tool_use_id?: string }[] }[] } | null = null;
+    const fetchImpl = async (...args: unknown[]): Promise<Response> => {
+      call++;
+      if (call === 1) {
+        return new Response(
+          JSON.stringify({
+            stop_reason: "tool_use",
+            content: [{ type: "tool_use", id: "t9", name: "mystery_tool", input: {} }],
+          }),
+          { status: 200 },
+        );
+      }
+      const init = args[1] as { body?: string } | undefined;
+      secondBody = JSON.parse(init?.body ?? "{}");
+      return new Response(JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: "{}" }] }), { status: 200 });
+    };
+    await claudeResearcher({ apiKey: "k", fetchImpl, search: async () => [] })(candidate);
+    expect(call).toBe(2); // an unanswered tool_use would 400 the next request; we must answer it
+    const lastUser = secondBody!.messages[secondBody!.messages.length - 1]!;
+    const tr = lastUser.content.find((b) => b.type === "tool_result");
+    expect(tr?.is_error).toBe(true);
+    expect(tr?.tool_use_id).toBe("t9");
+  });
+
+  it("offers + executes the guarded fetch tool only when page-fetch is enabled", async () => {
+    const bodies: { tools?: { name: string }[] }[] = [];
+    let call = 0;
+    const fetchImpl = async (...args: unknown[]): Promise<Response> => {
+      const init = args[1] as { body?: string } | undefined;
+      bodies.push(JSON.parse(init?.body ?? "{}"));
+      call++;
+      if (call === 1) {
+        return new Response(
+          JSON.stringify({
+            stop_reason: "tool_use",
+            content: [{ type: "tool_use", id: "f1", name: "fetch_public_page", input: { url: "https://medicare.gov/privacy-policy" } }],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: "{}" }] }), { status: 200 });
+    };
+    const fetched: string[] = [];
+    await claudeResearcher({
+      apiKey: "k",
+      fetchImpl,
+      enablePageFetch: true,
+      search: async () => [],
+      fetchPage: async (url) => {
+        fetched.push(url);
+        return { ok: true, url, gated: false, text: "Quantum Metric session replays; Privacy Act Statement." };
+      },
+    })(candidate);
+    expect((bodies[0]?.tools ?? []).some((t) => t.name === "fetch_public_page")).toBe(true);
+    expect(fetched).toContain("https://medicare.gov/privacy-policy"); // it actually invoked the guarded fetcher
+  });
+
+  it("does NOT offer the fetch tool when page-fetch is disabled", async () => {
+    const bodies: { tools?: { name: string }[] }[] = [];
+    const fetchImpl = async (...args: unknown[]): Promise<Response> => {
+      const init = args[1] as { body?: string } | undefined;
+      bodies.push(JSON.parse(init?.body ?? "{}"));
+      return new Response(JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: "{}" }] }), { status: 200 });
+    };
+    await claudeResearcher({ apiKey: "k", fetchImpl, enablePageFetch: false, search: async () => [] })(candidate);
+    expect((bodies[0]?.tools ?? []).some((t) => t.name === "fetch_public_page")).toBe(false);
+  });
 });
 
 describe("Federal Register client parses SORN notices", () => {

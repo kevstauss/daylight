@@ -1,7 +1,9 @@
+import { flag } from "@daylight/core";
 import { searchSorns, type SornRef } from "./federalregister.js";
+import { fetchPublicPage, type FetchPageResult } from "./fetchpage.js";
 import type { Researcher, ResearcherInput, ResearcherOutput } from "./types.js";
 
-export const PROMPT_VERSION = "redtape/2026-07-02-tooluse";
+export const PROMPT_VERSION = "redtape/2026-07-05-websearch";
 
 // Blank / whitespace-only strings are treated as absent: the §7.6 "documented negative"
 // invariant requires a trail a stranger can actually re-run, so [""] must not satisfy it.
@@ -60,7 +62,18 @@ const SYSTEM_INSTRUCTIONS = [
   "You MUST use the search_federal_register tool to ACTUALLY search — do not rely on memory.",
   "Run SEVERAL targeted queries: the domain, the operating agency, the program/system name, the",
   "specific data collected, and terms like 'System of Records' / 'Privacy Impact Assessment'.",
-  "Base your conclusion only on what the tool returns plus clearly-labeled public knowledge.",
+  "SORNs are published in the Federal Register (search_federal_register). PIAs almost always are",
+  "NOT — under the E-Gov Act they are posted on the operating agency's OWN privacy pages. So you",
+  "MUST ALSO use the web_search tool to (a) confirm which federal agency operates the domain, and",
+  "(b) check that agency's PIA inventory (e.g. hhs.gov/pia, security.cms.gov/pia, dhs.gov/privacy,",
+  "treasury.gov PCLIA inventory) and the site's own privacy page. A filing only 'covers' the",
+  "collection if it plainly NAMES the site or that specific web-tracking (analytics/session replay/",
+  "third-party pixels) — a topically-adjacent SORN is NOT coverage. Prefer official .gov sources.",
+  "When a fetch_public_page tool is offered, prefer it to read a SPECIFIC public .gov page directly",
+  "(a privacy policy or a PIA/SORN inventory page) — it returns the page's visible text, PII-redacted.",
+  "It only reads public pages and returns NOTHING behind a login/access wall (existence-only), so a",
+  "'gated' result means the page exists but you must not treat its contents as read.",
+  "Base your conclusion only on what the tools return plus clearly-labeled public knowledge.",
   "",
   "Classify: no_filing (nothing covers this collection), incomplete_filing (a filing exists but",
   "omits this specific processor/collection), covered (a filing plainly covers it).",
@@ -68,9 +81,10 @@ const SYSTEM_INSTRUCTIONS = [
   "",
   "When finished searching, respond with JSON ONLY (no prose, no markdown fences) with keys:",
   "pia_found, pia_refs[], sorn_found, sorn_refs[], gap_assessment (no_filing|incomplete_filing|covered),",
-  "confidence (0..1), queries_run[] (the exact searches you ran), sources_checked[] (e.g.",
-  "'federalregister.gov/api'), fact_vs_inference_notes. If you find no filing, say so and list the",
-  "queries + sources so the negative is independently re-checkable.",
+  "confidence (0..1), queries_run[] (EVERY exact search you ran — Federal Register AND web_search),",
+  "sources_checked[] (each source/URL you actually relied on — 'federalregister.gov/api' plus the",
+  "agency PIA-inventory URLs you opened), fact_vs_inference_notes. If you find no filing, say so and",
+  "list the queries + sources so the negative is independently re-checkable.",
 ].join("\n");
 
 export function buildUserInput(input: ResearcherInput): string {
@@ -100,13 +114,44 @@ const FR_TOOL = {
   },
 };
 
+// Anthropic-hosted server-side web search. Runs on Anthropic's infrastructure (no client fetch,
+// no SSRF surface on our side) — results are returned inline as web_search_tool_result blocks.
+// Used to confirm the operating agency and check that agency's own PIA inventory + the site's
+// privacy page, which the Federal-Register-only search structurally cannot see. `max_uses` bounds
+// cost per assessment. The 20260209 variant (dynamic filtering) needs Sonnet 4.6+/Sonnet 5/
+// Opus 4.6+/Fable 5; older models fall back to the basic 20250305 variant.
+const WEB_SEARCH_MAX_USES = 8;
+function webSearchTool(model: string) {
+  const modern = /(sonnet-5|sonnet-4-6|opus-4-[678]|fable-5|mythos-5)/.test(model);
+  return {
+    type: modern ? "web_search_20260209" : "web_search_20250305",
+    name: "web_search",
+    max_uses: WEB_SEARCH_MAX_USES,
+  };
+}
+
+// Phase 2 — a CLIENT-side custom tool WE execute (fetchpage.ts), so live-page reads go through the
+// canonical SSRF guard + robots + redaction. Deliberately NOT Anthropic's server-side web_fetch,
+// which would bypass those. Gated behind FLAG_REDTAPE_FETCH so main stays deployable and the
+// live-.gov-fetch behavior is turned on deliberately in prod.
+const FETCH_TOOL = {
+  name: "fetch_public_page",
+  description:
+    "Fetch a PUBLIC federal .gov page — a site's privacy policy, or an agency PIA/SORN inventory page — and return its visible text, PII-redacted. Read-only. Never returns anything behind a login/access wall: a gated page comes back as {gated:true} (it exists; do not treat its contents as read).",
+  input_schema: {
+    type: "object" as const,
+    properties: { url: { type: "string", description: "the public .gov page URL to read" } },
+    required: ["url"],
+  },
+};
+
 // A minimal shape for the Anthropic Messages content blocks we care about.
 interface ContentBlock {
   type: string;
   text?: string;
   id?: string;
   name?: string;
-  input?: { query?: string; agency?: string };
+  input?: { query?: string; agency?: string; url?: string };
 }
 
 /**
@@ -123,13 +168,17 @@ export function claudeResearcher(
     maxTurns?: number;
     search?: (query: string, agency?: string) => Promise<SornRef[]>;
     fetchImpl?: (url: string, init?: RequestInit) => Promise<Response>;
+    fetchPage?: (url: string) => Promise<FetchPageResult>;
+    enablePageFetch?: boolean; // overrides FLAG_REDTAPE_FETCH (tests inject the tool without the env)
   } = {},
 ): Researcher {
   const apiKey = opts.apiKey ?? process.env.ANTHROPIC_API_KEY ?? "";
   const model = opts.model ?? process.env.DAYLIGHT_REDTAPE_MODEL ?? "claude-sonnet-5";
-  const maxTurns = opts.maxTurns ?? 6;
+  const maxTurns = opts.maxTurns ?? 8; // web_search adds turns beyond the Federal Register pass
   const search = opts.search ?? ((q: string, agency?: string) => searchSorns(q, agency ? { agency } : {}));
   const doFetch = opts.fetchImpl ?? ((url, init) => fetch(url, init));
+  const fetchPage = opts.fetchPage ?? ((url: string) => fetchPublicPage(url));
+  const pageFetchEnabled = opts.enablePageFetch ?? flag("FLAG_REDTAPE_FETCH");
 
   const textOf = (blocks: ContentBlock[]): string =>
     blocks.filter((b) => b.type === "text" && b.text).map((b) => b.text).join("\n");
@@ -142,6 +191,12 @@ export function claudeResearcher(
     // Cached system prompt (stable across candidates + turns) — prompt caching charges it once
     // per ~5-min window rather than on every request.
     const system = [{ type: "text", text: SYSTEM_INSTRUCTIONS, cache_control: { type: "ephemeral" } }];
+    // Deterministic tool list (stable across turns → preserves the cache prefix): the client-side
+    // Federal Register tool, Anthropic's server-side web search, and — when enabled — the guarded
+    // client-side page fetcher.
+    const tools = pageFetchEnabled
+      ? [FR_TOOL, webSearchTool(model), FETCH_TOOL]
+      : [FR_TOOL, webSearchTool(model)];
 
     for (let turn = 0; turn < maxTurns; turn++) {
       // Incremental cache: keep ONE moving breakpoint at the end of the (now-stable) message
@@ -163,31 +218,61 @@ export function claudeResearcher(
       const res = await doFetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-        // 4000: the final answer packs pia/sorn refs + a full query trail + fact-vs-inference
-        // notes into one JSON object; 2000 truncated it on well-documented agencies (long trails),
+        // 8000: the final answer packs pia/sorn refs + a full query trail (now Federal Register AND
+        // web_search) + fact-vs-inference notes into one JSON object, and server-side web_search
+        // results are returned inline. 2000 truncated it on well-documented agencies (long trails),
         // producing unparseable output that fell back to a useless "manual" gap.
-        body: JSON.stringify({ model, max_tokens: 4000, system, tools: [FR_TOOL], messages }),
+        body: JSON.stringify({ model, max_tokens: 8000, system, tools, messages }),
       });
       if (!res.ok) throw new Error(`Anthropic API ${res.status}`);
       const data = (await res.json()) as { content?: ContentBlock[]; stop_reason?: string };
       const content = data.content ?? [];
       messages.push({ role: "assistant", content });
 
+      // Only CLIENT-side tools appear as `tool_use` and need a tool_result from us. Server-side
+      // web_search is executed on Anthropic's infra and comes back as server_tool_use +
+      // web_search_tool_result blocks (different types), so it never enters this branch.
       const toolUses = content.filter((b) => b.type === "tool_use");
       if (data.stop_reason === "tool_use" && toolUses.length > 0) {
         const toolResults = [];
         for (const tu of toolUses) {
-          const q = tu.input?.query ?? "";
-          const refs = q ? await search(q, tu.input?.agency) : [];
-          toolResults.push({
-            type: "tool_result",
-            tool_use_id: tu.id,
-            content: JSON.stringify(refs.slice(0, 15)),
-          });
+          if (tu.name === "search_federal_register") {
+            const q = tu.input?.query ?? "";
+            const refs = q ? await search(q, tu.input?.agency) : [];
+            toolResults.push({
+              type: "tool_result",
+              tool_use_id: tu.id,
+              content: JSON.stringify(refs.slice(0, 15)),
+            });
+          } else if (tu.name === "fetch_public_page") {
+            const u = tu.input?.url ?? "";
+            const result: FetchPageResult = u
+              ? await fetchPage(u)
+              : { ok: false, url: "", note: "no url provided" };
+            toolResults.push({
+              type: "tool_result",
+              tool_use_id: tu.id,
+              content: JSON.stringify(result),
+            });
+          } else {
+            // Unknown client tool — return an error result rather than dropping it. Leaving a
+            // tool_use unanswered makes the next request 400.
+            toolResults.push({
+              type: "tool_result",
+              tool_use_id: tu.id,
+              is_error: true,
+              content: `unsupported tool: ${tu.name ?? "(unnamed)"}`,
+            });
+          }
         }
         messages.push({ role: "user", content: toolResults });
         continue;
       }
+      // Server-side web_search runs its own bounded loop; if it hit the per-turn iteration cap the
+      // model returns pause_turn. Re-send (messages already carries the assistant turn) so the
+      // server resumes — do NOT append a "continue" message; the API detects the trailing
+      // server_tool_use and picks up where it left off.
+      if (data.stop_reason === "pause_turn") continue;
       return textOf(content); // model concluded — its final JSON
     }
     // Exhausted the search budget without a conclusion → return last text (parse will route to manual).

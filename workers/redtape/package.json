@@ -17,6 +17,8 @@
   "dependencies": {
     "@daylight/core": "workspace:*",
     "@daylight/db": "workspace:*",
-    "@daylight/feeds": "workspace:*"
+    "@daylight/feeds": "workspace:*",
+    "@daylight/floodlight": "workspace:*",
+    "@daylight/redact": "workspace:*"
   }
 }
