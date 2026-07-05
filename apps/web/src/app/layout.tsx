@@ -10,6 +10,7 @@ import { MobileNav } from "@/components/mobile-nav";
 import { GlobalSearch } from "@/components/global-search";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SupportBanner } from "@/components/support-banner";
+import { BackToTop } from "@/components/back-to-top";
 import { flags } from "@/lib/flags";
 import { CREDIT_LINE, FUNDING_URL, HEADER_TAGLINE, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
 
@@ -144,6 +145,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             </p>
           </footer>
         </div>
+        <BackToTop />
       </body>
     </html>
   );
