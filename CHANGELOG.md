@@ -4,6 +4,17 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Severity grades only what the data shows — 2026-07-05
+
+- A **tracker being removed** from a `.gov` is now **notable**, not high. On the data alone a tracker
+  vanishing means the page became *less* invasive; reading it as alarming ("they got caught and
+  scrubbed it") takes context from outside the data, so it now matches a tracker *being added*
+  (also notable) instead of out-ranking it. The removal is still recorded in the dated removal
+  ledger with before/after — that record is the point; the severity just stops implying a motive.
+- Losing a **privacy notice** or an **agency seal** stays **high**: those are data-supported
+  regressions in disclosure and provenance, visible without any outside story. Existing tracker-
+  removal findings were reclassified to match.
+
 ## Homepage: what we're seeing, in plain language — 2026-07-05
 
 - The front page now opens with a rotating set of recent findings written for a first-time reader.

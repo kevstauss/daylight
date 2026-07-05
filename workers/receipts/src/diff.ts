@@ -3,9 +3,15 @@ import { redactText } from "@daylight/redact";
 import type { Snapshot } from "./types.js";
 
 /**
- * Diff two snapshots into change events (spec §4.4). Removals of a tracker, privacy clause,
- * or agency seal are the flagship signal → severity 'high', driving the removal ledger.
- * Turns "we took it down" into a dated `removed` event with before/after.
+ * Diff two snapshots into change events (spec §4.4). The removal ledger turns "we took it down"
+ * into a dated `removed` event with before/after — that dated record is the value, standing on the
+ * data alone.
+ *
+ * Severity grades only what the data itself shows, never an inferred motive. A **tracker** removal
+ * is 'notable', not 'high': on its own it means the page became *less* invasive, and reading it as
+ * alarming ("they got caught and scrubbed it") needs context outside the data — so it matches a
+ * tracker *addition* (also 'notable') rather than out-ranking it. Losing a **privacy notice** or an
+ * **agency seal**, by contrast, is a data-supported regression in disclosure/provenance → 'high'.
  */
 export function diffSnapshots(prev: Snapshot, curr: Snapshot, now: string): Change[] {
   const changes: Change[] = [];
@@ -24,7 +30,8 @@ export function diffSnapshots(prev: Snapshot, curr: Snapshot, now: string): Chan
   const prevT = new Set(prev.trackers);
   const currT = new Set(curr.trackers);
   for (const t of prev.trackers) {
-    if (!currT.has(t)) emit("removed", "tracker", t, null, "high", `tracker removed from ${url}: ${t}`);
+    // Notable, not high: a tracker vanishing is neutral-to-good on the data alone (see header).
+    if (!currT.has(t)) emit("removed", "tracker", t, null, "notable", `tracker removed from ${url}: ${t}`);
   }
   for (const t of curr.trackers) {
     if (!prevT.has(t)) emit("added", "tracker", null, t, "notable", `tracker added on ${url}: ${t}`);

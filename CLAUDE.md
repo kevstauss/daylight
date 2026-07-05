@@ -138,7 +138,10 @@ rebuild the engines — wire the ingest.
   the AutoMonitor signature (`{session_id, events[]}` to `analytics.infra.<apex>`). Requires a real
   analytics beacon before flagging "high" — don't loosen this into flagging ordinary content paths.
 - **Receipts** — the **removal ledger**: a tracker/privacy-notice/seal/form-field that was present
-  and then vanished becomes a dated, high-severity `removed` event with before/after.
+  and then vanished becomes a dated `removed` event with before/after. Severity grades only what the
+  data shows: losing a **privacy notice** or **agency seal** is a data-supported disclosure/provenance
+  regression → `high`; a **tracker** removal is `notable` (neutral-to-good on its own — reading it as
+  alarming needs context outside the data, so it matches a tracker *addition*).
 - **Redtape** — distinguishes `no_filing` from `incomplete_filing` (a SORN that exists but omits
   the processor — the Trump Accounts case) from `covered`, and carries the exact `queries_run` +
   `sources_checked` so the *negative* is independently re-checkable.

@@ -27,7 +27,7 @@ beforeEach(() => {
   db = createDb(":memory:");
 });
 
-describe("§7.1 diff — removals of tracker, privacy clause, seal → 3 high removed changes", () => {
+describe("§7.1 diff — removals of tracker, privacy clause, seal → 3 removed changes (2 high, tracker notable)", () => {
   it("before → after yields exactly three `removed` changes with before/after", () => {
     const before = snapshotFromHtml(URL_, read("before.html"), T0);
     const after = snapshotFromHtml(URL_, read("after.html"), T1);
@@ -44,8 +44,12 @@ describe("§7.1 diff — removals of tracker, privacy clause, seal → 3 high re
     const changes = diffSnapshots(before, after, T1);
     const removed = changes.filter((c) => c.kind === "removed");
     expect(removed).toHaveLength(3);
-    expect(removed.every((c) => c.severity === "high")).toBe(true);
     expect(removed.map((c) => c.field).sort()).toEqual(["privacy_notice", "seal", "tracker"]);
+    // Losing a privacy notice / agency seal is a data-supported regression → high…
+    const bySeverity = (s: string) => removed.filter((c) => c.severity === s).map((c) => c.field).sort();
+    expect(bySeverity("high")).toEqual(["privacy_notice", "seal"]);
+    // …but a tracker vanishing is neutral-to-good on the data alone → notable, matching a tracker add.
+    expect(bySeverity("notable")).toEqual(["tracker"]);
     const tracker = removed.find((c) => c.field === "tracker");
     expect(tracker?.oldValue).toContain("Google Analytics");
     expect(tracker?.newValue).toBeNull();
@@ -63,7 +67,9 @@ describe("§7.2 + §7.5 removal ledger + mocked Wayback", () => {
     expect(r2.waybackUrl).toContain("web.archive.org");
     const ledger = db.removalLedger();
     expect(ledger).toHaveLength(3);
-    expect(ledger.every((c) => c.severity === "high")).toBe(true);
+    // privacy_notice + seal removals are high; the tracker removal is notable (see §7.1).
+    expect(ledger.filter((c) => c.severity === "high").map((c) => c.field).sort()).toEqual(["privacy_notice", "seal"]);
+    expect(ledger.filter((c) => c.severity === "notable").map((c) => c.field)).toEqual(["tracker"]);
     // each snapshot row stored its Wayback archive URL
     const snaps = db.listSnapshots(URL_);
     expect(snaps).toHaveLength(2);
