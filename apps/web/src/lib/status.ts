@@ -10,6 +10,7 @@ const CADENCE: Record<string, { maxHours: number; expected: string; flag: keyof 
   floodlight: { maxHours: 24 * 8, expected: "weekly (daily for the watchlist)", flag: "floodlight" },
   receipts: { maxHours: 24 * 8, expected: "weekly", flag: "receipts" },
   redtape: { maxHours: 24 * 40, expected: "monthly", flag: "redtape" },
+  foundry: { maxHours: 36, expected: "daily", flag: "foundry" },
 };
 
 export type ModuleState = "ok" | "overdue" | "error" | "running" | "not-scanned" | "deferred";
