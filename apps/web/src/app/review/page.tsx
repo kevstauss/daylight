@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { GapRow } from "@/lib/data";
-import { reviewGap, reviewQueue } from "@/lib/data";
+import { reviewGap, reviewQueue, reviewedGaps, reopenGapForRevision } from "@/lib/data";
 import { Eyebrow, Panel } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Review queue", robots: { index: false, follow: false } };
@@ -47,8 +47,12 @@ async function login(formData: FormData): Promise<void> {
     store.set(COOKIE, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      path: "/review",
+      // "lax" (not "strict") + path "/" so the cookie is sent on the Server Action POST a review
+      // button triggers. With "strict"/path "/review", some browsers withheld the cookie on that
+      // POST, so authed() failed and the review silently no-op'd (the item flashed away on the
+      // client re-render but nothing was written). "lax" still blocks cross-site sends.
+      sameSite: "lax",
+      path: "/",
       maxAge: 60 * 60 * 8,
     });
   }
@@ -57,19 +61,31 @@ async function login(formData: FormData): Promise<void> {
 
 async function logout(): Promise<void> {
   "use server";
-  (await cookies()).delete(COOKIE);
+  (await cookies()).delete({ name: COOKIE, path: "/" });
   redirect("/review");
 }
 
 async function actReview(formData: FormData): Promise<void> {
   "use server";
-  if (!(await authed())) return; // cookie-based auth; no token in the form
+  // If the session lapsed, bounce to the login screen rather than silently doing nothing — a
+  // silent no-op made a click look successful (the item flashed away on re-render) while nothing
+  // was written. Landing back on /review shows the login form, which is the honest signal.
+  if (!(await authed())) redirect("/review");
   const id = Number(formData.get("id"));
   const decision = String(formData.get("decision") ?? "");
   const note = String(formData.get("note") ?? "").trim() || null;
   if (!Number.isFinite(id) || !["publish", "hold", "reject"].includes(decision)) return;
   // publish → public; hold/reject → reviewed but withheld. All leave the queue.
   reviewGap(id, { published: decision === "publish", reviewerNote: note });
+  revalidatePath("/review");
+}
+
+async function actReopen(formData: FormData): Promise<void> {
+  "use server";
+  if (!(await authed())) redirect("/review");
+  const id = Number(formData.get("id"));
+  if (!Number.isFinite(id)) return;
+  reopenGapForRevision(id);
   revalidatePath("/review");
 }
 
@@ -102,6 +118,7 @@ export default async function ReviewPage() {
   }
 
   const queue = safe(() => reviewQueue(200), [] as GapRow[]);
+  const reviewed = safe(() => reviewedGaps(30), [] as GapRow[]);
 
   return (
     <div className="space-y-6">
@@ -187,6 +204,44 @@ export default async function ReviewPage() {
           ))}
         </div>
       )}
+
+      {reviewed.length > 0 ? (
+        <div className="space-y-3 border-t border-edge pt-6">
+          <div>
+            <Eyebrow>reviewed</Eyebrow>
+            <h2 className="text-lg font-semibold tracking-tight">Recently reviewed</h2>
+            <p className="mt-1 max-w-measure text-sm text-muted">
+              Your last decisions. <span className="font-mono">Published</span> items are live on{" "}
+              <span className="font-mono">/redtape</span>; held/rejected ones stay private. Return
+              any to the queue to revise — re-opening a published item logs a public correction.
+            </p>
+          </div>
+          <div className="space-y-2">
+            {reviewed.map((g) => (
+              <Panel key={g.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+                <span className="font-mono text-sm text-ink">{g.domain}</span>
+                <span className="rounded-sm border border-edgeStrong px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted">
+                  {g.gap_assessment ?? "?"}
+                </span>
+                <span className={`font-mono text-xs ${g.published ? "text-calm" : "text-faint"}`}>
+                  {g.published ? "published" : "withheld"}
+                </span>
+                {g.reviewer_note ? (
+                  <span className="w-full text-xs text-muted sm:w-auto sm:flex-1">
+                    &ldquo;{g.reviewer_note}&rdquo;
+                  </span>
+                ) : null}
+                <form action={actReopen} className="ml-auto">
+                  <input type="hidden" name="id" value={g.id} />
+                  <button type="submit" className="font-mono text-xs text-faint hover:text-ink">
+                    return to queue →
+                  </button>
+                </form>
+              </Panel>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -149,3 +149,57 @@ describe("analytics (aggregate-only)", () => {
     expect(kinds.direct).toBe(1);
   });
 });
+
+describe("redtape review lifecycle", () => {
+  type GapInput = Parameters<DaylightDb["insertGap"]>[0];
+  const gap = (over: Partial<GapInput> = {}): GapInput => ({
+    domain: "eac.gov",
+    collectsPiiEvidence: ["4 third-party trackers"],
+    queriesRun: ["site:eac.gov privacy impact assessment"],
+    // publicGaps() requires a non-empty sources trail (the negative must be re-checkable).
+    sourcesChecked: ["https://www.federalregister.gov/agencies/election-assistance-commission"],
+    gapAssessment: "incomplete_filing",
+    createdAt: "2026-07-01T00:00:00.000Z",
+    ...over,
+  });
+
+  it("reviewGap moves a gap out of the queue and into reviewedGaps", () => {
+    const id = db.insertGap(gap());
+    expect(db.reviewQueueGaps().map((g) => g.id)).toContain(id);
+    expect(db.reviewedGaps()).toHaveLength(0);
+
+    db.reviewGap(id, { published: false, reviewerNote: "no PIA required per FY2011 AFR" });
+
+    expect(db.reviewQueueGaps().map((g) => g.id)).not.toContain(id);
+    const reviewed = db.reviewedGaps();
+    expect(reviewed).toHaveLength(1);
+    expect(reviewed[0]?.published).toBe(0);
+    expect(reviewed[0]?.reviewer_note).toBe("no PIA required per FY2011 AFR");
+  });
+
+  it("reopenGapForRevision requeues a HELD gap WITHOUT logging a public correction", () => {
+    const id = db.insertGap(gap());
+    db.reviewGap(id, { published: false, reviewerNote: "held" });
+
+    db.reopenGapForRevision(id);
+
+    expect(db.reviewQueueGaps().map((g) => g.id)).toContain(id); // back in the queue
+    expect(db.reviewedGaps()).toHaveLength(0);
+    expect(db.listCorrections()).toHaveLength(0); // never public → no retraction
+  });
+
+  it("reopenGapForRevision un-publishes a PUBLISHED gap AND logs a public correction", () => {
+    const id = db.insertGap(gap());
+    db.reviewGap(id, { published: true, reviewerNote: "published" });
+    expect(db.publicGaps().map((g) => g.id)).toContain(id);
+
+    db.reopenGapForRevision(id);
+
+    expect(db.publicGaps().map((g) => g.id)).not.toContain(id); // pulled from public
+    expect(db.reviewQueueGaps().map((g) => g.id)).toContain(id); // back in the queue
+    const corrections = db.listCorrections();
+    expect(corrections).toHaveLength(1);
+    expect(corrections[0]?.kind).toBe("retraction");
+    expect(corrections[0]?.ref_id).toBe(id);
+  });
+});

@@ -207,6 +207,16 @@ export function reviewGap(id: number, opts: { published: boolean; reviewerNote?:
   getDb().reviewGap(id, opts);
 }
 
+/** Internal only — recently reviewed gaps (published/held/rejected), for the /review "Reviewed" panel. */
+export function reviewedGaps(limit = 50): GapRow[] {
+  return getDb().reviewedGaps(limit);
+}
+
+/** Internal only — return a reviewed gap to the queue to revise the decision. */
+export function reopenGapForRevision(id: number): void {
+  getDb().reopenGapForRevision(id);
+}
+
 // ---- Analytics (first-party, aggregate-only) — powers /privacy ------------
 
 export interface AnalyticsSummary {

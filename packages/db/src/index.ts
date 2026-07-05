@@ -700,6 +700,36 @@ export class DaylightDb {
     }
   }
 
+  /** Recently human-reviewed gaps (published, held, or rejected) — powers the /review "Reviewed"
+   *  panel so a past decision can be seen and revised. NOT a public path; the public gate stays
+   *  publicGaps() (human_reviewed = 1 AND published = 1). */
+  reviewedGaps(limit = 50): GapRow[] {
+    const n = Math.max(1, Math.min(limit, 1000));
+    return this.sql
+      .prepare(`SELECT * FROM gaps WHERE human_reviewed = 1 ORDER BY id DESC LIMIT ${n}`)
+      .all() as GapRow[];
+  }
+
+  /** Return a reviewed gap to the queue to revise the decision. If it was PUBLISHED, this
+   *  un-publishes it AND logs a public correction (we never quietly drop a public claim). If it
+   *  was only held/rejected (never public), it simply re-queues — no correction, since nothing was
+   *  ever published. The prior reviewer_note is kept as context for the re-review. */
+  reopenGapForRevision(id: number): void {
+    const gap = this.getGap(id);
+    const wasPublished = gap?.published === 1;
+    this.sql.prepare(`UPDATE gaps SET human_reviewed = 0, published = 0 WHERE id = @id`).run({ id });
+    if (wasPublished && gap) {
+      this.insertCorrection({
+        domain: gap.domain,
+        module: "redtape",
+        kind: "retraction",
+        reason: "Published gap returned to the review queue for revision.",
+        refId: id,
+        createdAt: nowIso(),
+      });
+    }
+  }
+
   // ---- corrections (public retraction/amendment ledger) -------------------
 
   insertCorrection(c: {
