@@ -29,6 +29,7 @@ export {
   classifyHit,
   classifyReferer,
   normalizePath,
+  isCountableFetchDest,
   isExcludedClientIp,
   isExcludedUserAgent,
   DEFAULT_BOT_UA_SIGNATURES,

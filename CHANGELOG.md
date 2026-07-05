@@ -23,6 +23,18 @@ the list, so real API and feed consumers still count; extend it with `DAYLIGHT_A
 if a bot slips through. Also: the `/status` table no longer forces a page-wide horizontal scroll on
 mobile — wide tables now scroll within their own block.
 
+**A structural backstop the User-Agent list can't be tricked past.** A visit is now required to be
+a real browser navigation (`Sec-Fetch-Dest: document`); a request with no `Sec-Fetch-Dest` is a
+non-browser client (a script, crawler, or AI agent — including one behind a proxy that rewrote the
+`User-Agent` so the allowlist never sees `claude`/`anthropic`) and is counted **only** for the
+`/feed` and `/api` consumption buckets, never as a page view. Previously any header-less GET to a
+page path was counted, which let a disguised automated client inflate the numbers even when the UA
+check missed it. `Sec-Fetch-Dest` is read transiently for this decision and, like the IP and UA, is
+**never stored or logged**. Note: this ships in code but is **not live until deployed** — there is
+no auto-deploy from GitHub yet, so a manual `fly deploy` is required, followed by a one-time
+`fly ssh console -a daylight-watchdog -C "pnpm analytics:reset --yes"` to clear counts inflated
+before the filter was live.
+
 ## Unreleased — Privacy page + first-party analytics
 
 **We measure others; here's exactly what we do.** A new public `/privacy` page states the

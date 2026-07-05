@@ -229,6 +229,28 @@ export function isExcludedUserAgent(
   return false;
 }
 
+/**
+ * Is this request a countable hit given the browser's `Sec-Fetch-Dest` and the already-normalized
+ * path bucket? A genuine human page view is ALWAYS a top-level browser navigation, which sends
+ * `sec-fetch-dest: document`. A missing dest marks a NON-browser client — a script, crawler, or AI
+ * agent, including one behind a proxy that rewrote the `User-Agent` so the UA allowlist
+ * ({@link isExcludedUserAgent}) can't catch it. We count a header-less client ONLY for the
+ * feed/API consumption buckets (RSS readers and API clients legitimately send no Sec-Fetch
+ * metadata, and /privacy reports those as "feed / API pulls", not visits); on a human page route,
+ * anything but a `document` navigation is automated and is not a visit. Any other explicit dest
+ * (`empty` for a soft-nav/prefetch, `image`, a subresource, …) is never a page view.
+ *
+ * This is the structural backstop to the UA list: even a perfectly-disguised automated client
+ * cannot forge a browser's `document` navigation dest, so it can no longer inflate page counts.
+ */
+export function isCountableFetchDest(dest: string | null | undefined, path: string): boolean {
+  if (dest === "document") return true;
+  if (dest === null || dest === undefined || dest === "") {
+    return path === "/feed" || path === "/api";
+  }
+  return false;
+}
+
 /** Full classification for one request, or null when the path is excluded from analytics. */
 export function classifyHit(
   pathname: string,

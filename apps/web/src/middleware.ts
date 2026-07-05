@@ -1,5 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { flag, isExcludedClientIp, isExcludedUserAgent } from "@daylight/core";
+import {
+  flag,
+  isCountableFetchDest,
+  isExcludedClientIp,
+  isExcludedUserAgent,
+  normalizePath,
+} from "@daylight/core";
 
 // Per-request nonce-based Content-Security-Policy. This is the one place a strict CSP can live
 // with Next's inline hydration scripts + our inline no-flash theme script: each request gets a
@@ -40,8 +46,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   // (verified: `next-router-prefetch`/`rsc` arrive null), so the reliable signal is the browser-
   // set Sec-Fetch metadata: a top-level navigation is `sec-fetch-dest: document`, whereas every
   // Next fetch — client-side soft-nav AND link prefetch alike — is `sec-fetch-dest: empty`.
-  // Counting only document loads (plus header-less non-browser clients like RSS readers) means
-  // link prefetches can't inflate the numbers. `Sec-Purpose` additionally excludes a browser
+  // A human page view is ALWAYS a `document` navigation; a missing dest is a non-browser client
+  // (script/crawler/AI agent, incl. one behind a proxy that rewrote the UA past the allowlist), so
+  // isCountableFetchDest only counts header-less clients for the /feed + /api consumption buckets
+  // — never as a page visit. That structural check is what keeps a disguised agent from inflating
+  // counts even when the UA list misses it. `Sec-Purpose` additionally excludes a browser
   // prerender (which *is* document-dest). DNT is honored outright.
   const dest = request.headers.get("sec-fetch-dest");
   const isPrefetch =
@@ -61,18 +70,20 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   // ever written" pledge on /privacy holds. Built-in signatures always apply; extend via
   // DAYLIGHT_ANALYTICS_EXCLUDE_UA. A "visit" should mean a person, and feed/API pulls should mean a
   // real consumer — neither means us running the site or a search-engine indexer.
+  const url = new URL(request.url);
+  const bucket = normalizePath(url.pathname);
   if (
     flag("FLAG_ANALYTICS") &&
     request.method === "GET" &&
     request.headers.get("dnt") !== "1" &&
     !isPrefetch &&
+    bucket !== null &&
+    isCountableFetchDest(dest, bucket) &&
     !isExcludedClientIp(clientIp, process.env.DAYLIGHT_ANALYTICS_EXCLUDE_IPS) &&
-    !isExcludedUserAgent(request.headers.get("user-agent"), process.env.DAYLIGHT_ANALYTICS_EXCLUDE_UA) &&
-    (dest === "document" || dest === null)
+    !isExcludedUserAgent(request.headers.get("user-agent"), process.env.DAYLIGHT_ANALYTICS_EXCLUDE_UA)
   ) {
     try {
       const { recordRequestHit } = await import("./lib/analytics-ingest");
-      const url = new URL(request.url);
       recordRequestHit(url.pathname, request.headers.get("referer"), url.host);
     } catch {
       /* best-effort; ignore */

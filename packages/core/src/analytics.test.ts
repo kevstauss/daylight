@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyHit,
   classifyReferer,
+  isCountableFetchDest,
   isExcludedClientIp,
   isExcludedUserAgent,
   normalizePath,
@@ -97,6 +98,37 @@ describe("classifyHit", () => {
       refKind: "gov",
       refHost: "irs.gov",
     });
+  });
+});
+
+describe("isCountableFetchDest", () => {
+  it("counts a real browser navigation (document) on any human page route", () => {
+    expect(isCountableFetchDest("document", "/lookout")).toBe(true);
+    expect(isCountableFetchDest("document", "/")).toBe(true);
+    expect(isCountableFetchDest("document", "/domain/:name")).toBe(true);
+  });
+
+  it("does NOT count a header-less client on a human page route (the AI-agent/proxy leak)", () => {
+    // No Sec-Fetch-Dest ⇒ non-browser client. On a page route this is a script/crawler/AI agent —
+    // including one whose UA was rewritten by a proxy past the allowlist — never a visit.
+    expect(isCountableFetchDest(null, "/lookout")).toBe(false);
+    expect(isCountableFetchDest(undefined, "/registry")).toBe(false);
+    expect(isCountableFetchDest("", "/")).toBe(false);
+  });
+
+  it("still counts header-less clients for the feed + API consumption buckets", () => {
+    // RSS readers and API clients legitimately send no Sec-Fetch metadata — /privacy reports these
+    // as feed/API pulls, so they must keep counting.
+    expect(isCountableFetchDest(null, "/feed")).toBe(true);
+    expect(isCountableFetchDest(undefined, "/api")).toBe(true);
+    expect(isCountableFetchDest("", "/feed")).toBe(true);
+  });
+
+  it("never counts a subresource / soft-nav / prefetch dest", () => {
+    expect(isCountableFetchDest("empty", "/lookout")).toBe(false); // Next soft-nav & link prefetch
+    expect(isCountableFetchDest("empty", "/feed")).toBe(false);
+    expect(isCountableFetchDest("image", "/")).toBe(false);
+    expect(isCountableFetchDest("script", "/")).toBe(false);
   });
 });
 
