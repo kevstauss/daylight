@@ -652,10 +652,14 @@ export class DaylightDb {
    */
   reviewQueueGaps(limit = 200): GapRow[] {
     const n = Math.max(1, Math.min(limit, 1000));
+    // Hide the sweep's auto-'covered' non-findings so they don't bury the queue — BUT keep any item a
+    // human has already annotated (reviewer_note present), so a queue item saved-and-reclassified to
+    // 'covered' via saveGapNote doesn't silently vanish from every section.
     return this.sql
       .prepare(
         `SELECT * FROM gaps
-         WHERE human_reviewed = 0 AND (gap_assessment IS NULL OR gap_assessment != 'covered')
+         WHERE human_reviewed = 0
+           AND (gap_assessment IS NULL OR gap_assessment != 'covered' OR reviewer_note IS NOT NULL)
          ORDER BY created_at ASC LIMIT ${n}`,
       )
       .all() as GapRow[];
@@ -722,6 +726,42 @@ export class DaylightDb {
           modelAssessment,
           confidence,
         });
+    });
+    tx();
+  }
+
+  /** Save the reviewer's working note (and optional reclassification) WITHOUT deciding — the item
+   *  stays exactly where it is: `human_reviewed` and `review_disposition` are untouched, so a queue
+   *  item stays in the queue and a held item stays held. Lets a reviewer draft/curate a note across
+   *  sessions before publishing. Same reclassify provenance as reviewGap: the model's original label
+   *  is preserved once in `model_assessment`. */
+  saveGapNote(
+    id: number,
+    r: { reviewerNote?: string | null; assessment?: string | null; confidence?: number | null },
+  ): void {
+    const override = r.assessment?.trim() || null;
+    if (override && override !== "no_filing" && override !== "incomplete_filing" && override !== "covered") {
+      throw new Error(`saveGapNote: invalid assessment "${override}" (expected no_filing|incomplete_filing|covered)`);
+    }
+    const tx = this.sql.transaction(() => {
+      const cur = this.getGap(id);
+      let gapAssessment = cur?.gap_assessment ?? null;
+      let modelAssessment = cur?.model_assessment ?? null;
+      let confidence = cur?.confidence ?? null;
+      if (override && override !== gapAssessment) {
+        if (modelAssessment === null) modelAssessment = gapAssessment;
+        gapAssessment = override;
+      }
+      if (r.confidence !== null && r.confidence !== undefined && Number.isFinite(r.confidence)) {
+        confidence = Math.max(0, Math.min(1, r.confidence));
+      }
+      this.sql
+        .prepare(
+          `UPDATE gaps SET reviewer_note = @note, gap_assessment = @gapAssessment,
+                           model_assessment = @modelAssessment, confidence = @confidence
+             WHERE id = @id`,
+        )
+        .run({ id, note: r.reviewerNote ?? null, gapAssessment, modelAssessment, confidence });
     });
     tx();
   }

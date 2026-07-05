@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { GapRow } from "@/lib/data";
-import { reviewGap, reviewQueue, reviewedGaps, heldGaps, reopenGapForRevision } from "@/lib/data";
+import { reviewGap, saveGapNote, reviewQueue, reviewedGaps, heldGaps, reopenGapForRevision } from "@/lib/data";
 import { Eyebrow, Panel } from "@/components/ui";
 import { ConfirmSubmit } from "./confirm-button";
 
@@ -115,6 +115,22 @@ async function actReview(decision: string, formData: FormData): Promise<void> {
   revalidatePath("/review");
 }
 
+// Save the working note (+ any reclassification) WITHOUT deciding — the item stays put (a queue item
+// stays in the queue, a held item stays held). This is the curate-a-draft-then-decide-later step.
+async function actSaveNote(formData: FormData): Promise<void> {
+  "use server";
+  if (!(await authed())) redirect("/review");
+  const id = Number(formData.get("id"));
+  if (!Number.isFinite(id)) return;
+  const note = String(formData.get("note") ?? "").trim() || null;
+  const assessment = String(formData.get("assessment") ?? "").trim() || null;
+  const confidenceRaw = String(formData.get("confidence") ?? "").trim();
+  const confidenceNum = confidenceRaw === "" ? null : Number(confidenceRaw);
+  const confidence = confidenceNum !== null && Number.isFinite(confidenceNum) ? confidenceNum : null;
+  saveGapNote(id, { reviewerNote: note, assessment, confidence });
+  revalidatePath("/review");
+}
+
 async function actReopen(formData: FormData): Promise<void> {
   "use server";
   if (!(await authed())) redirect("/review");
@@ -195,11 +211,12 @@ export default async function ReviewPage() {
               </div>
               <GapEvidence g={g} />
 
-              <form action={actReview.bind(null, "hold")} className="mt-3 space-y-2 border-t border-edge pt-3">
+              <form action={actSaveNote} className="mt-3 space-y-2 border-t border-edge pt-3">
                 <input type="hidden" name="id" value={g.id} />
                 <textarea
                   name="note"
-                  rows={2}
+                  rows={4}
+                  defaultValue={g.reviewer_note ?? ""}
                   placeholder="Reviewer note (why, and what to fix)…"
                   className="w-full rounded border border-edge bg-panel px-2 py-1.5 text-xs text-ink placeholder:text-faint focus:border-accent"
                 />
@@ -214,10 +231,10 @@ export default async function ReviewPage() {
                   </ConfirmSubmit>
                   <button
                     type="submit"
-                    formAction={actReview.bind(null, "hold")}
+                    formAction={actSaveNote}
                     className="rounded border border-edgeStrong px-3 py-1 text-muted transition-colors hover:border-ink hover:text-ink"
                   >
-                    Hold (reviewed, keep private)
+                    Save note
                   </button>
                   <button
                     type="submit"
@@ -254,11 +271,11 @@ export default async function ReviewPage() {
                   <span className="font-mono text-[10px] uppercase tracking-wider text-signal">held</span>
                 </div>
                 <GapEvidence g={g} />
-                <form action={actReview.bind(null, "hold")} className="mt-3 space-y-2 border-t border-edge pt-3">
+                <form action={actSaveNote} className="mt-3 space-y-2 border-t border-edge pt-3">
                   <input type="hidden" name="id" value={g.id} />
                   <textarea
                     name="note"
-                    rows={2}
+                    rows={4}
                     defaultValue={g.reviewer_note ?? ""}
                     placeholder="Reviewer note…"
                     className="w-full rounded border border-edge bg-panel px-2 py-1.5 text-xs text-ink placeholder:text-faint focus:border-accent"
@@ -268,8 +285,8 @@ export default async function ReviewPage() {
                     <ConfirmSubmit formAction={actReview.bind(null, "publish")} message="Publish this finding to the public /redtape ledger? It becomes publicly visible." className="rounded border border-calm/60 px-3 py-1 text-calm transition-colors hover:border-calm">
                       Publish
                     </ConfirmSubmit>
-                    <button type="submit" formAction={actReview.bind(null, "hold")} className="rounded border border-signal/60 px-3 py-1 text-signal transition-colors hover:border-signal">
-                      Keep on hold
+                    <button type="submit" formAction={actSaveNote} className="rounded border border-edgeStrong px-3 py-1 text-muted transition-colors hover:border-ink hover:text-ink">
+                      Save note
                     </button>
                     <button type="submit" formAction={actReview.bind(null, "reject")} className="rounded border border-alarm/60 px-3 py-1 text-alarm transition-colors hover:border-alarm">
                       Reject
@@ -313,7 +330,7 @@ export default async function ReviewPage() {
                   {g.published ? "published" : "withheld"}
                 </span>
                 {g.reviewer_note ? (
-                  <span className="w-full text-xs text-muted sm:w-auto sm:flex-1">
+                  <span className="w-full break-words text-xs text-muted sm:w-auto sm:flex-1">
                     &ldquo;{g.reviewer_note}&rdquo;
                   </span>
                 ) : null}
@@ -387,7 +404,7 @@ function GapEvidence({ g }: { g: GapRow }) {
   return (
     <>
       {g.fact_vs_inference_notes ? (
-        <p className="mt-1.5 text-sm text-muted">{g.fact_vs_inference_notes}</p>
+        <p className="mt-1.5 break-words text-sm text-muted">{g.fact_vs_inference_notes}</p>
       ) : null}
       <Trail label="Collection evidence" items={parse(g.collects_pii_evidence_json)} />
       <Trail label="Searches run" items={parse(g.queries_run_json)} mono />
@@ -402,7 +419,7 @@ function Trail({ label, items, mono }: { label: string; items: string[]; mono?: 
   return (
     <div className="mt-2">
       <div className="text-xs uppercase tracking-wide text-faint">{label}</div>
-      <ul className={`mt-0.5 list-disc pl-5 text-xs text-muted ${mono ? "font-mono" : ""}`}>
+      <ul className={`mt-0.5 list-disc break-words pl-5 text-xs text-muted ${mono ? "font-mono" : ""}`}>
         {items.map((it, i) => (
           <li key={i}>{it}</li>
         ))}

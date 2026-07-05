@@ -216,6 +216,13 @@ export function reviewGap(
   getDb().reviewGap(id, opts);
 }
 
+export function saveGapNote(
+  id: number,
+  opts: { reviewerNote?: string | null; assessment?: string | null; confidence?: number | null },
+): void {
+  getDb().saveGapNote(id, opts);
+}
+
 /** Internal only — reviewed gaps except held (published/rejected), for the /review "Reviewed" panel. */
 export function reviewedGaps(limit = 50): GapRow[] {
   return getDb().reviewedGaps(limit);

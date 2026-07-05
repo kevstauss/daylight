@@ -266,4 +266,36 @@ describe("redtape review lifecycle", () => {
     db.reviewGap(id, { published: false, disposition: "held", confidence: -2 });
     expect(db.getGap(id)?.confidence).toBe(0);
   });
+
+  it("saveGapNote saves the note + reclassification WITHOUT deciding — the item stays in the queue", () => {
+    const id = db.insertGap(gap({ gapAssessment: "no_filing" }));
+    db.saveGapNote(id, { reviewerNote: "draft: checking Treasury PCLIA", assessment: "incomplete_filing", confidence: 0.7 });
+    const g = db.getGap(id);
+    expect(g?.reviewer_note).toBe("draft: checking Treasury PCLIA");
+    expect(g?.gap_assessment).toBe("incomplete_filing"); // reclassified
+    expect(g?.model_assessment).toBe("no_filing"); // provenance preserved
+    expect(g?.confidence).toBe(0.7);
+    expect(g?.human_reviewed).toBe(0); // NOT decided
+    expect(g?.review_disposition).toBeNull();
+    expect(db.reviewQueueGaps().map((x) => x.id)).toContain(id); // stays in the queue
+  });
+
+  it("saveGapNote on a held gap keeps it held (disposition untouched)", () => {
+    const id = db.insertGap(gap());
+    db.reviewGap(id, { published: false, disposition: "held", reviewerNote: "hold" });
+    db.saveGapNote(id, { reviewerNote: "updated draft" });
+    const g = db.getGap(id);
+    expect(g?.reviewer_note).toBe("updated draft");
+    expect(g?.review_disposition).toBe("held"); // unchanged
+    expect(db.heldGaps().map((x) => x.id)).toContain(id);
+  });
+
+  it("a saved+reclassified-to-covered queue item stays visible; an untouched auto-covered one is hidden", () => {
+    const annotated = db.insertGap(gap({ gapAssessment: "incomplete_filing" }));
+    db.saveGapNote(annotated, { reviewerNote: "actually covered by a TPWA PIA", assessment: "covered" });
+    expect(db.reviewQueueGaps().map((x) => x.id)).toContain(annotated); // human-touched → kept
+
+    const auto = db.insertGap(gap({ gapAssessment: "covered" })); // no reviewer_note
+    expect(db.reviewQueueGaps().map((x) => x.id)).not.toContain(auto); // sweep non-finding → hidden
+  });
 });
