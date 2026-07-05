@@ -5,6 +5,38 @@ Plain-language record of what Daylight can do, and when each piece went live.
 Everything Daylight does is **observational and built on already-public data**. See
 `/methods` for every source, the bot's contact, and the observational-only scope.
 
+## Unreleased — Review workflow, agent recommendations & redirect tracking (2026-07-05)
+
+**A working pass over the Redtape review loop, plus a new redirect signal.** Everything below stays
+observational and built on already-public data.
+
+**Redtape researcher — sees more, recommends more.** The AI compliance researcher used to search only
+the Federal Register, so it missed filings that live in agencies' own Privacy Impact Assessment
+inventories (where web-tracking coverage actually sits). It now also uses web search to confirm the
+operating agency and check that agency's PIA library, and — where enabled — reads a specific public
+`.gov` privacy page directly through the same SSRF-safe, robots-respecting, redacted, existence-only
+guard the rest of the capture uses. Each run now also writes an **internal recommendation** per item
+(publish / reject / reclassify, with a one-line why) to guide the human reviewer; it is shown only on
+the internal review screen and is **never** part of any public page, feed, or API. Re-runs are handed
+the prior human note and the prior recommendation for continuity.
+
+**Review workflow (internal, token-gated).** The reviewer can now **reclassify** a finding's
+assessment (e.g. correct a `no_filing` to `incomplete_filing`) before deciding — the model's original
+label is preserved for provenance. A new **Save note** action stores a working draft without deciding,
+so notes persist across sessions and no longer disappear when an item returns to the queue. Publishing
+— the one action that makes a finding public — now asks for confirmation.
+
+**Receipts — redirect tracking.** Receipts now records when a watched `.gov` page redirects **off its
+own domain**, and emits a dated change when a redirect appears, changes target, or goes away. First
+finding: **`passports.gov`** — registered to the Executive Office of the President — changed its
+redirect from an access/login wall to U.S. Department of State passport content (first observed
+2026-07-03; source: the Internet Archive). Current off-domain redirects on other watched apexes were
+recorded as dated baselines (`cio.gov` → `councils.gov`; `eop.gov` → `whitehouse.gov`; `rec.gov` →
+`recreation.gov`).
+
+**Polish.** Timestamps across the site now show minute precision (`2026-07-01T16:53Z`) instead of
+noisy seconds/milliseconds, and the per-domain page's subdomain rows no longer overflow on mobile.
+
 ## Unreleased — Cross-agency vendor build-graph dig (2026-07-05)
 
 **A directed dig on the leads the modules keep surfacing.** With the modules running, we pulled the
