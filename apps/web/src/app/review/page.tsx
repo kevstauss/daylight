@@ -61,7 +61,9 @@ async function login(formData: FormData): Promise<void> {
 
 async function logout(): Promise<void> {
   "use server";
-  (await cookies()).delete({ name: COOKIE, path: "/" });
+  const store = await cookies();
+  store.delete({ name: COOKIE, path: "/" });
+  store.delete({ name: COOKIE, path: "/review" }); // also clear pre-lax-fix sessions (old path)
   redirect("/review");
 }
 
@@ -74,14 +76,17 @@ async function actReview(formData: FormData): Promise<void> {
   const id = Number(formData.get("id"));
   const decision = String(formData.get("decision") ?? "");
   const note = String(formData.get("note") ?? "").trim() || null;
-  if (!Number.isFinite(id) || !["publish", "hold", "reject"].includes(decision)) return;
+  // Map the button value → the canonical disposition the queries use. (heldGaps looks for 'held',
+  // NOT the raw button value 'hold' — mismatching them silently drops held items from the section.)
+  const DISPOSITION: Record<string, "published" | "held" | "rejected"> = {
+    publish: "published",
+    hold: "held",
+    reject: "rejected",
+  };
+  const disposition = DISPOSITION[decision];
+  if (!Number.isFinite(id) || !disposition) return;
   // publish → public; hold → reviewed, kept private, flagged to revisit; reject → dismissed.
-  // The disposition persists WHICH so Held gets its own section. All leave the main queue.
-  reviewGap(id, {
-    published: decision === "publish",
-    reviewerNote: note,
-    disposition: decision === "publish" ? "published" : decision, // 'held' | 'rejected'
-  });
+  reviewGap(id, { published: decision === "publish", reviewerNote: note, disposition });
   revalidatePath("/review");
 }
 

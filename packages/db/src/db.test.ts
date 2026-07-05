@@ -178,6 +178,13 @@ describe("redtape review lifecycle", () => {
     expect(reviewed[0]?.reviewer_note).toBe("no PIA required per FY2011 AFR");
   });
 
+  it("reviewGap rejects a near-miss disposition (e.g. the button value 'hold' not 'held')", () => {
+    const id = db.insertGap(gap());
+    expect(() => db.reviewGap(id, { published: false, disposition: "hold" })).toThrow(/invalid disposition/);
+    // and it did not partially write — still unreviewed, still in the queue
+    expect(db.reviewQueueGaps().map((g) => g.id)).toContain(id);
+  });
+
   it("Hold routes a gap to heldGaps (not reviewedGaps) and out of the active queue", () => {
     const id = db.insertGap(gap());
     db.reviewGap(id, { published: false, reviewerNote: "revisit after AFR check", disposition: "held" });

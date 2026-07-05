@@ -669,6 +669,12 @@ export class DaylightDb {
     r: { published: boolean; reviewerNote?: string | null; disposition?: string | null },
   ): void {
     const disposition = r.disposition ?? (r.published ? "published" : "rejected");
+    // Guard the canonical set. heldGaps()/reviewedGaps() key off exactly these strings, so a caller
+    // passing a near-miss (e.g. the button value 'hold' instead of 'held') would silently vanish
+    // from the Held section. Fail loud instead.
+    if (disposition !== "published" && disposition !== "held" && disposition !== "rejected") {
+      throw new Error(`reviewGap: invalid disposition "${disposition}" (expected published|held|rejected)`);
+    }
     this.sql
       .prepare(
         `UPDATE gaps SET human_reviewed = 1, published = @published, reviewer_note = @note,
