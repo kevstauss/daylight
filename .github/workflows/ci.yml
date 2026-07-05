@@ -11,13 +11,12 @@ jobs:
     name: typecheck + test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.0
+      # Reads the pnpm version from package.json's "packageManager" field (pnpm@9.15.0).
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -31,15 +30,58 @@ jobs:
       - name: Test
         run: pnpm test
 
-  # Auto-deploy to Fly.io on green main — only runs once FLY_API_TOKEN is set as a
-  # repo secret, so the pipeline stays green before the first deploy is wired up.
-  deploy:
-    name: deploy (fly.io)
+  # Decide whether the pushed change actually affects the deployed site. Deploying is the
+  # DEFAULT: we skip only when every changed file is docs/ops that the running app never
+  # serves (the ignore list below). CHANGELOG.md is intentionally NOT ignored — it renders
+  # at /changelog (apps/web/src/lib/markdown.ts). Erring toward deploy on purpose: a missed
+  # deploy silently leaves the site stale, which is worse than a redundant ~4-minute build.
+  changes:
+    name: detect site changes
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.filter.outputs.deploy }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # need history to diff the push range
+      - id: filter
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          # New branch / force-push / unreachable base ⇒ can't diff reliably ⇒ deploy to be safe.
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            echo "No usable base ref (new branch / force-push) — deploying to be safe."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed="$(git diff --name-only "$BEFORE" "$AFTER")"
+          echo "Changed files in this push:"; printf '%s\n' "$changed"
+          # Files the running site never serves. Every other changed path ⇒ a real deploy.
+          ignore='^(README\.md|CLAUDE\.md|HOSTING\.md|drey_research\.md|LICENSE|\.gitignore|\.env\.example|scripts/.*|\.github/.*)$'
+          # List the site-affecting files (everything NOT in the ignore set). Non-empty ⇒ deploy.
+          # Using grep -v + emptiness test (not grep -qv) so the decision is unambiguous on any grep.
+          site_changed="$(printf '%s\n' "$changed" | grep -vE "$ignore" || true)"
+          if [ -n "$site_changed" ]; then
+            echo "→ site-affecting file(s) changed:"; printf '%s\n' "$site_changed"
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "→ docs/ops-only change; skipping deploy."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Auto-deploy to Fly.io on green main when a site-affecting file changed — only runs once
+  # FLY_API_TOKEN is set as a repo secret, so the pipeline stays green before deploy is wired up.
+  deploy:
+    name: deploy (fly.io)
+    needs: [build, changes]
+    if: needs.changes.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
       - name: Deploy if token present
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
