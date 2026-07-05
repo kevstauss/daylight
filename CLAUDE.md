@@ -174,14 +174,19 @@ pnpm analytics:reset  # wipe first-party analytics counts (--yes to confirm)
 - **TS config:** `tsconfig.base.json` is `strict` + `noUncheckedIndexedAccess`. Keep code clean
   under it; don't weaken compiler options.
 
-### Feature flags & phased deploy
+### Deploy philosophy — deploying means going live
 
-Unfinished surfaces hide behind `FLAG_*` env vars (`packages/core/src/flags.ts` → `flag(name)`;
-web-side typed accessor in `apps/web/src/lib/flags.ts`) so **`main` is always deployable**. Ship
-many small increments behind flags rather than long-lived branches. Every phase ends live in
-production, tagged (`v0.1`, `v0.2`, …), with a plain-language `CHANGELOG.md` entry rendered at
-`/changelog`. Any page must render cleanly when a module has no data yet ("not yet scanned / not
-yet watching").
+**A merge/push to `main` auto-ships to production, and there is no staging gate — if you deploy
+something, it is live for users unless you explicitly say otherwise.** Do NOT default to hiding new
+work behind a `FLAG_*`; build it correctly and ship it straight to `main`. Feature flags
+(`packages/core/src/flags.ts` → `flag(name)`; web-side typed accessor in `apps/web/src/lib/flags.ts`)
+still exist and are the right tool when you *deliberately* want a kill-switch or to hold back a
+genuinely not-ready surface — but that is an explicit, case-by-case choice, not the default. Ship
+small, correct increments; each notable batch gets a plain-language `CHANGELOG.md` entry rendered at
+`/changelog` (the CI `changes` job keeps it deployable). Any page must still render cleanly when a
+module has no data yet ("not yet scanned / not yet watching"). (Several existing modules are gated by
+the `FLAG_*` env vars in `fly.toml` — those stay as configured; this is about not reflexively adding
+new ones.)
 
 ---
 
