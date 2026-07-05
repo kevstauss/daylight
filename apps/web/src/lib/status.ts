@@ -7,9 +7,11 @@ import { flags, type Flags } from "./flags";
 const CADENCE: Record<string, { maxHours: number; expected: string; flag: keyof Flags }> = {
   ledger: { maxHours: 36, expected: "daily", flag: "registry" },
   lookout: { maxHours: 40, expected: "nightly", flag: "lookout" },
-  floodlight: { maxHours: 24 * 8, expected: "weekly (daily for the watchlist)", flag: "floodlight" },
-  receipts: { maxHours: 24 * 8, expected: "weekly", flag: "receipts" },
-  redtape: { maxHours: 24 * 40, expected: "monthly", flag: "redtape" },
+  floodlight: { maxHours: 24 * 8, expected: "weekly (Mon)", flag: "floodlight" },
+  // Receipts & Redtape both run Mon+Thu (2x/week). Max normal gap is the Thu→Mon stretch (~4 days),
+  // so 5 days is overdue — tight enough that a dead scheduler surfaces within days, not weeks.
+  receipts: { maxHours: 24 * 5, expected: "twice weekly (Mon & Thu)", flag: "receipts" },
+  redtape: { maxHours: 24 * 5, expected: "twice weekly (Mon & Thu)", flag: "redtape" },
   foundry: { maxHours: 36, expected: "daily", flag: "foundry" },
 };
 
