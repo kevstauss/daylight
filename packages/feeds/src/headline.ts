@@ -72,6 +72,12 @@ function cap(s: string): string {
   return s ? s[0]!.toUpperCase() + s.slice(1) : s;
 }
 
+/** Collapse any "https://host/path" occurrences in free text down to just "host" — keeps an
+ *  unmapped/legacy reason from dumping raw URLs into a headline. */
+function deUrl(s: string): string {
+  return s.replace(/https?:\/\/([^/\s]+)\/?\S*/gi, "$1");
+}
+
 /** Drop a trailing " (Org name)" suffix a reason fragment may carry. */
 function stripOwner(s: string): string {
   return s.replace(/\s*\([^()]*\)\s*$/, "").trim();
@@ -136,18 +142,25 @@ export function describeFinding(c: ChangeInput): FindingDescription {
   }
 
   // ---- Receipts (removal ledger + off-domain redirects) and Floodlight (live-page trackers) share
-  //      the same tracker/notice/redirect vocabulary — "tracker removed from" (Receipts) vs
+  //      the same tracker/notice/seal/field vocabulary — "tracker removed from" (Receipts) vs
   //      "tracker removed on" (Floodlight) — so match both here regardless of which module logged it.
   if (module === "receipts" || module === "floodlight") {
     let m: RegExpExecArray | null;
-    if ((m = /tracker removed (?:from|on)\s+(\S+):\s*(.+)$/i.exec(reason))) {
-      return { headline: `${hostOf(m[1]!)} quietly removed a tracker (${trackerName(m[2]!)})`, why: WHY.trackerRemoved };
+    if ((m = /tracker (added|removed) (?:on|from|to)\s+(\S+):\s*(.+)$/i.exec(reason))) {
+      const host = hostOf(m[2]!);
+      const t = trackerName(m[3]!);
+      return /removed/i.test(m[1]!)
+        ? { headline: `${host} quietly removed a tracker (${t})`, why: WHY.trackerRemoved }
+        : { headline: `${host} added a tracker (${t})`, why: WHY.trackerAdded };
     }
-    if ((m = /tracker added (?:on|to|from)\s+(\S+):\s*(.+)$/i.exec(reason))) {
-      return { headline: `${hostOf(m[1]!)} added a tracker (${trackerName(m[2]!)})`, why: WHY.trackerAdded };
-    }
-    if ((m = /privacy notice removed from\s+(\S+)/i.exec(reason))) {
-      return { headline: `${hostOf(m[1]!)} removed its privacy notice`, why: WHY.noticeRemoved };
+    if ((m = /privacy notice (removed from|added on|text changed on)\s+(\S+)/i.exec(reason))) {
+      const host = hostOf(m[2]!);
+      const verb = /removed/i.test(m[1]!)
+        ? "removed its privacy notice"
+        : /added/i.test(m[1]!)
+          ? "added a privacy notice"
+          : "changed its privacy-notice text";
+      return { headline: `${host} ${verb}`, why: WHY.noticeRemoved };
     }
     if (/but has no linked privacy notice/i.test(reason)) {
       const collects = /collects pii/i.test(reason);
@@ -156,11 +169,16 @@ export function describeFinding(c: ChangeInput): FindingDescription {
         why: WHY.noticeRemoved,
       };
     }
-    if ((m = /form field removed from\s+(\S+):\s*(.+)$/i.exec(reason))) {
-      return { headline: `${hostOf(m[1]!)} removed a form field (${short(m[2]!, 30)})`, why: WHY.fieldRemoved };
+    if ((m = /form field (removed from|added on)\s+(\S+):\s*(.+)$/i.exec(reason))) {
+      const verb = /removed/i.test(m[1]!) ? "removed" : "added";
+      return { headline: `${hostOf(m[2]!)} ${verb} a form field (${short(m[3]!, 30)})`, why: WHY.fieldRemoved };
     }
-    if ((m = /agency seal removed from\s+(\S+)/i.exec(reason))) {
-      return { headline: `${hostOf(m[1]!)} removed its agency seal`, why: WHY.sealRemoved };
+    if ((m = /agency seal (removed from|added on)\s+(\S+)/i.exec(reason))) {
+      const verb = /removed/i.test(m[1]!) ? "removed its agency seal" : "added an agency seal";
+      return { headline: `${hostOf(m[2]!)} ${verb}`, why: WHY.sealRemoved };
+    }
+    if ((m = /high-risk scorecard for\s+(\S+):\s*(.+)$/i.exec(reason))) {
+      return { headline: `${hostOf(m[1]!)} flagged high-risk on a live scan — ${short(m[2]!, 60)}`, why: MODULE_WHY.floodlight! };
     }
     if ((m = /^(\S+)\s+now redirects off-domain to\s+(\S+)/i.exec(reason))) {
       return { headline: `${hostOf(m[1]!)} now redirects visitors off its own domain to ${hostOf(m[2]!)}`, why: WHY.redirect };
@@ -179,8 +197,10 @@ export function describeFinding(c: ChangeInput): FindingDescription {
     if (m) return { headline: `An unlaunched site, "${m[1]}", is being built on ${m[2]}`, why: WHY.unlaunched };
   }
 
-  // ---- Fallback: the detector's own wording (de-jargoned Lookout prefix if present).
+  // ---- Fallback: the detector's own wording, de-jargoned. Strip the "new subdomain <fqdn> — "
+  //      prefix, and collapse any raw "https://host/path" down to its host so an unmapped or legacy
+  //      reason still reads as prose, never a URL dump.
   const mSubFallback = /^new subdomain\s+(\S+)\s+—\s+(.*)$/i.exec(reason);
-  const headline = reason ? cap(mSubFallback ? mSubFallback[2]!.trim() : reason) : `${c.domain} changed`;
+  const headline = reason ? cap(deUrl(mSubFallback ? mSubFallback[2]!.trim() : reason)) : `${c.domain} changed`;
   return { headline, why: MODULE_WHY[module] ?? "" };
 }

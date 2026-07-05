@@ -52,13 +52,29 @@ describe("describeFinding — deterministic, neutral headlines + why", () => {
     ).toBe("passports.gov now redirects visitors off its own domain to travel.state.gov");
   });
 
-  it("Floodlight: tracker + missing-notice shapes are recognized (not just Receipts)", () => {
+  it("Floodlight: tracker + missing-notice + high-risk-scorecard shapes are recognized", () => {
     expect(
       describeFinding({ ...base, module: "floodlight", domain: "weather.gov", reason: "tracker added on https://weather.gov/: Digital Analytics Program (DAP)@dap.digitalgov.gov" }).headline,
     ).toBe("weather.gov added a tracker (Digital Analytics Program (DAP))");
     expect(
       describeFinding({ ...base, module: "floodlight", domain: "example.gov", reason: "page collects PII but has no linked privacy notice" }).headline,
     ).toBe("example.gov collects personal data but links no privacy notice");
+    expect(
+      describeFinding({ ...base, module: "floodlight", domain: "medicare.gov", reason: "high-risk scorecard for https://medicare.gov/: session replay detected (records clicks/scrolls/keystrokes)" }).headline,
+    ).toBe("medicare.gov flagged high-risk on a live scan — session replay detected (records clicks/scrolls/keystrokes)");
+  });
+
+  it("Receipts: add / changed variants (not just removals) read cleanly", () => {
+    expect(describeFinding({ ...base, module: "receipts", domain: "sba.gov", reason: "form field added on https://sba.gov/: address" }).headline).toBe("sba.gov added a form field (address)");
+    expect(describeFinding({ ...base, module: "receipts", domain: "nrc.gov", reason: "privacy notice text changed on https://nrc.gov/" }).headline).toBe("nrc.gov changed its privacy-notice text");
+    expect(describeFinding({ ...base, module: "receipts", domain: "epa.gov", reason: "agency seal added on https://epa.gov/" }).headline).toBe("epa.gov added an agency seal");
+  });
+
+  it("fallback collapses raw URLs to hosts (no URL dump for legacy/unmapped shapes)", () => {
+    const d = describeFinding({ ...base, module: "receipts", domain: "cio.gov", reason: "Baseline (redirect predates tracking): https://cio.gov/ -> https://councils.gov/" });
+    expect(d.headline).not.toMatch(/https?:\/\//);
+    expect(d.headline).toContain("cio.gov");
+    expect(d.headline).toContain("councils.gov");
   });
 
   it("Foundry: an unlaunched project reads as staging on a vendor", () => {
