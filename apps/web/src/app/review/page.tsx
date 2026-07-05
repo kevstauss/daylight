@@ -85,10 +85,21 @@ async function logout(): Promise<void> {
 
 async function actReview(formData: FormData): Promise<void> {
   "use server";
+  // TEMP DIAGNOSTIC (remove after): trace exactly which path the action takes in prod, since
+  // `next start` doesn't log requests and the reject appeared to silently no-op.
+  const ok = await authed();
+  console.error(
+    `[review:diag] authed=${ok} keys=${JSON.stringify(Array.from(formData.keys()))} ` +
+      `decision=${String(formData.get("decision"))} id=${String(formData.get("id"))} ` +
+      `assessment=${String(formData.get("assessment"))} confidence=${String(formData.get("confidence"))}`,
+  );
   // If the session lapsed, bounce to the login screen rather than silently doing nothing — a
   // silent no-op made a click look successful (the item flashed away on re-render) while nothing
   // was written. Landing back on /review shows the login form, which is the honest signal.
-  if (!(await authed())) redirect("/review");
+  if (!ok) {
+    console.error("[review:diag] AUTH FAILED on POST → redirect to /review");
+    redirect("/review");
+  }
   const id = Number(formData.get("id"));
   const decision = String(formData.get("decision") ?? "");
   const note = String(formData.get("note") ?? "").trim() || null;
@@ -106,9 +117,18 @@ async function actReview(formData: FormData): Promise<void> {
     reject: "rejected",
   };
   const disposition = DISPOSITION[decision];
-  if (!Number.isFinite(id) || !disposition) return;
+  if (!Number.isFinite(id) || !disposition) {
+    console.error(`[review:diag] EARLY RETURN — id=${id} decision=${decision} disposition=${disposition}`);
+    return;
+  }
   // publish → public; hold → reviewed, kept private, flagged to revisit; reject → dismissed.
-  reviewGap(id, { published: decision === "publish", reviewerNote: note, disposition, assessment, confidence });
+  try {
+    reviewGap(id, { published: decision === "publish", reviewerNote: note, disposition, assessment, confidence });
+    console.error(`[review:diag] reviewGap OK — id=${id} disposition=${disposition} assessment=${assessment}`);
+  } catch (e) {
+    console.error(`[review:diag] reviewGap THREW — id=${id}`, e);
+    throw e;
+  }
   revalidatePath("/review");
 }
 
