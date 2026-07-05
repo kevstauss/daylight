@@ -127,6 +127,7 @@ describe("§7.4 redact runs on captured text before persistence", () => {
       privacyText: "Questions? email privacy-officer@passports.gov or call 202-555-0142",
       formFields: ["email"],
       sealPresent: true,
+      redirectTarget: null,
       screenshotRef: "/raw/passports-apply-T0.png",
       waybackUrl: null,
     };
@@ -140,5 +141,33 @@ describe("§7.4 redact runs on captured text before persistence", () => {
     // exposed by a public feed/route — Receipts' UI gates it behind human review.
     const snapRow = db.latestSnapshot(URL_);
     expect(snapRow?.screenshot_ref).toBe("/raw/passports-apply-T0.png");
+  });
+});
+
+describe("redirect tracking — an off-domain redirect emits a dated change", () => {
+  it("added / changed / removed redirect targets each emit the right change", () => {
+    const base = snapshotFromHtml(URL_, read("before.html"), T0);
+    const none = { ...base, redirectTarget: null };
+    const toAuth = { ...base, redirectTarget: "https://auth.passports.gov/" };
+    const toState = { ...base, redirectTarget: "https://travel.state.gov/en/passports.html" };
+
+    // served content → now redirects off-domain (high)
+    const added = diffSnapshots(none, toAuth, T1).filter((c) => c.field === "redirect_target");
+    expect(added).toHaveLength(1);
+    expect(added[0]?.kind).toBe("added");
+    expect(added[0]?.severity).toBe("high");
+
+    // target changed (auth wall → State Dept) — only the redirect change fires (rest is identical)
+    const modified = diffSnapshots(toAuth, toState, T1).filter((c) => c.field === "redirect_target");
+    expect(modified).toHaveLength(1);
+    expect(modified[0]?.kind).toBe("modified");
+    expect(modified[0]?.newValue).toContain("travel.state.gov");
+
+    // stopped redirecting
+    const removed = diffSnapshots(toState, none, T1).filter((c) => c.field === "redirect_target");
+    expect(removed[0]?.kind).toBe("removed");
+
+    // same target → nothing for redirect_target (and the content hash includes it, so no false skip)
+    expect(diffSnapshots(toAuth, toAuth, T1).some((c) => c.field === "redirect_target")).toBe(false);
   });
 });

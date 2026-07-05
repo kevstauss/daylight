@@ -34,6 +34,7 @@ function rowToSnapshot(row: SnapshotRow): Snapshot {
     privacyText: null,
     formFields: row.form_fields_json ? (JSON.parse(row.form_fields_json) as string[]) : [],
     sealPresent: row.seal_present === 1,
+    redirectTarget: row.redirect_target,
     screenshotRef: row.screenshot_ref,
     waybackUrl: row.wayback_url,
   };
@@ -82,6 +83,7 @@ export async function runReceiptsSnapshot(opts: RunReceiptsOptions): Promise<Run
         privacyTextHash: snapshot.privacyTextHash,
         formFieldsJson: JSON.stringify(snapshot.formFields),
         sealPresent: snapshot.sealPresent,
+        redirectTarget: snapshot.redirectTarget,
         waybackUrl,
       });
 

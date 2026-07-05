@@ -9,6 +9,7 @@ export interface Snapshot {
   privacyText: string | null; // raw notice text (redacted + raw-store only; never served)
   formFields: string[]; // PII field kinds present (e.g. ['email','file'])
   sealPresent: boolean;
+  redirectTarget: string | null; // off-domain final URL if the page redirected elsewhere (else null)
   screenshotRef: string | null; // raw-store path; never served publicly
   waybackUrl: string | null;
 }

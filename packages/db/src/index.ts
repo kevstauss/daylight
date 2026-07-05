@@ -534,10 +534,10 @@ export class DaylightDb {
       .prepare(
         `INSERT INTO snapshots
            (url, domain, captured_at, dom_hash, screenshot_ref, tracker_snapshot_json,
-            privacy_text_hash, form_fields_json, seal_present, wayback_url)
+            privacy_text_hash, form_fields_json, seal_present, redirect_target, wayback_url)
          VALUES
            (@url, @domain, @capturedAt, @domHash, @screenshotRef, @trackerSnapshotJson,
-            @privacyTextHash, @formFieldsJson, @sealPresent, @waybackUrl)`,
+            @privacyTextHash, @formFieldsJson, @sealPresent, @redirectTarget, @waybackUrl)`,
       )
       .run({
         url: snap.url,
@@ -549,6 +549,7 @@ export class DaylightDb {
         privacyTextHash: snap.privacyTextHash ?? null,
         formFieldsJson: snap.formFieldsJson ?? null,
         sealPresent: snap.sealPresent ? 1 : 0,
+        redirectTarget: snap.redirectTarget ?? null,
         waybackUrl: snap.waybackUrl ?? null,
       });
     return Number(info.lastInsertRowid);
@@ -1020,6 +1021,7 @@ export interface SnapshotInput {
   privacyTextHash?: string | null;
   formFieldsJson?: string | null;
   sealPresent?: boolean;
+  redirectTarget?: string | null;
   waybackUrl?: string | null;
 }
 

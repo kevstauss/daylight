@@ -1,7 +1,16 @@
 import { sha256 } from "@daylight/core";
 import { analyzeCapture, trackerKey } from "@daylight/floodlight";
 import type { LiveCapture } from "@daylight/floodlight/capture";
+import { registrableDomain } from "@daylight/fingerprints";
 import type { Snapshot } from "./types.js";
+
+const hostOf = (u: string): string => {
+  try {
+    return new URL(u).hostname;
+  } catch {
+    return "";
+  }
+};
 
 /**
  * Build a Snapshot from a live page capture. Tracker inventory comes from Floodlight's
@@ -16,9 +25,16 @@ export function snapshotFromLiveCapture(
 ): Snapshot {
   const scorecard = analyzeCapture(live.capture);
   const privacyUrl = live.capture.dom.privacyNoticeUrl;
+  // Redirect detection: if navigation ended on a DIFFERENT registrable domain than we requested,
+  // the page redirected off-domain (e.g. passports.gov -> travel.state.gov, or -> an auth wall).
+  // Record the final URL and file the snapshot under the WATCHED domain, so the emitted change lands
+  // on the right /domain page. Same-domain (incl. www / http->https) navigation is not a redirect.
+  const requestedDomain = registrableDomain(hostOf(url));
+  const finalDomain = registrableDomain(hostOf(live.finalUrl));
+  const redirected = Boolean(requestedDomain && finalDomain && requestedDomain !== finalDomain);
   return {
     url,
-    domain: scorecard.domain,
+    domain: redirected ? requestedDomain : scorecard.domain,
     capturedAt,
     domHash: sha256(live.html.replace(/\s+/g, " ").trim()),
     trackers: scorecard.trackers.map(trackerKey).sort(),
@@ -26,6 +42,7 @@ export function snapshotFromLiveCapture(
     privacyText: privacyUrl,
     formFields: [...live.capture.dom.formFields].sort(),
     sealPresent: live.capture.dom.hasSeal,
+    redirectTarget: redirected ? live.finalUrl : null,
     screenshotRef,
     waybackUrl: null,
   };

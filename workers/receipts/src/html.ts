@@ -64,6 +64,7 @@ export function snapshotFromHtml(url: string, html: string, capturedAt: string):
     privacyText: privacy.text,
     formFields: extractFormFields(html),
     sealPresent: SEAL_RE.test(html),
+    redirectTarget: null, // fixture HTML has no navigation; the live capture sets this
     screenshotRef: null,
     waybackUrl: null,
   };
@@ -79,6 +80,7 @@ export function snapshotContentHash(s: Snapshot): string {
       s.privacyTextHash,
       [...s.formFields].sort(),
       s.sealPresent,
+      s.redirectTarget, // a changed redirect target must not short-circuit as "unchanged"
     ]),
   );
 }

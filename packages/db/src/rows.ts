@@ -100,6 +100,7 @@ export interface SnapshotRow {
   privacy_text_hash: string | null;
   form_fields_json: string | null;
   seal_present: number | null;
+  redirect_target: string | null; // off-domain final URL if the page redirected elsewhere
   wayback_url: string | null;
 }
 

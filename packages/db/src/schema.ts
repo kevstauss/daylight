@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS snapshots (
   privacy_text_hash TEXT,             -- null = no privacy notice present
   form_fields_json TEXT,              -- JSON array of PII field kinds
   seal_present INTEGER,               -- 0/1
+  redirect_target TEXT,               -- off-domain final URL if the page redirected elsewhere (else NULL)
   wayback_url TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_snap_url ON snapshots(url, captured_at DESC);

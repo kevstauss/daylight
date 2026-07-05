@@ -56,5 +56,18 @@ export function diffSnapshots(prev: Snapshot, curr: Snapshot, now: string): Chan
     emit("added", "seal", null, "present", "notable", `agency seal added on ${url}`);
   }
 
+  // Off-domain redirect. A watched .gov that starts forwarding elsewhere — or changes where it
+  // forwards to (e.g. an auth wall -> another agency) — is a notable, re-verifiable event. Targets
+  // are redirect destinations (not user input), but redact for symmetry with the scanned URL.
+  const prt = prev.redirectTarget ? redactText(prev.redirectTarget).value : null;
+  const crt = curr.redirectTarget ? redactText(curr.redirectTarget).value : null;
+  if (!prt && crt) {
+    emit("added", "redirect_target", null, crt, "high", `${url} now redirects off-domain to ${crt}`);
+  } else if (prt && !crt) {
+    emit("removed", "redirect_target", prt, null, "notable", `${url} no longer redirects off-domain (was ${prt})`);
+  } else if (prt && crt && prt !== crt) {
+    emit("modified", "redirect_target", prt, crt, "high", `${url} changed its redirect target from ${prt} to ${crt}`);
+  }
+
   return changes;
 }
