@@ -184,13 +184,7 @@ export default async function ReviewPage() {
                   <span className="font-mono text-xs text-faint">confidence {g.confidence}</span>
                 ) : null}
               </div>
-              {g.fact_vs_inference_notes ? (
-                <p className="mt-1.5 text-sm text-muted">{g.fact_vs_inference_notes}</p>
-              ) : null}
-              <Trail label="Collection evidence" items={parse(g.collects_pii_evidence_json)} />
-              <Trail label="Searches run" items={parse(g.queries_run_json)} mono />
-              <Trail label="Sources checked" items={parse(g.sources_checked_json)} mono />
-              <Trail label="SORN refs" items={parse(g.sorn_refs_json)} mono />
+              <GapEvidence g={g} />
 
               <form action={actReview} className="mt-3 space-y-2 border-t border-edge pt-3">
                 <input type="hidden" name="id" value={g.id} />
@@ -252,7 +246,8 @@ export default async function ReviewPage() {
                   </span>
                   <span className="font-mono text-[10px] uppercase tracking-wider text-signal">held</span>
                 </div>
-                <form action={actReview} className="mt-2 space-y-2">
+                <GapEvidence g={g} />
+                <form action={actReview} className="mt-3 space-y-2 border-t border-edge pt-3">
                   <input type="hidden" name="id" value={g.id} />
                   <textarea
                     name="note"
@@ -323,6 +318,22 @@ export default async function ReviewPage() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** The full finding for a gap — the fact/inference note plus every evidence trail. Shown in both
+ *  the queue and the Held section, so a held item keeps all its findings when you revisit it. */
+function GapEvidence({ g }: { g: GapRow }) {
+  return (
+    <>
+      {g.fact_vs_inference_notes ? (
+        <p className="mt-1.5 text-sm text-muted">{g.fact_vs_inference_notes}</p>
+      ) : null}
+      <Trail label="Collection evidence" items={parse(g.collects_pii_evidence_json)} />
+      <Trail label="Searches run" items={parse(g.queries_run_json)} mono />
+      <Trail label="Sources checked" items={parse(g.sources_checked_json)} mono />
+      <Trail label="SORN refs" items={parse(g.sorn_refs_json)} mono />
+    </>
   );
 }
 
