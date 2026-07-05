@@ -78,6 +78,14 @@ function deUrl(s: string): string {
   return s.replace(/https?:\/\/([^/\s]+)\/?\S*/gi, "$1");
 }
 
+/** Clamp to at most `max` chars, cutting at the last word boundary and appending an ellipsis. */
+function clampWords(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  const at = cut.lastIndexOf(" ");
+  return `${(at > max * 0.6 ? cut.slice(0, at) : cut).replace(/[\s—–-]+$/, "")}…`;
+}
+
 /** Drop a trailing " (Org name)" suffix a reason fragment may carry. */
 function stripOwner(s: string): string {
   return s.replace(/\s*\([^()]*\)\s*$/, "").trim();
@@ -198,9 +206,10 @@ export function describeFinding(c: ChangeInput): FindingDescription {
   }
 
   // ---- Fallback: the detector's own wording, de-jargoned. Strip the "new subdomain <fqdn> — "
-  //      prefix, and collapse any raw "https://host/path" down to its host so an unmapped or legacy
-  //      reason still reads as prose, never a URL dump.
+  //      prefix, collapse any raw "https://host/path" down to its host, and clamp the length so a
+  //      long legacy narrative reason reads as a headline teaser, not a paragraph (the card links to
+  //      the full record). Mapped headlines above are already short; only fallbacks can run long.
   const mSubFallback = /^new subdomain\s+(\S+)\s+—\s+(.*)$/i.exec(reason);
-  const headline = reason ? cap(deUrl(mSubFallback ? mSubFallback[2]!.trim() : reason)) : `${c.domain} changed`;
+  const headline = reason ? clampWords(cap(deUrl(mSubFallback ? mSubFallback[2]!.trim() : reason)), 120) : `${c.domain} changed`;
   return { headline, why: MODULE_WHY[module] ?? "" };
 }

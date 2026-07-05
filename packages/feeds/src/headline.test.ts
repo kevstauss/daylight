@@ -77,6 +77,15 @@ describe("describeFinding — deterministic, neutral headlines + why", () => {
     expect(d.headline).toContain("councils.gov");
   });
 
+  it("clamps a long legacy narrative reason to a headline-sized teaser", () => {
+    const longReason =
+      "Passports.gov — registered in CISA's public .gov registry to the Executive Office of the President — changed its HTTP redirect target from an access/login wall to U.S. Department of State passport content; earliest Wayback capture 2026-07-03.";
+    const d = describeFinding({ ...base, module: "receipts", kind: "modified", domain: "passports.gov", reason: longReason });
+    expect(d.headline.length).toBeLessThanOrEqual(121);
+    expect(d.headline.endsWith("…")).toBe(true);
+    expect(d.headline).toMatch(/^Passports\.gov/);
+  });
+
   it("Foundry: an unlaunched project reads as staging on a vendor", () => {
     const d = describeFinding({ ...base, module: "foundry", domain: "staging-api.gov", reason: 'unlaunched project "staging-api" building on passports.gov — no staging-api.gov registered yet' });
     expect(d.headline).toBe('An unlaunched site, "staging-api", is being built on passports.gov');
