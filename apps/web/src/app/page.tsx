@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 const MODULES = [
   { key: "registry", href: "/registry", name: "Ledger", blurb: "Who owns each federal .gov, and every change to the record." },
   { key: "lookout", href: "/lookout", name: "Lookout", blurb: "New subdomains the day their certificate is issued." },
+  { key: "foundry", href: "/foundry", name: "Foundry", blurb: "Which build vendors quietly serve many agencies at once — and what's staged but not yet launched." },
   { key: "floodlight", href: "/floodlight", name: "Floodlight", blurb: "Is this .gov tracking you? Trackers, session replay, and tracking disguised as the site's own traffic." },
   { key: "receipts", href: "/receipts", name: "Receipts", blurb: "What quietly disappeared — a dated, archived removal ledger." },
   { key: "redtape", href: "/redtape", name: "Redtape", blurb: "Sites collecting personal data with no published privacy filing." },
