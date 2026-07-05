@@ -19,6 +19,7 @@ apex_domains:                 # Ledger watches ownership; Lookout watches their 
   - nasaforce.gov             # NASA/OPM hiring site, but apex is EOP-owned with a (blank) contact; NDS-built
   - trumpcard.gov             # EOP / Dept. of Government Efficiency — cross-agency "Gold Card" visa product
   - trumpira.gov              # EOP / White House Office, (blank) contact; EO directs Treasury to run it (owner/operator split)
+  - passport.gov              # singular companion to passports.gov — also EOP / White House Office, (blank) contact
   # NOTE — deliberately NOT added as apex_domains: war.gov (DoD, dma.websd@mail.mil),
   # hstf.gov (DHS, postmaster@dhs.gov), america.gov (State) are legitimately owned by their
   # own agencies with their own contacts. NDS *builds* them (their previews sit under
@@ -32,6 +33,7 @@ subdomain_apexes:             # Lookout also enumerates certs under these (subdo
 comparators:                  # legit original -> for shadow-vs-real diffs (Floodlight / Receipts)
   vote.gov: eac.gov
   passports.gov: travel.state.gov
+  passport.gov: travel.state.gov   # 2026-07-05: singular variant, same real passport service
 
 person_watch:                 # Ledger fires (high) when these appear as any contact
   - "@ndstudio.gov"
@@ -86,7 +88,6 @@ known_subdomains_seen:
   - forestandrangelands.previews.ndstudio.gov   # USDA/DOI Forest & Rangelands rebuild
   - sr-input.int.ndstudio.gov                   # SweetREX (DOGE deregulation AI) internal-tier hosts
   - sweetrex.int.ndstudio.gov
-  - inference.ndstudio.gov                      # LLM inference endpoint (first CT ~2026-06-15)
   - chat.staging.ndstudio.gov                   # embeddable first-party site chatbot
   - chat-embed.staging.ndstudio.gov
   - upload.ndstudio.gov                         # upload/intake surface
@@ -98,3 +99,10 @@ known_subdomains_seen:
   - mfn-trumprx.ndstudio.gov                    # "most-favored-nation" drug-pricing feature
   - trump-accounts.previews.ndstudio.gov
   - trump-accounts-splashpage.previews.ndstudio.gov
+  # Cross-agency project builds NDS stages under its own apex (Foundry attributes these to the
+  # owning agency via the registry; each target apex is legitimately that agency's, not NDS's):
+  - america.ndstudio.gov                        # -> america.gov (Dept. of State)
+  - cio.previews.ndstudio.gov                   # -> cio.gov (GSA)
+  - rec.previews.ndstudio.gov                   # -> rec.gov (USDA / Forest Service)
+  - early-careers.previews.ndstudio.gov         # -> earlycareers.gov (EOP / White House Office)
+  - vote-gov-ndstudio.previews.ndstudio.gov     # second vote.gov build variant (-> vote.gov, EAC)
