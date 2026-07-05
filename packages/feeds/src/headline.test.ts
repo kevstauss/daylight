@@ -52,6 +52,15 @@ describe("describeFinding — deterministic, neutral headlines + why", () => {
     ).toBe("passports.gov now redirects visitors off its own domain to travel.state.gov");
   });
 
+  it("Floodlight: tracker + missing-notice shapes are recognized (not just Receipts)", () => {
+    expect(
+      describeFinding({ ...base, module: "floodlight", domain: "weather.gov", reason: "tracker added on https://weather.gov/: Digital Analytics Program (DAP)@dap.digitalgov.gov" }).headline,
+    ).toBe("weather.gov added a tracker (Digital Analytics Program (DAP))");
+    expect(
+      describeFinding({ ...base, module: "floodlight", domain: "example.gov", reason: "page collects PII but has no linked privacy notice" }).headline,
+    ).toBe("example.gov collects personal data but links no privacy notice");
+  });
+
   it("Foundry: an unlaunched project reads as staging on a vendor", () => {
     const d = describeFinding({ ...base, module: "foundry", domain: "staging-api.gov", reason: 'unlaunched project "staging-api" building on passports.gov — no staging-api.gov registered yet' });
     expect(d.headline).toBe('An unlaunched site, "staging-api", is being built on passports.gov');

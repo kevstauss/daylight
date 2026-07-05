@@ -46,6 +46,7 @@ const MODULE_WHY: Record<string, string> = {
   receipts: "Daylight keeps a dated before/after of what quietly changed or vanished.",
   ledger: WHY.newDomain,
   foundry: WHY.unlaunched,
+  floodlight: "Trackers, session replay, and analytics observed in a federal site's own live source.",
 };
 
 /** Hostname of a URL, tolerant of a bare host or a trailing slash. */
@@ -134,17 +135,26 @@ export function describeFinding(c: ChangeInput): FindingDescription {
     }
   }
 
-  // ---- Receipts: the removal ledger + off-domain redirects.
-  if (module === "receipts") {
+  // ---- Receipts (removal ledger + off-domain redirects) and Floodlight (live-page trackers) share
+  //      the same tracker/notice/redirect vocabulary — "tracker removed from" (Receipts) vs
+  //      "tracker removed on" (Floodlight) — so match both here regardless of which module logged it.
+  if (module === "receipts" || module === "floodlight") {
     let m: RegExpExecArray | null;
     if ((m = /tracker removed (?:from|on)\s+(\S+):\s*(.+)$/i.exec(reason))) {
       return { headline: `${hostOf(m[1]!)} quietly removed a tracker (${trackerName(m[2]!)})`, why: WHY.trackerRemoved };
     }
-    if ((m = /tracker added (?:on|to)\s+(\S+):\s*(.+)$/i.exec(reason))) {
+    if ((m = /tracker added (?:on|to|from)\s+(\S+):\s*(.+)$/i.exec(reason))) {
       return { headline: `${hostOf(m[1]!)} added a tracker (${trackerName(m[2]!)})`, why: WHY.trackerAdded };
     }
     if ((m = /privacy notice removed from\s+(\S+)/i.exec(reason))) {
       return { headline: `${hostOf(m[1]!)} removed its privacy notice`, why: WHY.noticeRemoved };
+    }
+    if (/but has no linked privacy notice/i.test(reason)) {
+      const collects = /collects pii/i.test(reason);
+      return {
+        headline: `${c.domain} ${collects ? "collects personal data" : "loads trackers"} but links no privacy notice`,
+        why: WHY.noticeRemoved,
+      };
     }
     if ((m = /form field removed from\s+(\S+):\s*(.+)$/i.exec(reason))) {
       return { headline: `${hostOf(m[1]!)} removed a form field (${short(m[2]!, 30)})`, why: WHY.fieldRemoved };
