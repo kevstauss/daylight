@@ -28,6 +28,13 @@ export function globalChanges(limit = 50): ChangeRow[] {
   return getDb().listChanges({ limit });
 }
 
+/** The homepage "notable recent findings" trio — recent high/notable changes, one per domain,
+ *  ranked severity → function-mimic → recency. Selection logic + rationale live in
+ *  DaylightDb.featuredChanges (the single query surface). */
+export function featuredFindings(limit = 3): ChangeRow[] {
+  return getDb().featuredChanges(limit);
+}
+
 /** Generic filtered change list — backs the public /api/v1/changes endpoint. */
 export function listChangesFiltered(f: {
   module?: string;

@@ -4,6 +4,18 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Homepage: notable recent findings, in context — 2026-07-05
+
+- The front page now opens with up to three recent, higher-severity findings written for a first-time
+  reader — each names the module that surfaced it, adds a plain-language note on why that class of
+  finding matters, and links out to the domain, that module, and the finding's full timestamped record.
+- The selection is automatic and stays current: it draws the most significant recent changes, keeps
+  **one per domain** so the three tell distinct stories (a single scan can log a dozen subdomains on
+  one apex at once), and leads with the clearest examples — like a subdomain imitating another agency.
+- Copy stays observational. The finding text is the detector's own neutral wording; the context notes
+  describe the *category* of finding, never a specific agency. The section reads only already-public
+  change records — never the human-gated privacy-filing queue.
+
 ## Redirect tracking + sharper compliance checks — 2026-07-05
 
 - **Redirect tracking.** Daylight now records when a watched `.gov` page redirects **off its own

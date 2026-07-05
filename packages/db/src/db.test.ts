@@ -93,6 +93,56 @@ describe("change flag filter — SQL predicate matches the JS classifier", () =>
   });
 });
 
+describe("featuredChanges — homepage notable-findings trio", () => {
+  const mkc = (over: Partial<Change>): Change => ({
+    module: "lookout",
+    domain: "x.gov",
+    detectedAt: "2026-07-02T16:00:00.000Z",
+    kind: "added",
+    severity: "high",
+    ...over,
+  });
+
+  it("dedupes by domain, drops info, and ranks severity → mimic → recency", () => {
+    // A single scan logs a burst of high subdomains on ONE apex in the same second. The mimic
+    // ("looks like …") is inserted FIRST (lowest id) so the recency tiebreak alone would NOT pick
+    // it — only the function-mimic bonus can. Two other domains + info-level noise round it out.
+    const burstAt = "2026-07-02T16:47:00.000Z";
+    db.insertChange(mkc({ domain: "ndstudio.gov", detectedAt: burstAt, reason: "new subdomain vote-gov.previews.ndstudio.gov — looks like vote.gov hosted under ndstudio.gov" }));
+    db.insertChange(mkc({ domain: "ndstudio.gov", detectedAt: burstAt, reason: "new subdomain admin.ndstudio.gov — high-signal subdomain label admin" }));
+    db.insertChange(mkc({ domain: "ndstudio.gov", detectedAt: burstAt, reason: "new subdomain sandbox.ndstudio.gov — high-signal subdomain label sandbox" }));
+    // A higher-severity-tier peer on another domain, slightly more recent than the burst.
+    db.insertChange(mkc({ domain: "trumpaccounts.gov", detectedAt: "2026-07-02T16:50:00.000Z", reason: "new subdomain staging.trumpaccounts.gov — high-signal subdomain label staging" }));
+    // A notable (lower tier) — must sort below every high.
+    db.insertChange(mkc({ domain: "realfood.gov", severity: "notable", detectedAt: "2026-07-02T16:49:00.000Z", reason: "new subdomain cdn.realfood.gov — subdomain label cdn" }));
+    // Info-level noise, most recent of all — must never appear.
+    db.insertChange(mkc({ domain: "noise.gov", severity: "info", detectedAt: "2026-07-02T17:00:00.000Z", reason: "new subdomain www.noise.gov" }));
+
+    const featured = db.featuredChanges(3);
+
+    // One card per domain — the burst collapses to a single ndstudio row.
+    expect(featured.map((c) => c.domain)).toEqual(["ndstudio.gov", "trumpaccounts.gov", "realfood.gov"]);
+    // The ndstudio representative is the function-mimic finding, not a generic burst sibling…
+    expect(featured[0]?.reason).toContain("looks like vote.gov");
+    // …even though trumpaccounts is more recent: the high+mimic score outranks a plain high.
+    // Info severity is excluded entirely.
+    expect(featured.some((c) => c.severity === "info")).toBe(false);
+    // Every high sorts above the lone notable.
+    expect(featured.at(-1)?.domain).toBe("realfood.gov");
+  });
+
+  it("respects the limit and returns [] when there are no high/notable changes", () => {
+    db.insertChange(mkc({ domain: "a.gov" }));
+    db.insertChange(mkc({ domain: "b.gov" }));
+    db.insertChange(mkc({ domain: "c.gov", severity: "info" }));
+    expect(db.featuredChanges(2)).toHaveLength(2);
+
+    const empty = createDb(":memory:");
+    empty.insertChange(mkc({ domain: "only-info.gov", severity: "info" }));
+    expect(empty.featuredChanges(3)).toEqual([]);
+  });
+});
+
 describe("scans / status", () => {
   it("records start + finish and returns latest per module", () => {
     const id = db.recordScanStart("ledger");

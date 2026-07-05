@@ -51,6 +51,23 @@ export interface AlertInsert {
   error?: string | null;
 }
 
+const FEATURED_SEVERITY_WEIGHT: Record<string, number> = { high: 3, notable: 2, info: 1 };
+
+/** Ranking score for featuredChanges: severity first, plus a small bonus for Lookout's flagship
+ *  function-mimic signature (a name imitating another agency under a foreign apex). Recency is a
+ *  separate tiebreak, applied by cmpRecencyDesc — not folded in here. */
+function featuredScore(c: ChangeRow): number {
+  const sev = FEATURED_SEVERITY_WEIGHT[c.severity] ?? 1;
+  const mimic = /\blooks like\b/i.test(c.reason ?? "") ? 1 : 0;
+  return sev * 10 + mimic;
+}
+
+/** Newer-first: most recent `detected_at` wins; id breaks ties within a scan burst (same second). */
+function cmpRecencyDesc(a: ChangeRow, b: ChangeRow): number {
+  if (a.detected_at !== b.detected_at) return a.detected_at < b.detected_at ? 1 : -1;
+  return b.id - a.id;
+}
+
 /**
  * The stable query surface (Phase 0-1 spec §3.4). Every caller goes through
  * these methods so the SQLite → Postgres swap at Phase 2 never touches callers.
@@ -234,6 +251,32 @@ export class DaylightDb {
         `SELECT * FROM changes ${where} ORDER BY detected_at DESC, id DESC LIMIT ${limit}`,
       )
       .all(params) as ChangeRow[];
+  }
+
+  /**
+   * The homepage "notable recent findings" trio. Pulls recent high/notable changes, then keeps ONE
+   * finding per domain so the cards tell distinct stories: a single scan can log a dozen subdomains
+   * on one apex in the same second (the ndstudio burst), which a naive "top N by recency" would
+   * render as three near-identical lines. Ranking, for both the per-domain representative and the
+   * cross-domain order: severity → function-mimic (Lookout's flagship signature, the most legible
+   * example for a newcomer) → recency.
+   *
+   * Reads only the `changes` table — which Redtape never writes to. Its PIA/SORN gaps live in a
+   * separate table behind publicGaps()'s human gate and can never surface through this path.
+   */
+  featuredChanges(limit = 3): ChangeRow[] {
+    const ranked = (this.listChanges({ limit: 250 }) as ChangeRow[])
+      .filter((c) => c.severity === "high" || c.severity === "notable")
+      .sort((a, b) => featuredScore(b) - featuredScore(a) || cmpRecencyDesc(a, b));
+    const seen = new Set<string>();
+    const out: ChangeRow[] = [];
+    for (const c of ranked) {
+      if (seen.has(c.domain)) continue;
+      seen.add(c.domain);
+      out.push(c);
+      if (out.length >= Math.max(1, limit)) break;
+    }
+    return out;
   }
 
   /**
