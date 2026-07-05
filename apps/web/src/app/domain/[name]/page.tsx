@@ -16,6 +16,7 @@ import { watchlist } from "@/lib/watchlist";
 import {
   EmptyState,
   Eyebrow,
+  fmtInstant,
   InternalLink,
   Panel,
   SeverityBadge,
@@ -185,7 +186,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
             <Field label="Domain type" value={row.domain_type} />
             <Field label="Location" value={[row.city, row.state].filter(Boolean).join(", ") || null} />
             <Field label="Security contact" value={row.security_contact_email} mono />
-            <Field label="First seen" value={row.first_seen} mono />
+            <Field label="First seen" value={fmtInstant(row.first_seen)} mono />
           </dl>
           <p className="mt-4 border-t border-edge pt-3 text-xs text-faint">
             Source: <SourceLink href={CISA_SOURCE}>cisagov/dotgov-data · current-federal.csv</SourceLink>
@@ -409,8 +410,8 @@ function SubdomainView({ sub }: { sub: SubdomainRow }) {
           <Field label="Apex" value={sub.apex} mono />
           <Field label="Apex owner" value={sub.apex_owner_org} />
           <Field label="Labels" value={labels.length ? labels.join(", ") : null} mono />
-          <Field label="First seen (UTC)" value={sub.first_seen} mono />
-          <Field label="Last seen (UTC)" value={sub.last_seen} mono />
+          <Field label="First seen (UTC)" value={fmtInstant(sub.first_seen)} mono />
+          <Field label="Last seen (UTC)" value={fmtInstant(sub.last_seen)} mono />
         </dl>
         <p className="mt-4 border-t border-edge pt-3 text-xs text-faint">
           Source: <SourceLink href={crtsh(sub.fqdn)}>crt.sh · {sub.fqdn}</SourceLink>

@@ -30,15 +30,23 @@ export function SeverityBadge({ severity }: { severity: string }) {
   );
 }
 
+/** Minute-precision UTC instant for display — `2026-07-01T16:53Z`. Seconds/ms are noise for this
+ *  data. Returns the input unchanged if null or unparseable. The single date-format seam: use this
+ *  (or <Timestamp>) everywhere a raw ISO would otherwise be shown. */
+export function fmtInstant(iso: string | null): string | null {
+  if (!iso) return iso;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : `${d.toISOString().slice(0, 16)}Z`;
+}
+
 /** A UTC timestamp — mono + tabular so columns line up, with a human-readable aria-label so a
  *  screen reader announces "July 1, 2026, 8:00 AM UTC" instead of spelling out the raw ISO glyph. */
 export function Timestamp({ iso, prefix }: { iso: string | null; prefix?: string }) {
   if (!iso) return <span className="font-mono text-xs text-faint tabular-nums">—</span>;
   const d = new Date(iso);
   const valid = !Number.isNaN(d.getTime());
-  // Minute precision — seconds/ms are noise for this data. `2026-07-01T16:53Z` (UTC). The full
-  // instant stays in the machine-readable dateTime attr + the human aria-label below.
-  const text = valid ? `${d.toISOString().slice(0, 16)}Z` : iso;
+  // The full instant stays in the machine-readable dateTime attr + the human aria-label below.
+  const text = fmtInstant(iso) ?? iso;
   const human = valid
     ? `${new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(d)} UTC`
     : iso;
