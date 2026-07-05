@@ -10,7 +10,12 @@ import { Eyebrow, Panel } from "@/components/ui";
 export const metadata: Metadata = { title: "Review queue", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
-const COOKIE = "daylight_review";
+// Bumped from "daylight_review" so any session created before the sameSite=lax / path=/ fix is
+// ignored outright — that old cookie was strict + path-scoped, so it was withheld on the review
+// action POST (auth failed → Hold/Reject silently no-op'd) and couldn't be cleared cleanly. A new
+// name forces one fresh, correct login; the legacy cookie is proactively expired on logout.
+const COOKIE = "daylight_review_2";
+const LEGACY_COOKIE = "daylight_review";
 
 function reviewSecret(): string {
   return process.env.DAYLIGHT_REVIEW_TOKEN?.trim() || "";
@@ -62,8 +67,19 @@ async function login(formData: FormData): Promise<void> {
 async function logout(): Promise<void> {
   "use server";
   const store = await cookies();
-  store.delete({ name: COOKIE, path: "/" });
-  store.delete({ name: COOKIE, path: "/review" }); // also clear pre-lax-fix sessions (old path)
+  // Explicit maxAge:0 expiry (more reliable than .delete()) for the current cookie AND the legacy
+  // one at both the new (/) and old (/review) paths, so a stale pre-fix session is fully cleared.
+  const expire = (name: string, path: string) =>
+    store.set(name, "", {
+      path,
+      maxAge: 0,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    });
+  expire(COOKIE, "/");
+  expire(LEGACY_COOKIE, "/");
+  expire(LEGACY_COOKIE, "/review");
   redirect("/review");
 }
 
