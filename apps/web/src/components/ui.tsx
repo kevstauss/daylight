@@ -36,14 +36,16 @@ export function Timestamp({ iso, prefix }: { iso: string | null; prefix?: string
   if (!iso) return <span className="font-mono text-xs text-faint tabular-nums">—</span>;
   const d = new Date(iso);
   const valid = !Number.isNaN(d.getTime());
-  const text = valid ? d.toISOString().replace(".000Z", "Z") : iso;
+  // Minute precision — seconds/ms are noise for this data. `2026-07-01T16:53Z` (UTC). The full
+  // instant stays in the machine-readable dateTime attr + the human aria-label below.
+  const text = valid ? `${d.toISOString().slice(0, 16)}Z` : iso;
   const human = valid
     ? `${new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(d)} UTC`
     : iso;
   return (
     <time
       dateTime={iso}
-      className="font-mono text-xs text-faint tabular-nums"
+      className="whitespace-nowrap font-mono text-xs text-faint tabular-nums"
       aria-label={prefix ? `${prefix} ${human}` : human}
     >
       {prefix ? <span aria-hidden="true">{prefix} </span> : null}

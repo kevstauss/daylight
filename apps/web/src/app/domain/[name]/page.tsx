@@ -210,7 +210,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
                   <li key={c.id} className="flex items-start gap-3 px-4 py-3">
                     <SeverityBadge severity={c.severity} />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm text-ink">{synthesizeTitle(c)}</p>
+                      <p className="break-words text-sm text-ink">{synthesizeTitle(c)}</p>
                       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
                         <Timestamp iso={c.detected_at} />
                         <SourceRef href={c.source_url} />
@@ -246,16 +246,18 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
                 {subdomains.map((s: SubdomainRow) => (
                   <li key={s.fqdn} className="flex items-start gap-3 px-4 py-2.5">
                     <SeverityBadge severity={s.flag_severity ?? "info"} />
-                    <div className="min-w-0 flex-1">
-                      <Link
-                        href={`/domain/${encodeURIComponent(s.fqdn)}`}
-                        className="font-mono text-sm text-ink underline decoration-transparent underline-offset-2 hover:decoration-alarm"
-                      >
-                        {s.fqdn}
-                      </Link>
-                      {s.flag_reason ? <p className="mt-0.5 text-xs text-muted">{s.flag_reason}</p> : null}
+                    <div className="flex min-w-0 flex-1 flex-col gap-y-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                      <div className="min-w-0">
+                        <Link
+                          href={`/domain/${encodeURIComponent(s.fqdn)}`}
+                          className="break-all font-mono text-sm text-ink underline decoration-transparent underline-offset-2 hover:decoration-alarm"
+                        >
+                          {s.fqdn}
+                        </Link>
+                        {s.flag_reason ? <p className="mt-0.5 break-words text-xs text-muted">{s.flag_reason}</p> : null}
+                      </div>
+                      <Timestamp iso={s.first_seen} />
                     </div>
-                    <Timestamp iso={s.first_seen} />
                   </li>
                 ))}
               </ul>
