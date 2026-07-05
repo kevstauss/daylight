@@ -28,6 +28,7 @@ swap_size_mb = 512
   DAYLIGHT_FLOODLIGHT_CRON = "0 3 * * 1"   # weekly Mon 03:00 — tracker setups change slowly (browser-heavy)
   DAYLIGHT_RECEIPTS_CRON = "0 4 * * 1,4"   # Mon+Thu 04:00 — takedowns are time-sensitive, so 2x/week
   DAYLIGHT_REDTAPE_CRON = "0 5 * * 1,4"    # Mon+Thu 05:00 — after Floodlight; idempotent + re-checks published gaps
+  DAYLIGHT_FOUNDRY_CRON = "55 1 * * *"     # daily 01:55 — a beat after Lookout (reads its fresh CT certs)
   # Ledger increments — live as of v0.2.
   FLAG_LEDGER_REGISTRY = "1"
   FLAG_LEDGER_FEED = "1"
@@ -51,6 +52,9 @@ swap_size_mb = 512
   # shows human-reviewed + published rows (gate enforced in the DB layer). Wiring the AI
   # researcher needs ANTHROPIC_API_KEY + DAYLIGHT_REDTAPE_MODEL and a review workflow.
   FLAG_REDTAPE = "1"
+  # Foundry (Phase 6): vendor build-graph (CT×registry join). The /foundry page is computed-on-read;
+  # the scan (DAYLIGHT_FOUNDRY_CRON) records a /status heartbeat + emits new unlaunched-project changes.
+  FLAG_FOUNDRY = "1"
   # First-party, aggregate-only analytics shown on /privacy. Records a per-day count per route +
   # coarse referrer class (with the .gov apex when a federal site links in). Stores NO IP / user-
   # agent / cookie / session — the /privacy page publishes the exact retained schema. Unset in dev

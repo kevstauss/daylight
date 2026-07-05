@@ -12,6 +12,7 @@
   "types": "./src/index.ts",
   "scripts": {
     "report": "tsx src/cli.ts",
+    "scan": "tsx src/scan-cli.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
