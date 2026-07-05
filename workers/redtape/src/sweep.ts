@@ -120,15 +120,19 @@ export async function runRedtapeSweep(opts: {
 
   for (const candidate of candidates) {
     const key = evidenceKey(candidate.collectsPiiEvidence);
-    const alreadyAssessed = db
-      .gapsByDomain(candidate.domain)
-      .some((g) => evidenceKey(parseArr(g.collects_pii_evidence_json)) === key);
-    if (alreadyAssessed) {
+    const priorGaps = db.gapsByDomain(candidate.domain);
+    if (priorGaps.some((g) => evidenceKey(parseArr(g.collects_pii_evidence_json)) === key)) {
       out.skipped++;
       opts.log?.(`[redtape] ${candidate.domain}: unchanged evidence — skip`);
       continue;
     }
-    const r = await runRedtapeAssessment({ db, candidate, researcher, now: opts.now });
+    // Feed the most recent prior notes (human reviewer_note + agent_recommendation) back in for
+    // continuity when the evidence changed and we re-assess.
+    const latest = priorGaps[0];
+    const withNotes: ResearcherInput = latest
+      ? { ...candidate, priorNotes: { reviewerNote: latest.reviewer_note, agentRecommendation: latest.agent_recommendation } }
+      : candidate;
+    const r = await runRedtapeAssessment({ db, candidate: withNotes, researcher, now: opts.now });
     out.assessed++;
     opts.log?.(`[redtape] ${candidate.domain}: ${r.assessment} → gap #${r.gapId} queued`);
     if (paceMs > 0) await new Promise((res) => setTimeout(res, paceMs));
@@ -141,6 +145,7 @@ export async function runRedtapeSweep(opts: {
       domain: g.domain,
       url: g.url ?? null,
       collectsPiiEvidence: parseArr(g.collects_pii_evidence_json),
+      priorNotes: { reviewerNote: g.reviewer_note, agentRecommendation: g.agent_recommendation },
     };
     let parsed;
     try {
@@ -148,6 +153,8 @@ export async function runRedtapeSweep(opts: {
     } catch {
       parsed = null;
     }
+    // Refresh the internal recommendation from the re-check (internal-only; never public).
+    if (parsed?.recommendation) db.setGapAgentRecommendation(g.id, parsed.recommendation);
     if (parsed && parsed.gap_assessment === "covered") {
       db.requeueGap(
         g.id,

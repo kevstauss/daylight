@@ -592,11 +592,11 @@ export class DaylightDb {
         `INSERT INTO gaps
            (domain, url, collects_pii_evidence_json, pia_found, pia_refs_json, sorn_found,
             sorn_refs_json, queries_run_json, sources_checked_json, gap_assessment, confidence,
-            fact_vs_inference_notes, human_reviewed, reviewer_note, published, created_at)
+            fact_vs_inference_notes, agent_recommendation, human_reviewed, reviewer_note, published, created_at)
          VALUES
            (@domain, @url, @collectsPiiEvidenceJson, @piaFound, @piaRefsJson, @sornFound,
             @sornRefsJson, @queriesRunJson, @sourcesCheckedJson, @gapAssessment, @confidence,
-            @factVsInferenceNotes, 0, NULL, 0, @createdAt)`,
+            @factVsInferenceNotes, @agentRecommendation, 0, NULL, 0, @createdAt)`,
       )
       .run({
         domain: gap.domain,
@@ -611,6 +611,7 @@ export class DaylightDb {
         gapAssessment: gap.gapAssessment,
         confidence: gap.confidence ?? null,
         factVsInferenceNotes: gap.factVsInferenceNotes ?? null,
+        agentRecommendation: gap.agentRecommendation ?? null,
         createdAt: gap.createdAt,
       });
     return Number(info.lastInsertRowid);
@@ -632,7 +633,7 @@ export class DaylightDb {
     // public gap must carry a non-empty query + source trail so a stranger can re-verify the
     // absence. This blocks a trail-less `manual` gap even if a reviewer publishes it. (Explicit
     // IS NOT NULL / <> '[]' — SQL NULL comparisons via IN/NOT IN would silently never match.)
-    return this.sql
+    const rows = this.sql
       .prepare(
         `SELECT * FROM gaps
          WHERE human_reviewed = 1 AND published = 1
@@ -641,6 +642,11 @@ export class DaylightDb {
          ORDER BY created_at DESC, id DESC LIMIT ${n}`,
       )
       .all() as GapRow[];
+    // agent_recommendation is INTERNAL guidance — strip it from EVERY public read path (this method
+    // feeds /redtape, the feeds, and /api/v1/gaps). reviewer_note stays public (the human curates it
+    // before publishing); the agent's private recommendation must never leave the review screen.
+    for (const r of rows) r.agent_recommendation = null;
+    return rows;
   }
 
   /**
@@ -764,6 +770,14 @@ export class DaylightDb {
         .run({ id, note: r.reviewerNote ?? null, gapAssessment, modelAssessment, confidence });
     });
     tx();
+  }
+
+  /** Set the agent's INTERNAL recommendation on a gap (the re-check flow refreshes it; backfill uses
+   *  it too). This field is shown on /review and NEVER on the public /redtape path. */
+  setGapAgentRecommendation(id: number, recommendation: string | null): void {
+    this.sql
+      .prepare(`UPDATE gaps SET agent_recommendation = @rec WHERE id = @id`)
+      .run({ id, rec: recommendation });
   }
 
   /** All gaps for a domain (any state) — used to dedup re-assessment by evidence. */
@@ -992,6 +1006,7 @@ export interface GapInput {
   gapAssessment: string;
   confidence?: number | null;
   factVsInferenceNotes?: string | null;
+  agentRecommendation?: string | null;
   createdAt: string;
 }
 

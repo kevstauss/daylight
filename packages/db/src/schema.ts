@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS gaps (
   model_assessment TEXT,               -- the model's ORIGINAL label, preserved when a human reclassifies (provenance; NULL = never reclassified)
   confidence REAL,
   fact_vs_inference_notes TEXT,
+  agent_recommendation TEXT,           -- AI's INTERNAL per-run recommendation (Publish/Reject/reclassify + why). Shown on /review, NEVER on /redtape.
   human_reviewed INTEGER DEFAULT 0,
   reviewer_note TEXT,
   published INTEGER DEFAULT 0,

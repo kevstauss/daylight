@@ -298,4 +298,16 @@ describe("redtape review lifecycle", () => {
     const auto = db.insertGap(gap({ gapAssessment: "covered" })); // no reviewer_note
     expect(db.reviewQueueGaps().map((x) => x.id)).not.toContain(auto); // sweep non-finding → hidden
   });
+
+  it("agent_recommendation is stored + readable internally but STRIPPED from the public path", () => {
+    const id = db.insertGap(gap({ agentRecommendation: "Publish — no filing found for this small agency" }));
+    expect(db.getGap(id)?.agent_recommendation).toBe("Publish — no filing found for this small agency"); // internal keeps it
+    db.reviewGap(id, { published: true, disposition: "published" });
+    const pub = db.publicGaps().find((x) => x.id === id);
+    expect(pub).toBeTruthy();
+    expect(pub?.agent_recommendation).toBeNull(); // never leaves the public read path
+    // reviewer_note stays public by design (the human curates it before publishing)
+    db.reviewGap(id, { published: true, disposition: "published", reviewerNote: "curated public note" });
+    expect(db.publicGaps().find((x) => x.id === id)?.reviewer_note).toBe("curated public note");
+  });
 });

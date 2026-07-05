@@ -3,6 +3,7 @@ import { loadWatchlist } from "@daylight/core";
 import { createDb, type DaylightDb, type GapRow } from "@daylight/db";
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildCandidates, claudeResearcher, parseAgentJson, runRedtapeAssessment, runRedtapeSweep, searchSorns } from "./index.js";
+import { buildUserInput } from "./agent.js";
 import type { Researcher, ResearcherInput } from "./types.js";
 
 const watchlist = loadWatchlist(fileURLToPath(new URL("../../../config/watchlist.yaml", import.meta.url)));
@@ -456,6 +457,40 @@ describe("tool-use researcher actually searches before concluding", () => {
     };
     await claudeResearcher({ apiKey: "k", fetchImpl, enablePageFetch: false, search: async () => [] })(candidate);
     expect((bodies[0]?.tools ?? []).some((t) => t.name === "fetch_public_page")).toBe(false);
+  });
+});
+
+describe("agent recommendation + prior-note context", () => {
+  it("parseAgentJson captures the internal recommendation (empty when absent)", () => {
+    const withRec = parseAgentJson(
+      JSON.stringify({
+        pia_found: false,
+        sorn_found: false,
+        gap_assessment: "no_filing",
+        queries_run: ["q"],
+        sources_checked: ["s"],
+        recommendation: "Publish — small agency, no filing found",
+      }),
+    );
+    expect(withRec?.recommendation).toBe("Publish — small agency, no filing found");
+    const without = parseAgentJson(
+      JSON.stringify({ pia_found: false, sorn_found: false, gap_assessment: "no_filing", queries_run: ["q"], sources_checked: ["s"] }),
+    );
+    expect(without?.recommendation).toBe("");
+  });
+
+  it("buildUserInput feeds prior human + agent notes back to the model (and omits them when absent)", () => {
+    const withNotes = buildUserInput({
+      domain: "x.gov",
+      url: null,
+      collectsPiiEvidence: ["email"],
+      priorNotes: { reviewerNote: "human: this is EOP", agentRecommendation: "Publish (no_filing)" },
+    });
+    expect(withNotes).toContain("prior human reviewer note: human: this is EOP");
+    expect(withNotes).toContain("your prior recommendation: Publish (no_filing)");
+    const bare = buildUserInput({ domain: "y.gov", url: null, collectsPiiEvidence: [] });
+    expect(bare).not.toContain("prior human reviewer note");
+    expect(bare).not.toContain("your prior recommendation");
   });
 });
 

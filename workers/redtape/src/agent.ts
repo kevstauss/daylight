@@ -3,7 +3,7 @@ import { searchSorns, type SornRef } from "./federalregister.js";
 import { fetchPublicPage, type FetchPageResult } from "./fetchpage.js";
 import type { Researcher, ResearcherInput, ResearcherOutput } from "./types.js";
 
-export const PROMPT_VERSION = "redtape/2026-07-05-websearch";
+export const PROMPT_VERSION = "redtape/2026-07-05-recommendation";
 
 // Blank / whitespace-only strings are treated as absent: the §7.6 "documented negative"
 // invariant requires a trail a stranger can actually re-run, so [""] must not satisfy it.
@@ -49,6 +49,7 @@ export function parseAgentJson(raw: string): ResearcherOutput | null {
     queries_run: queries,
     sources_checked: sources,
     fact_vs_inference_notes: typeof o.fact_vs_inference_notes === "string" ? o.fact_vs_inference_notes : "",
+    recommendation: typeof o.recommendation === "string" ? o.recommendation : "",
   };
 }
 
@@ -79,20 +80,30 @@ const SYSTEM_INSTRUCTIONS = [
   "omits this specific processor/collection), covered (a filing plainly covers it).",
   "Be neutral and precise; NEVER assert illegality. Label every claim fact vs inference.",
   "",
+  "If the input includes PRIOR notes on this domain (a human 'reviewer note' and/or 'your prior",
+  "recommendation'), read them as context: build on them, and don't contradict a documented human",
+  "finding without explaining why.",
+  "",
   "When finished searching, respond with JSON ONLY (no prose, no markdown fences) with keys:",
   "pia_found, pia_refs[], sorn_found, sorn_refs[], gap_assessment (no_filing|incomplete_filing|covered),",
   "confidence (0..1), queries_run[] (EVERY exact search you ran — Federal Register AND web_search),",
   "sources_checked[] (each source/URL you actually relied on — 'federalregister.gov/api' plus the",
-  "agency PIA-inventory URLs you opened), fact_vs_inference_notes. If you find no filing, say so and",
-  "list the queries + sources so the negative is independently re-checkable.",
+  "agency PIA-inventory URLs you opened), fact_vs_inference_notes, and recommendation (an INTERNAL",
+  "one-liner for the human reviewer — 'Publish', 'Reject', or 'Reclassify to <label>' + a brief why;",
+  "it guides their decision and is NEVER shown publicly). If you find no filing, say so and list the",
+  "queries + sources so the negative is independently re-checkable.",
 ].join("\n");
 
 export function buildUserInput(input: ResearcherInput): string {
-  return [
+  const lines = [
     `domain: ${input.domain}`,
     `url: ${input.url ?? "(none)"}`,
     `collection evidence: ${JSON.stringify(input.collectsPiiEvidence)}`,
-  ].join("\n");
+  ];
+  const p = input.priorNotes;
+  if (p?.reviewerNote?.trim()) lines.push(`prior human reviewer note: ${p.reviewerNote.trim()}`);
+  if (p?.agentRecommendation?.trim()) lines.push(`your prior recommendation: ${p.agentRecommendation.trim()}`);
+  return lines.join("\n");
 }
 
 /** Full prompt (system + input) — kept for reference/compat. */

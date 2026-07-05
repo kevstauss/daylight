@@ -68,6 +68,7 @@ export async function runRedtapeAssessment(opts: RunRedtapeOptions): Promise<Run
     gapAssessment: parsed.gap_assessment,
     confidence: parsed.confidence,
     factVsInferenceNotes: parsed.fact_vs_inference_notes,
+    agentRecommendation: parsed.recommendation || null,
     createdAt: now,
   });
   return { ok: true, manual: false, gapId, assessment: parsed.gap_assessment };

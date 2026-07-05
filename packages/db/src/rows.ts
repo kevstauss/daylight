@@ -118,6 +118,7 @@ export interface GapRow {
   model_assessment: string | null; // the model's original label, preserved on human reclassification
   confidence: number | null;
   fact_vs_inference_notes: string | null;
+  agent_recommendation: string | null; // AI's internal per-run recommendation; shown on /review, never public
   human_reviewed: number | null;
   reviewer_note: string | null;
   published: number | null;

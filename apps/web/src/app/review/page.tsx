@@ -403,6 +403,14 @@ function Reclassify({ g }: { g: GapRow }) {
 function GapEvidence({ g }: { g: GapRow }) {
   return (
     <>
+      {g.agent_recommendation ? (
+        <div className="mt-1.5 rounded border border-accent/40 bg-accent/5 px-2.5 py-1.5">
+          <div className="font-mono text-[10px] uppercase tracking-wide text-accent">
+            agent recommendation · internal only, never published
+          </div>
+          <p className="mt-0.5 break-words text-sm text-ink">{g.agent_recommendation}</p>
+        </div>
+      ) : null}
       {g.fact_vs_inference_notes ? (
         <p className="mt-1.5 break-words text-sm text-muted">{g.fact_vs_inference_notes}</p>
       ) : null}
