@@ -43,4 +43,5 @@ function applyAdditiveColumns(db: Sqlite): void {
   };
   ensure("changes", "source_url", "TEXT");
   ensure("scorecards", "form_fields_json", "TEXT");
+  ensure("gaps", "review_disposition", "TEXT");
 }

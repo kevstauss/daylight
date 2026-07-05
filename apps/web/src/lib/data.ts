@@ -203,13 +203,21 @@ export function reviewQueue(limit = 200): GapRow[] {
   return getDb().reviewQueueGaps(limit);
 }
 
-export function reviewGap(id: number, opts: { published: boolean; reviewerNote?: string | null }): void {
+export function reviewGap(
+  id: number,
+  opts: { published: boolean; reviewerNote?: string | null; disposition?: string | null },
+): void {
   getDb().reviewGap(id, opts);
 }
 
-/** Internal only — recently reviewed gaps (published/held/rejected), for the /review "Reviewed" panel. */
+/** Internal only — reviewed gaps except held (published/rejected), for the /review "Reviewed" panel. */
 export function reviewedGaps(limit = 50): GapRow[] {
   return getDb().reviewedGaps(limit);
+}
+
+/** Internal only — gaps held to revisit later, for the /review "Held" section. */
+export function heldGaps(limit = 50): GapRow[] {
+  return getDb().heldGaps(limit);
 }
 
 /** Internal only — return a reviewed gap to the queue to revise the decision. */

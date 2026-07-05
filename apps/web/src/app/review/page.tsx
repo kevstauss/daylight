@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { GapRow } from "@/lib/data";
-import { reviewGap, reviewQueue, reviewedGaps, reopenGapForRevision } from "@/lib/data";
+import { reviewGap, reviewQueue, reviewedGaps, heldGaps, reopenGapForRevision } from "@/lib/data";
 import { Eyebrow, Panel } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Review queue", robots: { index: false, follow: false } };
@@ -75,8 +75,13 @@ async function actReview(formData: FormData): Promise<void> {
   const decision = String(formData.get("decision") ?? "");
   const note = String(formData.get("note") ?? "").trim() || null;
   if (!Number.isFinite(id) || !["publish", "hold", "reject"].includes(decision)) return;
-  // publish → public; hold/reject → reviewed but withheld. All leave the queue.
-  reviewGap(id, { published: decision === "publish", reviewerNote: note });
+  // publish → public; hold → reviewed, kept private, flagged to revisit; reject → dismissed.
+  // The disposition persists WHICH so Held gets its own section. All leave the main queue.
+  reviewGap(id, {
+    published: decision === "publish",
+    reviewerNote: note,
+    disposition: decision === "publish" ? "published" : decision, // 'held' | 'rejected'
+  });
   revalidatePath("/review");
 }
 
@@ -118,6 +123,7 @@ export default async function ReviewPage() {
   }
 
   const queue = safe(() => reviewQueue(200), [] as GapRow[]);
+  const held = safe(() => heldGaps(50), [] as GapRow[]);
   const reviewed = safe(() => reviewedGaps(30), [] as GapRow[]);
 
   return (
@@ -205,15 +211,68 @@ export default async function ReviewPage() {
         </div>
       )}
 
+      {held.length > 0 ? (
+        <div className="space-y-3 border-t border-edge pt-6">
+          <div>
+            <Eyebrow>held · revisit later</Eyebrow>
+            <h2 className="text-lg font-semibold tracking-tight text-signal">Held for review</h2>
+            <p className="mt-1 max-w-measure text-sm text-muted">
+              Reviewed and kept private, flagged to come back to. Update the note and re-decide, or
+              send it back to the active queue. Nothing here is public.
+            </p>
+          </div>
+          <div className="space-y-3">
+            {held.map((g) => (
+              <Panel key={g.id} className="border-l-2 border-signal/60 px-4 py-3">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <span className="font-mono text-sm text-ink">{g.domain}</span>
+                  <span className="rounded-sm border border-edgeStrong px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted">
+                    {g.gap_assessment ?? "?"}
+                  </span>
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-signal">held</span>
+                </div>
+                <form action={actReview} className="mt-2 space-y-2">
+                  <input type="hidden" name="id" value={g.id} />
+                  <textarea
+                    name="note"
+                    rows={2}
+                    defaultValue={g.reviewer_note ?? ""}
+                    placeholder="Reviewer note…"
+                    className="w-full rounded border border-edge bg-panel px-2 py-1.5 text-xs text-ink placeholder:text-faint focus:border-accent"
+                  />
+                  <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+                    <button type="submit" name="decision" value="publish" className="rounded border border-calm/60 px-3 py-1 text-calm transition-colors hover:border-calm">
+                      Publish
+                    </button>
+                    <button type="submit" name="decision" value="hold" className="rounded border border-signal/60 px-3 py-1 text-signal transition-colors hover:border-signal">
+                      Keep on hold
+                    </button>
+                    <button type="submit" name="decision" value="reject" className="rounded border border-alarm/60 px-3 py-1 text-alarm transition-colors hover:border-alarm">
+                      Reject
+                    </button>
+                  </div>
+                </form>
+                <form action={actReopen} className="mt-1.5">
+                  <input type="hidden" name="id" value={g.id} />
+                  <button type="submit" className="font-mono text-xs text-faint hover:text-ink">
+                    return to queue →
+                  </button>
+                </form>
+              </Panel>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {reviewed.length > 0 ? (
         <div className="space-y-3 border-t border-edge pt-6">
           <div>
             <Eyebrow>reviewed</Eyebrow>
             <h2 className="text-lg font-semibold tracking-tight">Recently reviewed</h2>
             <p className="mt-1 max-w-measure text-sm text-muted">
-              Your last decisions. <span className="font-mono">Published</span> items are live on{" "}
-              <span className="font-mono">/redtape</span>; held/rejected ones stay private. Return
-              any to the queue to revise — re-opening a published item logs a public correction.
+              Published &amp; rejected decisions. <span className="font-mono">Published</span> items
+              are live on <span className="font-mono">/redtape</span>; rejected ones stay private.
+              Return any to the queue to revise — re-opening a published item logs a public correction.
             </p>
           </div>
           <div className="space-y-2">

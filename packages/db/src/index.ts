@@ -661,13 +661,20 @@ export class DaylightDb {
       .all() as GapRow[];
   }
 
-  /** Human review action — approve/reject + optional publish. */
-  reviewGap(id: number, r: { published: boolean; reviewerNote?: string | null }): void {
+  /** Human review action — publish / hold / reject. `disposition` records WHICH decision so the UI
+   *  can separate "held — revisit later" from "rejected" (both are published = 0, so the published
+   *  bit alone can't tell them apart). Defaults to published → 'published', else 'rejected'. */
+  reviewGap(
+    id: number,
+    r: { published: boolean; reviewerNote?: string | null; disposition?: string | null },
+  ): void {
+    const disposition = r.disposition ?? (r.published ? "published" : "rejected");
     this.sql
       .prepare(
-        `UPDATE gaps SET human_reviewed = 1, published = @published, reviewer_note = @note WHERE id = @id`,
+        `UPDATE gaps SET human_reviewed = 1, published = @published, reviewer_note = @note,
+                         review_disposition = @disposition WHERE id = @id`,
       )
-      .run({ id, published: r.published ? 1 : 0, note: r.reviewerNote ?? null });
+      .run({ id, published: r.published ? 1 : 0, note: r.reviewerNote ?? null, disposition });
   }
 
   /** All gaps for a domain (any state) — used to dedup re-assessment by evidence. */
@@ -700,24 +707,42 @@ export class DaylightDb {
     }
   }
 
-  /** Recently human-reviewed gaps (published, held, or rejected) — powers the /review "Reviewed"
-   *  panel so a past decision can be seen and revised. NOT a public path; the public gate stays
+  /** Reviewed gaps EXCEPT held — published or rejected decisions, for the /review "Reviewed" panel.
+   *  Held gaps get their own revisit section (heldGaps). NOT a public path; the public gate stays
    *  publicGaps() (human_reviewed = 1 AND published = 1). */
   reviewedGaps(limit = 50): GapRow[] {
     const n = Math.max(1, Math.min(limit, 1000));
     return this.sql
-      .prepare(`SELECT * FROM gaps WHERE human_reviewed = 1 ORDER BY id DESC LIMIT ${n}`)
+      .prepare(
+        `SELECT * FROM gaps
+         WHERE human_reviewed = 1 AND (review_disposition IS NULL OR review_disposition != 'held')
+         ORDER BY id DESC LIMIT ${n}`,
+      )
+      .all() as GapRow[];
+  }
+
+  /** Gaps the reviewer HELD to revisit later (reviewed, kept private, flagged 'held'). Its own
+   *  /review section so a "come back to this" decision isn't buried among rejects. Never public. */
+  heldGaps(limit = 50): GapRow[] {
+    const n = Math.max(1, Math.min(limit, 1000));
+    return this.sql
+      .prepare(
+        `SELECT * FROM gaps WHERE human_reviewed = 1 AND review_disposition = 'held'
+         ORDER BY id DESC LIMIT ${n}`,
+      )
       .all() as GapRow[];
   }
 
   /** Return a reviewed gap to the queue to revise the decision. If it was PUBLISHED, this
    *  un-publishes it AND logs a public correction (we never quietly drop a public claim). If it
    *  was only held/rejected (never public), it simply re-queues — no correction, since nothing was
-   *  ever published. The prior reviewer_note is kept as context for the re-review. */
+   *  ever published. The prior reviewer_note is kept as context; the disposition is cleared. */
   reopenGapForRevision(id: number): void {
     const gap = this.getGap(id);
     const wasPublished = gap?.published === 1;
-    this.sql.prepare(`UPDATE gaps SET human_reviewed = 0, published = 0 WHERE id = @id`).run({ id });
+    this.sql
+      .prepare(`UPDATE gaps SET human_reviewed = 0, published = 0, review_disposition = NULL WHERE id = @id`)
+      .run({ id });
     if (wasPublished && gap) {
       this.insertCorrection({
         domain: gap.domain,

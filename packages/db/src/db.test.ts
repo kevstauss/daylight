@@ -163,7 +163,7 @@ describe("redtape review lifecycle", () => {
     ...over,
   });
 
-  it("reviewGap moves a gap out of the queue and into reviewedGaps", () => {
+  it("reviewGap (default reject) moves a gap out of the queue and into reviewedGaps", () => {
     const id = db.insertGap(gap());
     expect(db.reviewQueueGaps().map((g) => g.id)).toContain(id);
     expect(db.reviewedGaps()).toHaveLength(0);
@@ -174,17 +174,30 @@ describe("redtape review lifecycle", () => {
     const reviewed = db.reviewedGaps();
     expect(reviewed).toHaveLength(1);
     expect(reviewed[0]?.published).toBe(0);
+    expect(reviewed[0]?.review_disposition).toBe("rejected"); // no disposition + unpublished → rejected
     expect(reviewed[0]?.reviewer_note).toBe("no PIA required per FY2011 AFR");
   });
 
-  it("reopenGapForRevision requeues a HELD gap WITHOUT logging a public correction", () => {
+  it("Hold routes a gap to heldGaps (not reviewedGaps) and out of the active queue", () => {
     const id = db.insertGap(gap());
-    db.reviewGap(id, { published: false, reviewerNote: "held" });
+    db.reviewGap(id, { published: false, reviewerNote: "revisit after AFR check", disposition: "held" });
+
+    expect(db.heldGaps().map((g) => g.id)).toContain(id);
+    expect(db.heldGaps()[0]?.review_disposition).toBe("held");
+    expect(db.reviewedGaps().map((g) => g.id)).not.toContain(id); // held is excluded from Reviewed
+    expect(db.reviewQueueGaps().map((g) => g.id)).not.toContain(id); // left the active queue
+  });
+
+  it("reopenGapForRevision requeues a held gap, clears disposition, logs NO correction", () => {
+    const id = db.insertGap(gap());
+    db.reviewGap(id, { published: false, reviewerNote: "revisit", disposition: "held" });
+    expect(db.heldGaps().map((g) => g.id)).toContain(id);
 
     db.reopenGapForRevision(id);
 
     expect(db.reviewQueueGaps().map((g) => g.id)).toContain(id); // back in the queue
-    expect(db.reviewedGaps()).toHaveLength(0);
+    expect(db.heldGaps()).toHaveLength(0);
+    expect(db.getGap(id)?.review_disposition).toBeNull(); // disposition cleared on requeue
     expect(db.listCorrections()).toHaveLength(0); // never public → no retraction
   });
 

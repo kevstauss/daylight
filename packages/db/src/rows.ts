@@ -120,6 +120,7 @@ export interface GapRow {
   human_reviewed: number | null;
   reviewer_note: string | null;
   published: number | null;
+  review_disposition: string | null; // 'published' | 'held' | 'rejected' | null
   created_at: string;
 }
 

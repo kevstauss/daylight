@@ -141,6 +141,7 @@ CREATE TABLE IF NOT EXISTS gaps (
   human_reviewed INTEGER DEFAULT 0,
   reviewer_note TEXT,
   published INTEGER DEFAULT 0,
+  review_disposition TEXT,             -- 'published' | 'held' | 'rejected' (human decision; NULL = legacy/unreviewed)
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_gaps_domain ON gaps(domain, created_at DESC);
