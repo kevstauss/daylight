@@ -14,7 +14,7 @@ export function BackToTop() {
   useEffect(() => {
     const check = () => {
       const y = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-      setShow(y > 300);
+      setShow(y > 150);
     };
     check();
     window.addEventListener("scroll", check, { passive: true });
