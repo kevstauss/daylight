@@ -83,25 +83,16 @@ async function logout(): Promise<void> {
   redirect("/review");
 }
 
-async function actReview(formData: FormData): Promise<void> {
+// `decision` is BOUND per button (actReview.bind(null, "publish"|"hold"|"reject") on each button's
+// formAction — see the forms below), NOT read from formData. A submit button's name/value is not
+// reliably included in a React Server Action's FormData, so `formData.get("decision")` came back
+// null and every click silently early-returned (disposition undefined). Binding passes the decision
+// as a guaranteed first argument; the rest of the fields still travel via formData.
+async function actReview(decision: string, formData: FormData): Promise<void> {
   "use server";
-  // TEMP DIAGNOSTIC (remove after): trace exactly which path the action takes in prod, since
-  // `next start` doesn't log requests and the reject appeared to silently no-op.
-  const ok = await authed();
-  console.error(
-    `[review:diag] authed=${ok} keys=${JSON.stringify(Array.from(formData.keys()))} ` +
-      `decision=${String(formData.get("decision"))} id=${String(formData.get("id"))} ` +
-      `assessment=${String(formData.get("assessment"))} confidence=${String(formData.get("confidence"))}`,
-  );
-  // If the session lapsed, bounce to the login screen rather than silently doing nothing — a
-  // silent no-op made a click look successful (the item flashed away on re-render) while nothing
-  // was written. Landing back on /review shows the login form, which is the honest signal.
-  if (!ok) {
-    console.error("[review:diag] AUTH FAILED on POST → redirect to /review");
-    redirect("/review");
-  }
+  // If the session lapsed, bounce to the login screen rather than silently doing nothing.
+  if (!(await authed())) redirect("/review");
   const id = Number(formData.get("id"));
-  const decision = String(formData.get("decision") ?? "");
   const note = String(formData.get("note") ?? "").trim() || null;
   // Reviewer reclassification: an assessment override and/or a confidence override. Empty = leave
   // the model's value as-is. The data layer preserves the model's original label in model_assessment.
@@ -109,7 +100,7 @@ async function actReview(formData: FormData): Promise<void> {
   const confidenceRaw = String(formData.get("confidence") ?? "").trim();
   const confidenceNum = confidenceRaw === "" ? null : Number(confidenceRaw);
   const confidence = confidenceNum !== null && Number.isFinite(confidenceNum) ? confidenceNum : null;
-  // Map the button value → the canonical disposition the queries use. (heldGaps looks for 'held',
+  // Map the bound decision → the canonical disposition the queries use. (heldGaps looks for 'held',
   // NOT the raw button value 'hold' — mismatching them silently drops held items from the section.)
   const DISPOSITION: Record<string, "published" | "held" | "rejected"> = {
     publish: "published",
@@ -117,18 +108,9 @@ async function actReview(formData: FormData): Promise<void> {
     reject: "rejected",
   };
   const disposition = DISPOSITION[decision];
-  if (!Number.isFinite(id) || !disposition) {
-    console.error(`[review:diag] EARLY RETURN — id=${id} decision=${decision} disposition=${disposition}`);
-    return;
-  }
+  if (!Number.isFinite(id) || !disposition) return;
   // publish → public; hold → reviewed, kept private, flagged to revisit; reject → dismissed.
-  try {
-    reviewGap(id, { published: decision === "publish", reviewerNote: note, disposition, assessment, confidence });
-    console.error(`[review:diag] reviewGap OK — id=${id} disposition=${disposition} assessment=${assessment}`);
-  } catch (e) {
-    console.error(`[review:diag] reviewGap THREW — id=${id}`, e);
-    throw e;
-  }
+  reviewGap(id, { published: decision === "publish", reviewerNote: note, disposition, assessment, confidence });
   revalidatePath("/review");
 }
 
@@ -212,7 +194,7 @@ export default async function ReviewPage() {
               </div>
               <GapEvidence g={g} />
 
-              <form action={actReview} className="mt-3 space-y-2 border-t border-edge pt-3">
+              <form action={actReview.bind(null, "hold")} className="mt-3 space-y-2 border-t border-edge pt-3">
                 <input type="hidden" name="id" value={g.id} />
                 <textarea
                   name="note"
@@ -224,24 +206,21 @@ export default async function ReviewPage() {
                 <div className="flex flex-wrap gap-2 font-mono text-xs">
                   <button
                     type="submit"
-                    name="decision"
-                    value="publish"
+                    formAction={actReview.bind(null, "publish")}
                     className="rounded border border-calm/60 px-3 py-1 text-calm transition-colors hover:border-calm"
                   >
                     Publish
                   </button>
                   <button
                     type="submit"
-                    name="decision"
-                    value="hold"
+                    formAction={actReview.bind(null, "hold")}
                     className="rounded border border-edgeStrong px-3 py-1 text-muted transition-colors hover:border-ink hover:text-ink"
                   >
                     Hold (reviewed, keep private)
                   </button>
                   <button
                     type="submit"
-                    name="decision"
-                    value="reject"
+                    formAction={actReview.bind(null, "reject")}
                     className="rounded border border-alarm/60 px-3 py-1 text-alarm transition-colors hover:border-alarm"
                   >
                     Reject
@@ -274,7 +253,7 @@ export default async function ReviewPage() {
                   <span className="font-mono text-[10px] uppercase tracking-wider text-signal">held</span>
                 </div>
                 <GapEvidence g={g} />
-                <form action={actReview} className="mt-3 space-y-2 border-t border-edge pt-3">
+                <form action={actReview.bind(null, "hold")} className="mt-3 space-y-2 border-t border-edge pt-3">
                   <input type="hidden" name="id" value={g.id} />
                   <textarea
                     name="note"
@@ -285,13 +264,13 @@ export default async function ReviewPage() {
                   />
                   <Reclassify g={g} />
                   <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-                    <button type="submit" name="decision" value="publish" className="rounded border border-calm/60 px-3 py-1 text-calm transition-colors hover:border-calm">
+                    <button type="submit" formAction={actReview.bind(null, "publish")} className="rounded border border-calm/60 px-3 py-1 text-calm transition-colors hover:border-calm">
                       Publish
                     </button>
-                    <button type="submit" name="decision" value="hold" className="rounded border border-signal/60 px-3 py-1 text-signal transition-colors hover:border-signal">
+                    <button type="submit" formAction={actReview.bind(null, "hold")} className="rounded border border-signal/60 px-3 py-1 text-signal transition-colors hover:border-signal">
                       Keep on hold
                     </button>
-                    <button type="submit" name="decision" value="reject" className="rounded border border-alarm/60 px-3 py-1 text-alarm transition-colors hover:border-alarm">
+                    <button type="submit" formAction={actReview.bind(null, "reject")} className="rounded border border-alarm/60 px-3 py-1 text-alarm transition-colors hover:border-alarm">
                       Reject
                     </button>
                   </div>
