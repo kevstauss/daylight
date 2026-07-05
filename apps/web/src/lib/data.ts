@@ -205,7 +205,13 @@ export function reviewQueue(limit = 200): GapRow[] {
 
 export function reviewGap(
   id: number,
-  opts: { published: boolean; reviewerNote?: string | null; disposition?: string | null },
+  opts: {
+    published: boolean;
+    reviewerNote?: string | null;
+    disposition?: string | null;
+    assessment?: string | null;
+    confidence?: number | null;
+  },
 ): void {
   getDb().reviewGap(id, opts);
 }

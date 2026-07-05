@@ -222,4 +222,48 @@ describe("redtape review lifecycle", () => {
     expect(corrections[0]?.kind).toBe("retraction");
     expect(corrections[0]?.ref_id).toBe(id);
   });
+
+  it("reviewGap reclassifies the assessment and preserves the model's original label", () => {
+    const id = db.insertGap(gap({ gapAssessment: "no_filing" }));
+    db.reviewGap(id, { published: true, disposition: "published", assessment: "incomplete_filing", reviewerNote: "found the TAP SORN" });
+    const g = db.getGap(id);
+    expect(g?.gap_assessment).toBe("incomplete_filing"); // effective/published label is the human's
+    expect(g?.model_assessment).toBe("no_filing"); // model's original preserved for provenance
+  });
+
+  it("re-reclassifying keeps the model's EARLIEST label, not the previous human value", () => {
+    const id = db.insertGap(gap({ gapAssessment: "no_filing" }));
+    db.reviewGap(id, { published: false, disposition: "held", assessment: "incomplete_filing" });
+    db.reviewGap(id, { published: false, disposition: "held", assessment: "covered" });
+    const g = db.getGap(id);
+    expect(g?.gap_assessment).toBe("covered");
+    expect(g?.model_assessment).toBe("no_filing"); // still the model's original, not "incomplete_filing"
+  });
+
+  it("reviewing without an override (or with the same value) leaves assessment + provenance untouched", () => {
+    const id = db.insertGap(gap({ gapAssessment: "incomplete_filing" }));
+    db.reviewGap(id, { published: false, disposition: "held", reviewerNote: "hold" });
+    expect(db.getGap(id)?.model_assessment).toBeNull(); // never reclassified → no provenance noise
+    db.reviewGap(id, { published: false, disposition: "held", assessment: "incomplete_filing" }); // same value
+    const g = db.getGap(id);
+    expect(g?.gap_assessment).toBe("incomplete_filing");
+    expect(g?.model_assessment).toBeNull(); // a no-op override must not stamp provenance
+  });
+
+  it("rejects an out-of-set assessment override (incl. 'manual') and does not partially write", () => {
+    const id = db.insertGap(gap({ gapAssessment: "no_filing" }));
+    expect(() => db.reviewGap(id, { published: false, assessment: "totally_fine" })).toThrow(/invalid assessment/);
+    expect(() => db.reviewGap(id, { published: false, assessment: "manual" })).toThrow(/invalid assessment/);
+    const g = db.getGap(id);
+    expect(g?.gap_assessment).toBe("no_filing"); // unchanged
+    expect(g?.human_reviewed).toBe(0); // threw before any write
+  });
+
+  it("clamps a reviewer confidence override into [0,1]", () => {
+    const id = db.insertGap(gap());
+    db.reviewGap(id, { published: false, disposition: "held", confidence: 5 });
+    expect(db.getGap(id)?.confidence).toBe(1);
+    db.reviewGap(id, { published: false, disposition: "held", confidence: -2 });
+    expect(db.getGap(id)?.confidence).toBe(0);
+  });
 });

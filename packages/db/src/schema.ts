@@ -135,7 +135,8 @@ CREATE TABLE IF NOT EXISTS gaps (
   sorn_refs_json TEXT,
   queries_run_json TEXT,               -- exact searches — makes the NEGATIVE checkable
   sources_checked_json TEXT,
-  gap_assessment TEXT,                 -- 'no_filing' | 'incomplete_filing' | 'covered' | 'manual'
+  gap_assessment TEXT,                 -- 'no_filing' | 'incomplete_filing' | 'covered' | 'manual' (effective/published)
+  model_assessment TEXT,               -- the model's ORIGINAL label, preserved when a human reclassifies (provenance; NULL = never reclassified)
   confidence REAL,
   fact_vs_inference_notes TEXT,
   human_reviewed INTEGER DEFAULT 0,

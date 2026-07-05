@@ -663,10 +663,21 @@ export class DaylightDb {
 
   /** Human review action — publish / hold / reject. `disposition` records WHICH decision so the UI
    *  can separate "held — revisit later" from "rejected" (both are published = 0, so the published
-   *  bit alone can't tell them apart). Defaults to published → 'published', else 'rejected'. */
+   *  bit alone can't tell them apart). Defaults to published → 'published', else 'rejected'.
+   *
+   *  The reviewer may also RECLASSIFY: pass `assessment` to override the model's gap_assessment
+   *  (e.g. after finding a filing the Federal-Register-only agent missed) and/or `confidence`. The
+   *  model's ORIGINAL label is preserved once in `model_assessment` so the machine's interpretation
+   *  is never silently overwritten (raw + interpretation preserved — provenance). */
   reviewGap(
     id: number,
-    r: { published: boolean; reviewerNote?: string | null; disposition?: string | null },
+    r: {
+      published: boolean;
+      reviewerNote?: string | null;
+      disposition?: string | null;
+      assessment?: string | null;
+      confidence?: number | null;
+    },
   ): void {
     const disposition = r.disposition ?? (r.published ? "published" : "rejected");
     // Guard the canonical set. heldGaps()/reviewedGaps() key off exactly these strings, so a caller
@@ -675,12 +686,44 @@ export class DaylightDb {
     if (disposition !== "published" && disposition !== "held" && disposition !== "rejected") {
       throw new Error(`reviewGap: invalid disposition "${disposition}" (expected published|held|rejected)`);
     }
-    this.sql
-      .prepare(
-        `UPDATE gaps SET human_reviewed = 1, published = @published, reviewer_note = @note,
-                         review_disposition = @disposition WHERE id = @id`,
-      )
-      .run({ id, published: r.published ? 1 : 0, note: r.reviewerNote ?? null, disposition });
+    // A reviewer can reclassify only to one of the three real assessments — never to 'manual'
+    // (the parse-failure sentinel, not a human choice).
+    const override = r.assessment?.trim() || null;
+    if (override && override !== "no_filing" && override !== "incomplete_filing" && override !== "covered") {
+      throw new Error(`reviewGap: invalid assessment "${override}" (expected no_filing|incomplete_filing|covered)`);
+    }
+    const tx = this.sql.transaction(() => {
+      const cur = this.getGap(id);
+      let gapAssessment = cur?.gap_assessment ?? null;
+      let modelAssessment = cur?.model_assessment ?? null;
+      let confidence = cur?.confidence ?? null;
+      if (override && override !== gapAssessment) {
+        // Preserve the model's original interpretation the FIRST time it's overridden. On a later
+        // re-edit we keep the earliest model label, not the previous human value.
+        if (modelAssessment === null) modelAssessment = gapAssessment;
+        gapAssessment = override;
+      }
+      if (r.confidence !== null && r.confidence !== undefined && Number.isFinite(r.confidence)) {
+        confidence = Math.max(0, Math.min(1, r.confidence));
+      }
+      this.sql
+        .prepare(
+          `UPDATE gaps SET human_reviewed = 1, published = @published, reviewer_note = @note,
+                           review_disposition = @disposition, gap_assessment = @gapAssessment,
+                           model_assessment = @modelAssessment, confidence = @confidence
+             WHERE id = @id`,
+        )
+        .run({
+          id,
+          published: r.published ? 1 : 0,
+          note: r.reviewerNote ?? null,
+          disposition,
+          gapAssessment,
+          modelAssessment,
+          confidence,
+        });
+    });
+    tx();
   }
 
   /** All gaps for a domain (any state) — used to dedup re-assessment by evidence. */

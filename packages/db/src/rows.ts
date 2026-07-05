@@ -114,7 +114,8 @@ export interface GapRow {
   sorn_refs_json: string | null;
   queries_run_json: string | null;
   sources_checked_json: string | null;
-  gap_assessment: string | null;
+  gap_assessment: string | null; // effective/published label
+  model_assessment: string | null; // the model's original label, preserved on human reclassification
   confidence: number | null;
   fact_vs_inference_notes: string | null;
   human_reviewed: number | null;

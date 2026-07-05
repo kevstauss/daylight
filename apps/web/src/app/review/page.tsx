@@ -92,6 +92,12 @@ async function actReview(formData: FormData): Promise<void> {
   const id = Number(formData.get("id"));
   const decision = String(formData.get("decision") ?? "");
   const note = String(formData.get("note") ?? "").trim() || null;
+  // Reviewer reclassification: an assessment override and/or a confidence override. Empty = leave
+  // the model's value as-is. The data layer preserves the model's original label in model_assessment.
+  const assessment = String(formData.get("assessment") ?? "").trim() || null;
+  const confidenceRaw = String(formData.get("confidence") ?? "").trim();
+  const confidenceNum = confidenceRaw === "" ? null : Number(confidenceRaw);
+  const confidence = confidenceNum !== null && Number.isFinite(confidenceNum) ? confidenceNum : null;
   // Map the button value → the canonical disposition the queries use. (heldGaps looks for 'held',
   // NOT the raw button value 'hold' — mismatching them silently drops held items from the section.)
   const DISPOSITION: Record<string, "published" | "held" | "rejected"> = {
@@ -102,7 +108,7 @@ async function actReview(formData: FormData): Promise<void> {
   const disposition = DISPOSITION[decision];
   if (!Number.isFinite(id) || !disposition) return;
   // publish → public; hold → reviewed, kept private, flagged to revisit; reject → dismissed.
-  reviewGap(id, { published: decision === "publish", reviewerNote: note, disposition });
+  reviewGap(id, { published: decision === "publish", reviewerNote: note, disposition, assessment, confidence });
   revalidatePath("/review");
 }
 
@@ -194,6 +200,7 @@ export default async function ReviewPage() {
                   placeholder="Reviewer note (why, and what to fix)…"
                   className="w-full rounded border border-edge bg-panel px-2 py-1.5 text-xs text-ink placeholder:text-faint focus:border-accent"
                 />
+                <Reclassify g={g} />
                 <div className="flex flex-wrap gap-2 font-mono text-xs">
                   <button
                     type="submit"
@@ -256,6 +263,7 @@ export default async function ReviewPage() {
                     placeholder="Reviewer note…"
                     className="w-full rounded border border-edge bg-panel px-2 py-1.5 text-xs text-ink placeholder:text-faint focus:border-accent"
                   />
+                  <Reclassify g={g} />
                   <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
                     <button type="submit" name="decision" value="publish" className="rounded border border-calm/60 px-3 py-1 text-calm transition-colors hover:border-calm">
                       Publish
@@ -298,6 +306,9 @@ export default async function ReviewPage() {
                 <span className="rounded-sm border border-edgeStrong px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted">
                   {g.gap_assessment ?? "?"}
                 </span>
+                {g.model_assessment ? (
+                  <span className="font-mono text-[10px] text-faint">was {g.model_assessment}</span>
+                ) : null}
                 <span className={`font-mono text-xs ${g.published ? "text-calm" : "text-faint"}`}>
                   {g.published ? "published" : "withheld"}
                 </span>
@@ -316,6 +327,55 @@ export default async function ReviewPage() {
             ))}
           </div>
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+const ASSESSMENTS = ["no_filing", "incomplete_filing", "covered"] as const;
+
+/** Reviewer reclassification control — change the effective assessment and/or confidence at decision
+ *  time. Defaults to the current values, so leaving it untouched is a no-op (the data layer only
+ *  reclassifies when the value actually differs). When the label isn't one of the three real
+ *  assessments (e.g. a 'manual' parse-failure or a null), the select defaults to "(unchanged)" so a
+ *  decision click never silently reclassifies. If the model's original label was overridden earlier,
+ *  it's shown for provenance. */
+function Reclassify({ g }: { g: GapRow }) {
+  const current = g.gap_assessment && (ASSESSMENTS as readonly string[]).includes(g.gap_assessment) ? g.gap_assessment : "";
+  const unlisted = g.gap_assessment && !current ? g.gap_assessment : null;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
+      <label className="flex items-center gap-1.5">
+        <span className="uppercase tracking-wide text-faint">assessment</span>
+        <select
+          name="assessment"
+          defaultValue={current}
+          className="rounded border border-edge bg-panel px-2 py-1 font-mono text-xs text-ink focus:border-accent"
+        >
+          <option value="">(unchanged{unlisted ? `: ${unlisted}` : ""})</option>
+          {ASSESSMENTS.map((a) => (
+            <option key={a} value={a}>
+              {a}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-center gap-1.5">
+        <span className="uppercase tracking-wide text-faint">confidence</span>
+        <input
+          type="number"
+          name="confidence"
+          step="0.05"
+          min="0"
+          max="1"
+          defaultValue={g.confidence ?? ""}
+          className="w-20 rounded border border-edge bg-panel px-2 py-1 font-mono text-xs text-ink focus:border-accent"
+        />
+      </label>
+      {g.model_assessment ? (
+        <span className="font-mono text-[10px] text-faint">
+          reclassified · model originally: {g.model_assessment}
+        </span>
       ) : null}
     </div>
   );
