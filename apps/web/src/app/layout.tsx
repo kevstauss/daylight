@@ -121,6 +121,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <Link href="/methods" className="link">Methods</Link>
               <Link href="/watchlist" className="link">Watchlist</Link>
               <Link href="/corrections" className="link">Corrections</Link>
+              <Link href="/changelog" className="link">Changelog</Link>
               <Link href="/privacy" className="link">Privacy</Link>
               <Link href="/feed.xml" className="link">Global feed</Link>
               <a href="https://github.com/kevstauss/daylight" className="link">Source</a>
