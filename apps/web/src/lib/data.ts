@@ -13,7 +13,7 @@ import {
   type SnapshotRow,
   type SubdomainRow,
 } from "@daylight/db";
-import { changeToEntry, type FeedEntry } from "@daylight/feeds";
+import { changeToEntry, describeFinding, type FeedEntry } from "@daylight/feeds";
 import { runFoundry, type FoundryReport } from "@daylight/foundry";
 import type { FlagKind } from "@daylight/core";
 
@@ -28,11 +28,59 @@ export function globalChanges(limit = 50): ChangeRow[] {
   return getDb().listChanges({ limit });
 }
 
-/** The homepage "notable recent findings" trio — recent high/notable changes, one per domain,
- *  ranked severity → function-mimic → recency. Selection logic + rationale live in
- *  DaylightDb.featuredChanges (the single query surface). */
-export function featuredFindings(limit = 3): ChangeRow[] {
-  return getDb().featuredChanges(limit);
+/** The homepage "what we're seeing" cards: `n` findings, each a distinct DOMAIN and a distinct
+ *  FINDING-TYPE, picked at random so the homepage rotates each load. DaylightDb.featuredChanges
+ *  supplies the full recent-significant pool already deduped by domain (best finding per domain);
+ *  here we bucket that pool by finding-type (keyed on describeFinding's "why", 1:1 with type), pick
+ *  distinct types at random, and take a random domain within each. Bucketing by type BEFORE the
+ *  draw is deliberate: it gives a rare-but-striking type (a look-alike subdomain) the same odds as a
+ *  type with thousands of rows (unlaunched-vendor projects), instead of letting sheer volume win.
+ *  No recency cap — any significant finding is eligible. Cards render most-significant-first. */
+export function featuredFindings(n = 3): ChangeRow[] {
+  const pool = getDb().featuredChanges(POOL_ALL);
+  const byType = new Map<string, ChangeRow[]>();
+  for (const c of pool) {
+    const key = `${c.module}|${describeFinding(c).why}`;
+    (byType.get(key) ?? byType.set(key, []).get(key)!).push(c);
+  }
+  const picked: ChangeRow[] = [];
+  const usedDomains = new Set<string>();
+  // One random finding per random distinct type…
+  for (const type of shuffled([...byType.keys()])) {
+    if (picked.length >= n) break;
+    const options = byType.get(type)!.filter((c) => !usedDomains.has(c.domain));
+    const choice = options[Math.floor(Math.random() * options.length)];
+    if (!choice) continue;
+    usedDomains.add(choice.domain);
+    picked.push(choice);
+  }
+  // …then backfill from any remaining domains if the pool held fewer than `n` distinct types.
+  if (picked.length < n) {
+    for (const c of shuffled(pool)) {
+      if (picked.length >= n) break;
+      if (usedDomains.has(c.domain)) continue;
+      usedDomains.add(c.domain);
+      picked.push(c);
+    }
+  }
+  return picked.sort(
+    (a, b) => severityRank(b.severity) - severityRank(a.severity) || (a.detected_at < b.detected_at ? 1 : -1),
+  );
+}
+
+/** Effectively "all" — DaylightDb.featuredChanges is bounded by the DB's own 1000-row read cap. */
+const POOL_ALL = 1000;
+const severityRank = (s: string): number => (s === "high" ? 3 : s === "notable" ? 2 : 1);
+
+/** A shuffled copy (Fisher–Yates). Uses Math.random — fine in a server component, evaluated once
+ *  per request; the page is force-dynamic so a fresh order every load is the intent. */
+function shuffled<T>(items: T[]): T[] {
+  const a = [...items];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j]!, a[i]!];
+  }
+  return a;
 }
 
 /** Generic filtered change list — backs the public /api/v1/changes endpoint. */

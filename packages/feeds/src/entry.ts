@@ -25,6 +25,7 @@ export interface FeedMeta {
 /** Structural shape of a persisted `changes` row (no @daylight/db dependency here). */
 export interface ChangeLike {
   id: number | string;
+  module?: string | null;
   domain: string;
   detected_at: string;
   kind: string;

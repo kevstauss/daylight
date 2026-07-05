@@ -267,24 +267,24 @@ export class DaylightDb {
   }
 
   /**
-   * The homepage "notable recent findings" trio. Surfaces recent high/notable changes, keeping ONE
-   * per subject (see featuredSubject) so the cards tell distinct stories — a single scan can log a
+   * The pool of recent significant findings behind the homepage "what we're seeing" cards. Returns
+   * high/notable changes deduped to ONE per subject (see featuredSubject) — a single scan can log a
    * dozen subdomains on one apex in the same second (the ndstudio burst), or a dozen unlaunched
-   * projects on one vendor (the Foundry batch), which a naive "top N by recency" renders as
-   * near-identical lines. Ranking, both within a subject and across them:
-   * severity → function-mimic (Lookout's flagship signature, the most legible example for a
-   * newcomer) → recency.
+   * projects on one vendor (the Foundry batch), and only the best per subject should compete.
+   * Within a subject and across them the ranking is severity → function-mimic (Lookout's flagship
+   * signature) → recency, so the representative kept for each domain is its strongest finding.
+   * `limit` caps the returned pool; the caller (featuredFindings) buckets it by type and samples.
    *
    * Severity tiers are queried SEPARATELY, not sliced from one flat recency window: a burst of fresh
-   * `notable`s must never push older `high` findings out of view — highs are always considered first.
+   * `notable`s must never push `high` findings out of the pool — highs are always included.
    *
    * Reads only the `changes` table — which Redtape never writes to. Its PIA/SORN gaps live in a
    * separate table behind publicGaps()'s human gate and can never surface through this path.
    */
   featuredChanges(limit = 3): ChangeRow[] {
     const pool = [
-      ...(this.listChanges({ severity: "high", limit: 80 }) as ChangeRow[]),
-      ...(this.listChanges({ severity: "notable", limit: 80 }) as ChangeRow[]),
+      ...(this.listChanges({ severity: "high", limit: 1000 }) as ChangeRow[]),
+      ...(this.listChanges({ severity: "notable", limit: 1000 }) as ChangeRow[]),
     ].sort((a, b) => featuredScore(b) - featuredScore(a) || cmpRecencyDesc(a, b));
     const seen = new Set<string>();
     const out: ChangeRow[] = [];

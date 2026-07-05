@@ -4,17 +4,24 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
-## Homepage: notable recent findings, in context — 2026-07-05
+## Homepage: what we're seeing, in plain language — 2026-07-05
 
-- The front page now opens with up to three recent, higher-severity findings written for a first-time
-  reader — each names the module that surfaced it, adds a plain-language note on why that class of
-  finding matters, and links out to the domain, that module, and the finding's full timestamped record.
-- The selection is automatic and stays current: it draws the most significant recent changes, keeps
-  **one per domain** so the three tell distinct stories (a single scan can log a dozen subdomains on
-  one apex at once), and leads with the clearest examples — like a subdomain imitating another agency.
-- Copy stays observational. The finding text is the detector's own neutral wording; the context notes
-  describe the *category* of finding, never a specific agency. The section reads only already-public
-  change records — never the human-gated privacy-filing queue.
+- The front page now opens with a rotating set of recent findings written for a first-time reader.
+  Each is a **plain-language headline** — "A subdomain of `ndstudio.gov` is named to look like
+  `travel.state.gov`," not `new subdomain … — high-signal subdomain label …` — followed by a short
+  **why it matters** note and a link to the full, timestamped finding.
+- Headlines are generated **deterministically** from the finding's own data (one fixed template per
+  finding type), so they stay factual and never drift into a verdict. Anything unrecognized falls
+  back to the detector's exact wording.
+- The set **rotates**: three findings picked at random, each a distinct domain **and** a distinct
+  finding type, so the homepage stays fresh and never shows three near-identical lines. Bucketing by
+  type before the draw gives a rare-but-striking finding (a look-alike subdomain) the same odds as a
+  type with thousands of rows — sheer volume doesn't win.
+- It leads the page, above the module list: concrete findings first (the "show"), the catalog of
+  what Daylight watches second.
+- Copy stays observational — the "why it matters" describes the *category* of finding, never a
+  specific agency. The section reads only already-public change records, never the human-gated
+  privacy-filing queue.
 
 ## Redirect tracking + sharper compliance checks — 2026-07-05
 

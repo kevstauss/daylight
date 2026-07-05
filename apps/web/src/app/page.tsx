@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { describeFinding } from "@daylight/feeds";
 import { changeCount, domainCount, featuredFindings, globalChanges } from "@/lib/data";
 import { flags, type Flags } from "@/lib/flags";
 import { EmptyState, Eyebrow, InternalLink, Panel, SeverityBadge, SourceRef, Timestamp } from "@/components/ui";
@@ -18,48 +19,17 @@ const MODULES = [
 
 /** Display metadata for the module that emitted a change — keyed by the `module` value stored on the
  *  change (note: a Ledger change's module is "ledger", which links to /ledger, not the /registry
- *  search). `context` is a neutral, category-level framing line: it describes the class of finding,
- *  never the specific target, so it can't editorialize about an agency. `flagKey` gates whether the
- *  module name links to its (possibly still-flagged-off) page. */
+ *  search). `flagKey` gates whether the module name links to its (possibly still-flagged-off) page.
+ *  The per-card headline + "why it matters" come from describeFinding(), not from here. */
 const CHANGE_MODULE_META: Record<
   string,
-  { name: string; href: string; iconKey: string; flagKey: keyof Flags; context: string }
+  { name: string; href: string; iconKey: string; flagKey: keyof Flags }
 > = {
-  ledger: {
-    name: "Ledger",
-    href: "/ledger",
-    iconKey: "registry",
-    flagKey: "registry",
-    context: "A change to who owns a federal .gov, or to its published security contact — recorded against the prior public value.",
-  },
-  lookout: {
-    name: "Lookout",
-    href: "/lookout",
-    iconKey: "lookout",
-    flagKey: "lookout",
-    context: "A new subdomain, surfaced from a public certificate log the day it was issued — often before anything is announced.",
-  },
-  floodlight: {
-    name: "Floodlight",
-    href: "/floodlight",
-    iconKey: "floodlight",
-    flagKey: "floodlight",
-    context: "Tracking behavior — trackers, session replay, or analytics disguised as first-party traffic — observed in a site's own live source.",
-  },
-  receipts: {
-    name: "Receipts",
-    href: "/receipts",
-    iconKey: "receipts",
-    flagKey: "receipts",
-    context: "Something that was public and then quietly disappeared, kept as a dated before/after.",
-  },
-  foundry: {
-    name: "Foundry",
-    href: "/foundry",
-    iconKey: "foundry",
-    flagKey: "foundry",
-    context: "A build vendor's footprint across federal domains — and infrastructure staged but not yet launched.",
-  },
+  ledger: { name: "Ledger", href: "/ledger", iconKey: "registry", flagKey: "registry" },
+  lookout: { name: "Lookout", href: "/lookout", iconKey: "lookout", flagKey: "lookout" },
+  floodlight: { name: "Floodlight", href: "/floodlight", iconKey: "floodlight", flagKey: "floodlight" },
+  receipts: { name: "Receipts", href: "/receipts", iconKey: "receipts", flagKey: "receipts" },
+  foundry: { name: "Foundry", href: "/foundry", iconKey: "foundry", flagKey: "foundry" },
 };
 
 export default function Home() {
@@ -102,6 +72,67 @@ export default function Home() {
         </div>
       </section>
 
+      {featured.length > 0 ? (
+        <section>
+          <Eyebrow>daylight · what we&rsquo;re seeing</Eyebrow>
+          <p className="mb-4 max-w-measure text-sm leading-relaxed text-muted">
+            A rotating look at what Daylight has noticed lately, in plain language — each observation
+            drawn straight from public data, with a link to the full, timestamped finding.
+          </p>
+          <div className="grid gap-3">
+            {featured.map((c) => {
+              const m = CHANGE_MODULE_META[c.module];
+              const moduleLive = m ? f[m.flagKey] : false;
+              const { headline, why } = describeFinding(c);
+              return (
+                <article key={c.id} className="rounded-lg border border-edge bg-panel p-4 sm:p-5">
+                  <div className="flex items-center gap-2.5">
+                    <SeverityBadge severity={c.severity} />
+                    {m ? (
+                      <span className="flex items-center gap-1.5">
+                        <ModuleIcon name={m.iconKey} className="h-4 w-4 shrink-0 text-muted" />
+                        {moduleLive ? (
+                          <InternalLink href={m.href}>{m.name}</InternalLink>
+                        ) : (
+                          <span className="text-sm font-medium text-muted">{m.name}</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="font-mono text-xs uppercase tracking-wide text-faint">
+                        {c.module}
+                      </span>
+                    )}
+                  </div>
+                  <Link
+                    href={`/change/${c.id}`}
+                    className="group mt-2.5 block text-[16px] font-semibold leading-snug tracking-tight text-ink hover:text-alarm"
+                  >
+                    {headline}
+                    <span className="ml-1 font-mono text-sm text-faint transition-colors group-hover:text-alarm">
+                      →
+                    </span>
+                  </Link>
+                  {why ? (
+                    <p className="mt-1.5 max-w-measure text-sm leading-relaxed text-muted">{why}</p>
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-edge pt-3">
+                    {f.registry ? (
+                      <InternalLink href={`/domain/${encodeURIComponent(c.domain)}`}>
+                        <span className="font-mono text-xs">{c.domain}</span>
+                      </InternalLink>
+                    ) : (
+                      <span className="font-mono text-xs text-muted">{c.domain}</span>
+                    )}
+                    <Timestamp iso={c.detected_at} prefix="detected" />
+                    <SourceRef href={c.source_url} />
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
       {live.length > 0 ? (
         <section>
           <Eyebrow>daylight · what it watches</Eyebrow>
@@ -127,66 +158,6 @@ export default function Home() {
                 </div>
               </Link>
             ))}
-          </div>
-        </section>
-      ) : null}
-
-      {featured.length > 0 ? (
-        <section>
-          <Eyebrow>daylight · notable recent findings</Eyebrow>
-          <p className="mb-4 max-w-measure text-sm leading-relaxed text-muted">
-            A few recent observations worth a closer look — each drawn straight from public data,
-            linked to the module that surfaced it and to its full timestamped record.
-          </p>
-          <div className="grid gap-3">
-            {featured.map((c) => {
-              const m = CHANGE_MODULE_META[c.module];
-              const moduleLive = m ? f[m.flagKey] : false;
-              return (
-                <article
-                  key={c.id}
-                  className="rounded-lg border border-edge bg-panel p-4 sm:p-5"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <SeverityBadge severity={c.severity} />
-                    {m ? (
-                      <span className="flex items-center gap-1.5">
-                        <ModuleIcon name={m.iconKey} className="h-4 w-4 shrink-0 text-muted" />
-                        {moduleLive ? (
-                          <InternalLink href={m.href}>{m.name}</InternalLink>
-                        ) : (
-                          <span className="text-sm font-medium text-muted">{m.name}</span>
-                        )}
-                      </span>
-                    ) : (
-                      <span className="font-mono text-xs uppercase tracking-wide text-faint">
-                        {c.module}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-2.5 text-[15px] font-semibold leading-snug text-ink">
-                    {c.reason ?? `${c.field ?? "record"} ${c.kind} on ${c.domain}`}
-                  </p>
-                  {m ? (
-                    <p className="mt-1.5 max-w-measure text-sm leading-relaxed text-muted">
-                      {m.context}
-                    </p>
-                  ) : null}
-                  <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-edge pt-3">
-                    {f.registry ? (
-                      <InternalLink href={`/domain/${encodeURIComponent(c.domain)}`}>
-                        <span className="font-mono text-xs">{c.domain}</span>
-                      </InternalLink>
-                    ) : (
-                      <span className="font-mono text-xs text-muted">{c.domain}</span>
-                    )}
-                    <Timestamp iso={c.detected_at} prefix="detected" />
-                    <InternalLink href={`/change/${c.id}`}>Full record →</InternalLink>
-                    <SourceRef href={c.source_url} />
-                  </div>
-                </article>
-              );
-            })}
           </div>
         </section>
       ) : null}
