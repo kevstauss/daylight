@@ -141,6 +141,34 @@ describe("featuredChanges — homepage notable-findings trio", () => {
     empty.insertChange(mkc({ domain: "only-info.gov", severity: "info" }));
     expect(empty.featuredChanges(3)).toEqual([]);
   });
+
+  it("collapses one vendor's unlaunched-project batch (Foundry files under the target domain, not the vendor apex)", () => {
+    // Foundry stores domain = the would-be target (staging-api.gov, …); the vendor apex it's
+    // staging on lives only in the reason. Deduping by raw domain would show three passports.gov
+    // cards; featuredSubject groups them by "building on <apex>".
+    const at = "2026-07-05T04:57:00.000Z";
+    for (const t of ["staging-api", "photos", "photo"]) {
+      db.insertChange(mkc({ module: "foundry", severity: "notable", domain: `${t}.gov`, detectedAt: at, reason: `unlaunched project "${t}" building on passports.gov — no ${t}.gov registered yet` }));
+    }
+    // A different vendor is a different story — must stay separate.
+    db.insertChange(mkc({ module: "foundry", severity: "notable", domain: "staged.gov", detectedAt: at, reason: 'unlaunched project "staged" building on trumprx.gov — no staged.gov registered yet' }));
+
+    const featured = db.featuredChanges(5);
+    const foundry = featured.filter((c) => c.module === "foundry");
+    expect(foundry).toHaveLength(2); // one per vendor apex, not one per target
+    expect(foundry.map((c) => c.reason).every((r) => /building on/.test(r ?? ""))).toBe(true);
+  });
+
+  it("a burst of fresh notables never buries an older high (tiers are queried separately)", () => {
+    // The bug the live deploy surfaced: a naive top-250-by-recency window filled with a notable
+    // batch pushed the real high findings out of sight.
+    db.insertChange(mkc({ domain: "old-high.gov", severity: "high", detectedAt: "2026-07-01T00:00:00.000Z", reason: "security contact @ndstudio.gov, foreign to old-high.gov" }));
+    for (let i = 0; i < 30; i++) {
+      db.insertChange(mkc({ module: "foundry", severity: "notable", domain: `proj${i}.gov`, detectedAt: "2026-07-05T05:00:00.000Z", reason: `unlaunched project "proj${i}" building on vendor${i}.gov — no proj${i}.gov registered yet` }));
+    }
+    // The high, though days older than the burst, leads the trio.
+    expect(db.featuredChanges(3)[0]?.domain).toBe("old-high.gov");
+  });
 });
 
 describe("scans / status", () => {

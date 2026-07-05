@@ -68,6 +68,19 @@ function cmpRecencyDesc(a: ChangeRow, b: ChangeRow): number {
   return b.id - a.id;
 }
 
+/** The subject a featured card is really *about* — the dedupe key that keeps the trio diverse.
+ *  Usually the change's domain, but a Foundry unlaunched-project change files under the would-be
+ *  target domain (e.g. `staging-api.gov`) while the story is the vendor apex it's staging on
+ *  ("…building on passports.gov"). Group those by the vendor apex so one vendor can't fill all
+ *  three cards. A parse miss falls back to the domain — worse dedupe, never a wrong card. */
+function featuredSubject(c: ChangeRow): string {
+  if (c.module === "foundry") {
+    const m = /building on ([a-z0-9.-]+\.gov)\b/i.exec(c.reason ?? "");
+    if (m?.[1]) return `foundry:${m[1].toLowerCase()}`;
+  }
+  return c.domain;
+}
+
 /**
  * The stable query surface (Phase 0-1 spec §3.4). Every caller goes through
  * these methods so the SQLite → Postgres swap at Phase 2 never touches callers.
@@ -254,25 +267,31 @@ export class DaylightDb {
   }
 
   /**
-   * The homepage "notable recent findings" trio. Pulls recent high/notable changes, then keeps ONE
-   * finding per domain so the cards tell distinct stories: a single scan can log a dozen subdomains
-   * on one apex in the same second (the ndstudio burst), which a naive "top N by recency" would
-   * render as three near-identical lines. Ranking, for both the per-domain representative and the
-   * cross-domain order: severity → function-mimic (Lookout's flagship signature, the most legible
-   * example for a newcomer) → recency.
+   * The homepage "notable recent findings" trio. Surfaces recent high/notable changes, keeping ONE
+   * per subject (see featuredSubject) so the cards tell distinct stories — a single scan can log a
+   * dozen subdomains on one apex in the same second (the ndstudio burst), or a dozen unlaunched
+   * projects on one vendor (the Foundry batch), which a naive "top N by recency" renders as
+   * near-identical lines. Ranking, both within a subject and across them:
+   * severity → function-mimic (Lookout's flagship signature, the most legible example for a
+   * newcomer) → recency.
+   *
+   * Severity tiers are queried SEPARATELY, not sliced from one flat recency window: a burst of fresh
+   * `notable`s must never push older `high` findings out of view — highs are always considered first.
    *
    * Reads only the `changes` table — which Redtape never writes to. Its PIA/SORN gaps live in a
    * separate table behind publicGaps()'s human gate and can never surface through this path.
    */
   featuredChanges(limit = 3): ChangeRow[] {
-    const ranked = (this.listChanges({ limit: 250 }) as ChangeRow[])
-      .filter((c) => c.severity === "high" || c.severity === "notable")
-      .sort((a, b) => featuredScore(b) - featuredScore(a) || cmpRecencyDesc(a, b));
+    const pool = [
+      ...(this.listChanges({ severity: "high", limit: 80 }) as ChangeRow[]),
+      ...(this.listChanges({ severity: "notable", limit: 80 }) as ChangeRow[]),
+    ].sort((a, b) => featuredScore(b) - featuredScore(a) || cmpRecencyDesc(a, b));
     const seen = new Set<string>();
     const out: ChangeRow[] = [];
-    for (const c of ranked) {
-      if (seen.has(c.domain)) continue;
-      seen.add(c.domain);
+    for (const c of pool) {
+      const subject = featuredSubject(c);
+      if (seen.has(subject)) continue;
+      seen.add(subject);
       out.push(c);
       if (out.length >= Math.max(1, limit)) break;
     }
