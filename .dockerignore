@@ -11,3 +11,10 @@ data
 daylight-docs
 *.zip
 .DS_Store
+
+# Never bundle secrets or the untracked source research into the image (COPY . . would
+# otherwise pull them in). Not served by any route, but keep them off the box entirely.
+# NB: don't ignore *.md — CHANGELOG.md is site content (renders at /changelog).
+drey_research.md
+.env
+.env.*
