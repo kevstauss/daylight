@@ -63,6 +63,19 @@ export function ModuleIcon({ name, className }: { name: string; className?: stri
           <line x1="8.5" y1="14.5" x2="13.5" y2="14.5" />
         </svg>
       );
+    // Foundry — a build graph: one vendor hub fanning out to the agencies it builds for.
+    case "foundry":
+      return (
+        <svg {...common}>
+          <circle cx="6" cy="12" r="2.3" />
+          <circle cx="18.5" cy="5" r="1.5" fill="currentColor" stroke="none" />
+          <circle cx="18.5" cy="12" r="1.5" fill="currentColor" stroke="none" />
+          <circle cx="18.5" cy="19" r="1.5" fill="currentColor" stroke="none" />
+          <path d="M8.2 11 L17 5.4" />
+          <path d="M8.3 12 L17 12" />
+          <path d="M8.2 13 L17 18.6" />
+        </svg>
+      );
     default:
       return null;
   }

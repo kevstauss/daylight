@@ -18,6 +18,8 @@ export interface Flags {
   receipts: boolean;
   /** Phase 5 — /redtape human-reviewed PIA/SORN gap list. */
   redtape: boolean;
+  /** Phase 6 — /foundry vendor build-graph (CT×registry join). */
+  foundry: boolean;
 }
 
 export function flags(): Flags {
@@ -30,5 +32,6 @@ export function flags(): Flags {
     floodlightScan: flag("FLAG_FLOODLIGHT_SCAN"),
     receipts: flag("FLAG_RECEIPTS"),
     redtape: flag("FLAG_REDTAPE"),
+    foundry: flag("FLAG_FOUNDRY"),
   };
 }

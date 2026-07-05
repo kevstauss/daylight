@@ -42,6 +42,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const modules = [
     ...(f.registry ? [{ href: "/registry", label: "Ledger", owns: ["/ledger", "/domain"] }] : []),
     ...(f.lookout ? [{ href: "/lookout", label: "Lookout" }] : []),
+    ...(f.foundry ? [{ href: "/foundry", label: "Foundry" }] : []),
     ...(f.floodlight ? [{ href: "/floodlight", label: "Floodlight" }] : []),
     ...(f.receipts ? [{ href: "/receipts", label: "Receipts" }] : []),
     ...(f.redtape ? [{ href: "/redtape", label: "Redtape" }] : []),

@@ -16,6 +16,7 @@
     "@daylight/feeds": "workspace:*",
     "@daylight/fingerprints": "workspace:*",
     "@daylight/floodlight": "workspace:*",
+    "@daylight/foundry": "workspace:*",
     "@daylight/ledger": "workspace:*",
     "@daylight/lookout": "workspace:*",
     "@daylight/receipts": "workspace:*",

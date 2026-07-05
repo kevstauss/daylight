@@ -16,6 +16,8 @@ as the EFF, The Markup, and EPIC.
 
 - **Ledger** — searchable `.gov` owner/contact registry + change feed + person/org watches.
 - **Lookout** — new-subdomain feed from Certificate Transparency logs, with flag scoring.
+- **Foundry** — vendor build-graph: joins Lookout's CT tree with Ledger's registry to surface how
+  many distinct agencies build through one vendor, and projects staged with no `.gov` registered yet.
 - **Floodlight** — tracker & session-replay scorecards for public `.gov` pages.
 - **Receipts** — dated snapshot archive + removal ledger, with independent Wayback copies.
 - **Redtape** — PIA/SORN privacy-filing gap-finder (human-reviewed before anything publishes).
@@ -24,7 +26,7 @@ as the EFF, The Markup, and EPIC.
 
 ```
 apps/web/     Next.js public site + per-domain dashboard + feeds
-workers/      ledger · lookout · floodlight · receipts · redtape (batch jobs / crons)
+workers/      ledger · lookout · foundry · floodlight · receipts · redtape (batch jobs / crons)
 packages/     core · db · feeds · redact · enrich · fingerprints (shared libraries)
 config/
   watchlist.yaml   the domains, patterns, and watches that drive every module

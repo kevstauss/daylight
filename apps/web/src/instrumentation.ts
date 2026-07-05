@@ -10,9 +10,10 @@ export async function register(): Promise<void> {
   const floodlightCron = process.env.DAYLIGHT_FLOODLIGHT_CRON?.trim();
   const receiptsCron = process.env.DAYLIGHT_RECEIPTS_CRON?.trim();
   const redtapeCron = process.env.DAYLIGHT_REDTAPE_CRON?.trim();
-  if (!ledgerCron && !lookoutCron && !floodlightCron && !receiptsCron && !redtapeCron) return;
+  const foundryCron = process.env.DAYLIGHT_FOUNDRY_CRON?.trim();
+  if (!ledgerCron && !lookoutCron && !floodlightCron && !receiptsCron && !redtapeCron && !foundryCron) return;
 
-  const [{ default: cron }, core, db, ledger, lookout, floodlight, receipts, receiptsSweep, redtape, repo] =
+  const [{ default: cron }, core, db, ledger, lookout, floodlight, receipts, receiptsSweep, redtape, foundry, repo] =
     await Promise.all([
       import("node-cron"),
       import("@daylight/core"),
@@ -23,6 +24,7 @@ export async function register(): Promise<void> {
       import("@daylight/receipts"),
       import("@daylight/receipts/sweep"),
       import("@daylight/redtape"),
+      import("@daylight/foundry"),
       import("./lib/repoFile"),
     ]);
 
@@ -194,6 +196,32 @@ export async function register(): Promise<void> {
       console.log(`[redtape:cron] scheduled '${redtapeCron}' (UTC)`);
     } else {
       console.warn(`[redtape] invalid DAYLIGHT_REDTAPE_CRON: ${redtapeCron}`);
+    }
+  }
+
+  // ---- Foundry (derived: joins Lookout's CT subdomains + Ledger's registry — fetches nothing) ----
+  // No network of its own, so schedule it a beat AFTER the Lookout backfill so it reads fresh CT.
+  const runFoundry = (): void => {
+    const database = db.createDb(db.resolveDbPath());
+    try {
+      const r = foundry.runFoundryScan(database, core.nowIso());
+      console.log(
+        `[foundry:cron] ${r.report.vendors.length} vendor(s), ` +
+          `${r.report.vendors.reduce((n, v) => n + v.agencyCount, 0)} agency-links, ${r.changesEmitted} new unlaunched`,
+      );
+    } catch (err) {
+      console.error("[foundry] run error", err);
+    } finally {
+      database.close();
+    }
+  };
+
+  if (foundryCron) {
+    if (cron.validate(foundryCron)) {
+      cron.schedule(foundryCron, () => runFoundry(), { timezone: "UTC" });
+      console.log(`[foundry:cron] scheduled '${foundryCron}' (UTC)`);
+    } else {
+      console.warn(`[foundry] invalid DAYLIGHT_FOUNDRY_CRON: ${foundryCron}`);
     }
   }
 }

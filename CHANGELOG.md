@@ -55,16 +55,34 @@ before public launch. Verified specifics now watched (see `config/watchlist.yaml
   in H1 2026. `PITC-Defense@eop.gov` (25 domains) and `dl.eop.cloudadmin@eop.gov` (18) are the shared
   mailboxes — reported as counts, never as an assertion of intent.
 
-**Proposed sixth module — Foundry (build-graph & cross-agency concentration), prototyped, not yet
-built.** The dig kept hitting a class of signal none of the five modules can emit: the **join** of
-CT and the registry. A standalone prototype run against live data produced two artifacts — a
-*build-concentration index* (8 distinct owning agencies flowing through one EOP vendor's CT tree,
-which the contact-concentration heuristic misses because each agency's registry contact is
-legitimately its own) and an *unlaunched-project watch* (preview hosts whose target apex is confirmed
-absent from the registry — `fbi-kirk-tipline`, `boardofpeace`, `forestandrangelands`, …, which
-Lookout can't produce because it only watches apexes already on its list). Recommendation is to build
-it flag-gated with human-gated attribution confidence; the other four ideas fold into Ledger,
-Floodlight and Lookout. Awaiting a go/no-go before any code lands.
+## Unreleased — Foundry (Phase 6): the vendor build-graph module
+
+**A sixth module, because the dig kept hitting a signal the five couldn't emit — the join of CT and
+the registry.** Lookout scores one subdomain under an apex already on its list; Ledger states one
+registry fact per row. Neither can say *how many distinct agencies are built through one vendor*, or
+*which staged projects have no `.gov` yet* — because that needs both streams joined and aggregated.
+Foundry does exactly that, reusing Lookout's ingested CT subdomains and Ledger's registry (no new
+data source, existence-only):
+
+- **Build-concentration index** — for each vendor apex (detected structurally, not hard-coded: one
+  whose build tree stages ≥2 distinct registered target apexes), the distinct owning agencies whose
+  properties flow through it. This is orthogonal to Ledger's *contact*-concentration and catches what
+  H1 can't: `hstf.gov`'s registry contact is legitimately DHS's own, so H1 stays silent, yet the
+  NDS build linkage is real and Foundry surfaces it.
+- **Unlaunched-project watch** — projects staged on the vendor tree whose candidate `.gov` apex is
+  confirmed **absent** from the registry (`fbi-kirk-tipline`, `boardofpeace`, `forestandrangelands`,
+  …). Lookout structurally can't produce this — it only watches apexes already on its list. Emits one
+  idempotent `added` change per newly-seen project (so the global feed carries it, once).
+
+Ships flag-gated (`FLAG_FOUNDRY`) like every other surface: a `/foundry` page (build-concentration
+index + unlaunched watch per vendor), a `runFoundryScan` that records a `/status` scan and runs on
+`DAYLIGHT_FOUNDRY_CRON` (a beat after the Lookout backfill, since it reads fresh certs), and a
+`report` CLI. Attribution carries a confidence flag — short single-word codes (`rx`, `dga`) are
+marked low-confidence, since a name alone can't prove an agency owns a build. Tested against the real
+observed `*.ndstudio.gov` fixtures (10 cases) and validated end-to-end against live crt.sh + CISA
+(8 agencies through the one EOP vendor tree). The other four ideas from the dig — registry-hygiene
+metrics, minting-velocity, a first-party collection-surface detector, and CT-SAN infra recon — fold
+into Ledger, Floodlight and Lookout respectively rather than standing up as modules.
 
 ## Unreleased — Analytics: exclude operator traffic + reset; mobile table fix
 

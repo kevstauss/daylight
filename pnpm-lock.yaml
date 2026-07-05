@@ -41,6 +41,9 @@ importers:
       '@daylight/floodlight':
         specifier: workspace:*
         version: link:../../workers/floodlight
+      '@daylight/foundry':
+        specifier: workspace:*
+        version: link:../../workers/foundry
       '@daylight/ledger':
         specifier: workspace:*
         version: link:../../workers/ledger
@@ -147,6 +150,18 @@ importers:
       playwright:
         specifier: ^1.49.1
         version: 1.61.1
+
+  workers/foundry:
+    dependencies:
+      '@daylight/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@daylight/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@daylight/enrich':
+        specifier: workspace:*
+        version: link:../../packages/enrich
 
   workers/ledger:
     dependencies:

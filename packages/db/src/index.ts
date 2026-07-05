@@ -442,6 +442,13 @@ export class DaylightDb {
       .all(apex.trim().toLowerCase()) as SubdomainRow[];
   }
 
+  /** Every subdomain row (uncapped) — Foundry's corpus for the vendor build-graph join. */
+  allSubdomains(): SubdomainRow[] {
+    return this.sql
+      .prepare(`SELECT * FROM subdomains ORDER BY first_seen ASC, fqdn ASC`)
+      .all() as SubdomainRow[];
+  }
+
   searchSubdomains(f: { q?: string; severity?: string; limit?: number } = {}): SubdomainRow[] {
     const clauses: string[] = [];
     const params: Record<string, string> = {};

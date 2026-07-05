@@ -74,6 +74,15 @@ const HEURISTICS: { name: string; plain: string; technical: string; clears: stri
       "Ordinary product subdomains without a flagged label; existence in a Certificate Transparency log is never treated as access.",
   },
   {
+    name: "Vendor build-graph (Foundry)",
+    plain:
+      "When one contractor builds many agencies' sites, their shared staging addresses show up in the public certificate logs. We join those to the ownership registry to show how many different agencies flow through one vendor — and to spot a site being built that hasn't been officially registered yet.",
+    technical:
+      "For each vendor apex (detected structurally as one whose build tree stages ≥2 distinct registered target apexes), we extract a project label per CT host (the label left of an env tier previews/staging/prod/int, else the apex-adjacent non-plumbing label), map it to a candidate .gov by stripping decoration affixes, and join to the CISA registry. Output: a build-concentration index (distinct owning agencies per vendor — orthogonal to Ledger's contact-concentration, since each agency's registry contact is legitimately its own) and an unlaunched-project watch (candidate apex confirmed ABSENT from the registry). Existence-only; reuses Lookout's + Ledger's data with no new source.",
+    clears:
+      "Vendor plumbing with no product label (cdn/analytics/storybook hosts), and short single-word codes marked low-confidence. A project that resolves to a registered apex is not an unlaunched-watch item.",
+  },
+  {
     name: "Removal ledger (Receipts)",
     plain:
       "We keep dated snapshots of watched pages so that if a tracker, a privacy clause, an official seal, or a form is quietly deleted, there's a permanent before-and-after record — plus an independent copy at the Internet Archive.",

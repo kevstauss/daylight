@@ -14,6 +14,7 @@ import {
   type SubdomainRow,
 } from "@daylight/db";
 import { changeToEntry, type FeedEntry } from "@daylight/feeds";
+import { runFoundry, type FoundryReport } from "@daylight/foundry";
 import type { FlagKind } from "@daylight/core";
 
 export type { ChangeRow, CorrectionRow, DomainRow, GapRow, ScanRow, ScorecardRow, SnapshotRow, SubdomainRow } from "@daylight/db";
@@ -129,6 +130,12 @@ export function searchSubdomains(f: { q?: string; severity?: string; limit?: num
 export function subdomainCount(): number {
   const row = getDb().sql.prepare(`SELECT COUNT(*) AS n FROM subdomains`).get() as { n: number };
   return row.n;
+}
+
+// ---- Foundry (Phase 6) — derived CT×registry build-graph, computed on read ---
+
+export function foundryReport(): FoundryReport {
+  return runFoundry(getDb(), new Date().toISOString());
 }
 
 // ---- Floodlight (Phase 3) -------------------------------------------------
