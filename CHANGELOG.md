@@ -5,6 +5,67 @@ Plain-language record of what Daylight can do, and when each piece went live.
 Everything Daylight does is **observational and built on already-public data**. See
 `/methods` for every source, the bot's contact, and the observational-only scope.
 
+## Unreleased — Cross-agency vendor build-graph dig (2026-07-05)
+
+**A directed dig on the leads the modules keep surfacing.** With the modules running, we pulled the
+open anomalies out of the gathered data and dug deeper on public sources only — Certificate
+Transparency (crt.sh), the CISA `dotgov-data` registry, Wayback, and public reporting. Everything
+below is **existence-only**: no gated host was loaded or entered (many `*.ndstudio.gov` hosts sit
+behind a Cloudflare Access gate), and no intent is asserted. Findings that only repeat
+[The Drey Dossier](https://substack.com/@thedreydossier)'s existing reporting were dropped;
+what's recorded here is the *new* increment. Each was independently fact-checked before landing.
+
+The through-line: one White House vendor — the **National Design Studio** (`ndstudio.gov` / `nds.gov`,
+registered to the Executive Office of the President) — is the observable build/staging/telemetry layer
+under a fast-growing, **cross-agency** cluster of `.gov` product sites. CT shows EOP-vendor infra
+staging properties branded for DoD, DHS, State, NASA/OPM, FBI/DOJ, USDA and Treasury, often days
+before public launch. Verified specifics now watched (see `config/watchlist.yaml`):
+
+- **`war.previews.ndstudio.gov`** — a "Department of War" property staged on the EOP vendor while
+  `war.gov` itself is registered to the Dept. of Defense (`dma.websd@mail.mil`). Clean baseline: any
+  future contact flip toward an `ndstudio.gov` address would trip Ledger's H1.
+- **`nasaforce.gov`** — NASA/OPM's openly-announced early-career hiring site, but the apex is
+  registered to EOP / White House Office (not NASA/OPM) with a **`(blank)` security contact**, and
+  the live footer reads "Designed & Engineered in D.C. by National Design Studio." A new named
+  instance of the `passports.gov` pattern (EOP-owned, agency-branded, blank contact).
+- **`hstf.prod` / `hstf.previews.ndstudio.gov`** — the DHS Homeland Security Task Force site built on
+  NDS infra. `hstf.gov`'s registry contact is legitimately DHS's own (`postmaster@dhs.gov`), so H1
+  stays silent — a clean example of a build-linkage the contact heuristics **cannot** see (motivates
+  Foundry, below). The `.prod.` env-tier in a public cert is an infra-hygiene note.
+- **`boardofpeace.previews.ndstudio.gov`** — the Gaza "Board of Peace" site, staged ~8 days before the
+  public charter signing; no `boardofpeace.gov` exists, and the live `boardofpeace.org` loads federal
+  telemetry from `cdn.infra.ndstudio.gov`. We can prove the `.gov`-infra dependency, not `.org`
+  ownership (the registrant is privacy-protected).
+- **`trumpcard.gov` / `trumpira.gov`** — Trump-branded products with ownership scattered across
+  agencies: `trumpcard.gov` (the cross-agency "Gold Card" visa) is EOP/DOGE-registered; `trumpira.gov`
+  is EOP/White House Office with a `(blank)` contact even though its founding EO directs the Treasury
+  to run it — an owner-vs-statutory-operator split alongside `trumpaccounts.gov` (Treasury).
+- **`sweetrex.int` / `sr-input.int.ndstudio.gov`** — an internal (`.int`) tier for **SweetREX**, the
+  reported DOGE deregulation-AI tool, fingerprinted purely from cert names.
+- **NDS AI/collection stack** — `inference`, `chat.staging`, `chat-embed.staging`, `upload`,
+  `storybook` under `ndstudio.gov`: a first-party LLM-chatbot + intake surface (NDS's own blog
+  confirms an "ask anything" site chatbot). Recorded as a collection **surface to watch**, not a
+  demonstrated breach.
+- **`fbi-kirk-tipline.previews.ndstudio.gov`** — an FBI-branded tip host under the White House vendor
+  apex, first seen in CT the night after the Sept 10 2025 shooting and actively renewed since. Framed
+  strictly as existence + timing in a sensitive investigation; **no claim** is made about whether it
+  serves or collects anything.
+- **Registry hygiene, quantified** — EOP domains carry a `(blank)` security contact at **24% (16/66)**
+  vs a **10.2%** registry-wide baseline (2.4×), and the EOP vanity/product footprint roughly doubled
+  in H1 2026. `PITC-Defense@eop.gov` (25 domains) and `dl.eop.cloudadmin@eop.gov` (18) are the shared
+  mailboxes — reported as counts, never as an assertion of intent.
+
+**Proposed sixth module — Foundry (build-graph & cross-agency concentration), prototyped, not yet
+built.** The dig kept hitting a class of signal none of the five modules can emit: the **join** of
+CT and the registry. A standalone prototype run against live data produced two artifacts — a
+*build-concentration index* (8 distinct owning agencies flowing through one EOP vendor's CT tree,
+which the contact-concentration heuristic misses because each agency's registry contact is
+legitimately its own) and an *unlaunched-project watch* (preview hosts whose target apex is confirmed
+absent from the registry — `fbi-kirk-tipline`, `boardofpeace`, `forestandrangelands`, …, which
+Lookout can't produce because it only watches apexes already on its list). Recommendation is to build
+it flag-gated with human-gated attribution confidence; the other four ideas fold into Ledger,
+Floodlight and Lookout. Awaiting a go/no-go before any code lands.
+
 ## Unreleased — Analytics: exclude operator traffic + reset; mobile table fix
 
 **Counts you can trust at low traffic.** The operator's own visits can now be left out of the

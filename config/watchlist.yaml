@@ -1,5 +1,7 @@
 # Daylight watchlist — drives every module.
 # Seed values VERIFIED against live data 2026-07-01 (CISA dotgov-data + crt.sh CT logs).
+# 2026-07-05 additions from the anomaly dig re-verified against the live CISA
+# current-federal.csv + crt.sh (see CHANGELOG "Cross-agency vendor build-graph dig").
 # Existence-only: NEVER authenticate past any gated host listed here.
 
 apex_domains:                 # Ledger watches ownership; Lookout watches their certs
@@ -12,6 +14,17 @@ apex_domains:                 # Ledger watches ownership; Lookout watches their 
   - freedom.gov
   - login.gov
   - eac.gov
+  # Added 2026-07-05 (verified in CISA current-federal.csv): the NDS/EOP product cluster.
+  - nds.gov                   # sister vendor apex of ndstudio.gov (both EOP / White House Office)
+  - nasaforce.gov             # NASA/OPM hiring site, but apex is EOP-owned with a (blank) contact; NDS-built
+  - trumpcard.gov             # EOP / Dept. of Government Efficiency — cross-agency "Gold Card" visa product
+  - trumpira.gov              # EOP / White House Office, (blank) contact; EO directs Treasury to run it (owner/operator split)
+  # NOTE — deliberately NOT added as apex_domains: war.gov (DoD, dma.websd@mail.mil),
+  # hstf.gov (DHS, postmaster@dhs.gov), america.gov (State) are legitimately owned by their
+  # own agencies with their own contacts. NDS *builds* them (their previews sit under
+  # ndstudio.gov below), but listing them here would wrongly escalate any @war.gov/@hstf.gov
+  # contact to a high H1 flag and mint mimic tokens for legit agency functions. The CT<->registry
+  # build linkage they represent is exactly what the proposed Foundry module would catch instead.
 
 subdomain_apexes:             # Lookout also enumerates certs under these (subdomain-hosted programs)
   - energy.gov                # for genesis.energy.gov
@@ -43,7 +56,8 @@ central_security_allowlist:
 # Lookout subdomain-flag scoring (labels left of the apex)
 subdomain_flags:
   high:    [previews, staging, sandbox, auth, photo, photos, internal, infra, analytics, inference, upload, admin]
-  notable: [api, cms, cdn, assets, onboarding, hiring, prod, int]
+  # 2026-07-05: added chat/chat-embed/storybook (first-party AI-chat + dev surfaces seen on ndstudio.gov)
+  notable: [api, cms, cdn, assets, onboarding, hiring, prod, int, chat, chat-embed, storybook]
 
 # Real subdomains seen in CT logs (existence-only fixtures; verified 2026-07-01).
 # NOTE: many sit behind a *.cloudflareaccess.com gate — observe existence, never authenticate.
@@ -59,3 +73,28 @@ known_subdomains_seen:
   - cms.ndstudio.gov
   - admin.ndstudio.gov
   - vote-gov.previews.ndstudio.gov    # documented by reporting; previews.* pattern confirmed live
+  # Added 2026-07-05 from the dig (verified in CT via crt.sh; existence-only, several sit behind
+  # *.cloudflareaccess.com and must NEVER be entered). Cert first-seen dates are earliest-observed
+  # lower bounds (crt.sh was intermittently rate-limited) — re-pull before citing a date publicly.
+  - fbi-kirk-tipline.previews.ndstudio.gov      # FBI-branded tip host on the EOP vendor apex (first CT ~2025-09-11)
+  - war.previews.ndstudio.gov                   # "Department of War" preview (war.gov itself is DoD-owned)
+  - hstf.previews.ndstudio.gov                  # DHS Homeland Security Task Force build
+  - hstf.prod.ndstudio.gov                      # ...its PROD env-tier, leaked in a public cert
+  - nasaforce.staging.ndstudio.gov              # NASA/OPM site staged pre-launch
+  - boardofpeace.previews.ndstudio.gov          # Trump Gaza "Board of Peace" (no .gov apex; public site is boardofpeace.org)
+  - board-of-peace-assets.ndstudio.gov
+  - forestandrangelands.previews.ndstudio.gov   # USDA/DOI Forest & Rangelands rebuild
+  - sr-input.int.ndstudio.gov                   # SweetREX (DOGE deregulation AI) internal-tier hosts
+  - sweetrex.int.ndstudio.gov
+  - inference.ndstudio.gov                      # LLM inference endpoint (first CT ~2026-06-15)
+  - chat.staging.ndstudio.gov                   # embeddable first-party site chatbot
+  - chat-embed.staging.ndstudio.gov
+  - upload.ndstudio.gov                         # upload/intake surface
+  - storybook.ndstudio.gov                      # component-library dev tool exposed on a prod apex
+  - rx.previews.ndstudio.gov                    # TrumpRx build cluster
+  - trumprx.ndstudio.gov
+  - cdn.trumprx.ndstudio.gov
+  - geo-testing.trumprx.ndstudio.gov            # IP-geolocation feature staging
+  - mfn-trumprx.ndstudio.gov                    # "most-favored-nation" drug-pricing feature
+  - trump-accounts.previews.ndstudio.gov
+  - trump-accounts-splashpage.previews.ndstudio.gov
