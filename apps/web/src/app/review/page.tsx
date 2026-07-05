@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import type { GapRow } from "@/lib/data";
 import { reviewGap, reviewQueue, reviewedGaps, heldGaps, reopenGapForRevision } from "@/lib/data";
 import { Eyebrow, Panel } from "@/components/ui";
+import { ConfirmSubmit } from "./confirm-button";
 
 export const metadata: Metadata = { title: "Review queue", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -204,13 +205,13 @@ export default async function ReviewPage() {
                 />
                 <Reclassify g={g} />
                 <div className="flex flex-wrap gap-2 font-mono text-xs">
-                  <button
-                    type="submit"
+                  <ConfirmSubmit
                     formAction={actReview.bind(null, "publish")}
+                    message="Publish this finding to the public /redtape ledger? It becomes publicly visible."
                     className="rounded border border-calm/60 px-3 py-1 text-calm transition-colors hover:border-calm"
                   >
                     Publish
-                  </button>
+                  </ConfirmSubmit>
                   <button
                     type="submit"
                     formAction={actReview.bind(null, "hold")}
@@ -264,9 +265,9 @@ export default async function ReviewPage() {
                   />
                   <Reclassify g={g} />
                   <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-                    <button type="submit" formAction={actReview.bind(null, "publish")} className="rounded border border-calm/60 px-3 py-1 text-calm transition-colors hover:border-calm">
+                    <ConfirmSubmit formAction={actReview.bind(null, "publish")} message="Publish this finding to the public /redtape ledger? It becomes publicly visible." className="rounded border border-calm/60 px-3 py-1 text-calm transition-colors hover:border-calm">
                       Publish
-                    </button>
+                    </ConfirmSubmit>
                     <button type="submit" formAction={actReview.bind(null, "hold")} className="rounded border border-signal/60 px-3 py-1 text-signal transition-colors hover:border-signal">
                       Keep on hold
                     </button>
