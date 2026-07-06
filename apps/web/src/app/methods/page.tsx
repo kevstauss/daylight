@@ -1,5 +1,7 @@
 import Link from "next/link";
-import type { Metadata } from "next";
+import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
+import { JsonLd } from "@/components/json-ld";
+import { webPageLd } from "@/lib/structured-data";
 import {
   CONTACT,
   CONTACT_LABEL,
@@ -12,7 +14,11 @@ import { Panel, SourceLink } from "@/components/ui";
 import { PlainTechnical } from "@/components/plain-technical";
 import { TipJar } from "@/components/tip-jar";
 
-export const metadata: Metadata = { title: "Methods" };
+export const metadata = pageMetadata({
+  title: "Methods",
+  description: PAGE_DESCRIPTIONS.methods,
+  path: "/methods",
+});
 // Render at request time so the runtime origin (User-Agent/contact) and flag-gated nav
 // are correct in production, not baked from build-time env.
 export const dynamic = "force-dynamic";
@@ -106,6 +112,7 @@ const HEURISTICS: { name: string; plain: string; technical: string; clears: stri
 export default function MethodsPage() {
   return (
     <div className="prose-daylight max-w-2xl">
+      <JsonLd data={webPageLd({ type: "AboutPage", name: "Methods & sources", description: PAGE_DESCRIPTIONS.methods, path: "/methods" })} />
       <h1 className="text-2xl font-semibold tracking-tight">Methods &amp; sources</h1>
       <p>
         Daylight is a public, observational watchdog for federal <code>.gov</code> infrastructure.
@@ -237,6 +244,18 @@ export default function MethodsPage() {
         Everywhere AI-drafted text appears, it is labeled as such, and fact is distinguished from
         inference. The rest of Daylight — Ledger, Lookout, Floodlight, Receipts — is deterministic
         code with no model in the loop.
+      </p>
+
+      <h2>Open &amp; machine-readable</h2>
+      <p>
+        The record is meant to be re-checked and cited, so it&rsquo;s published for machines as well
+        as people. Every module has an RSS and a JSON feed; a public JSON API lives under{" "}
+        <a href="/api/v1/changes">/api/v1</a>; every page carries schema.org structured data and a
+        canonical link; a <a href="/sitemap.xml">sitemap</a> lists every domain and change permalink;
+        and an <a href="/llms.txt">llms.txt</a> summarizes the site for AI tools. Our{" "}
+        <a href="/robots.txt">robots.txt</a> deliberately welcomes search engines and AI crawlers —
+        a public accountability record should be findable and quotable. New here? The{" "}
+        <Link href="/faq">FAQ &amp; glossary</Link> answers the common questions and defines the terms.
       </p>
 
       <h2>Corrections &amp; disputes</h2>

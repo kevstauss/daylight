@@ -3,9 +3,12 @@ import { notFound } from "next/navigation";
 import { sha256 } from "@daylight/core";
 import { synthesizeTitle } from "@daylight/feeds";
 import { changeById } from "@/lib/data";
-import { configuredSiteUrl, severityLabel } from "@/lib/site";
+import { configuredSiteUrl, severityLabel, SITE_NAME } from "@/lib/site";
+import { pageMetadata } from "@/lib/seo";
 import { HashChip, InternalLink, Panel, SeverityBadge, SourceRef, Timestamp } from "@/components/ui";
 import { CiteBlock } from "@/components/cite-block";
+import { JsonLd } from "@/components/json-ld";
+import { breadcrumbLd, reportLd } from "@/lib/structured-data";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +19,34 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const c = changeById(Number(id));
-  return { title: c ? `Change #${c.id} · ${c.domain}` : "Change" };
+  if (!c) {
+    return pageMetadata({
+      title: "Change",
+      description: "This change record was not found.",
+      path: `/change/${id}`,
+      noindex: true,
+      ogImage: false,
+    });
+  }
+  const headline = synthesizeTitle({
+    id: c.id,
+    domain: c.domain,
+    detected_at: c.detected_at,
+    kind: c.kind,
+    field: c.field,
+    old_value: c.old_value,
+    new_value: c.new_value,
+    severity: c.severity,
+    reason: c.reason,
+  });
+  const date = c.detected_at.slice(0, 10);
+  return pageMetadata({
+    title: `Change #${c.id} · ${c.domain}`,
+    ogTitle: `${headline} · ${SITE_NAME}`,
+    description: `${headline}. Observed ${date} on ${c.domain} by Daylight's ${c.module} module — timestamped and linked to its public source.`,
+    path: `/change/${c.id}`,
+    ogImage: false, // per-change card comes from change/[id]/opengraph-image.tsx
+  });
 }
 
 export default async function ChangePage({ params }: { params: Promise<{ id: string }> }) {
@@ -44,6 +74,23 @@ export default async function ChangePage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="max-w-measure space-y-6">
+      <JsonLd
+        data={reportLd({
+          id: c.id,
+          headline: title,
+          datePublished: c.detected_at,
+          domain: c.domain,
+          sourceUrl: c.source_url,
+          fingerprint,
+        })}
+      />
+      <JsonLd
+        data={breadcrumbLd([
+          { name: "Daylight", path: "/" },
+          { name: c.domain, path: `/domain/${c.domain}` },
+          { name: `Change #${c.id}`, path: `/change/${c.id}` },
+        ])}
+      />
       <div>
         <div className="flex items-center gap-2.5">
           <SeverityBadge severity={c.severity} />

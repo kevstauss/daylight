@@ -1,9 +1,13 @@
-import type { Metadata } from "next";
 import { analyticsSummary, type AnalyticsSummary } from "@/lib/data";
 import { EmptyState, Eyebrow, InternalLink, Panel } from "@/components/ui";
 import { FUNDING_URL } from "@/lib/site";
+import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Privacy" };
+export const metadata = pageMetadata({
+  title: "Privacy",
+  description: PAGE_DESCRIPTIONS.privacy,
+  path: "/privacy",
+});
 export const dynamic = "force-dynamic";
 
 // The pledge — each is checked against the code, not aspirational.

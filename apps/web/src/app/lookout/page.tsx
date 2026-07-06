@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { SubdomainRow } from "@/lib/data";
@@ -6,8 +5,16 @@ import { searchSubdomains, subdomainCount } from "@/lib/data";
 import { flags } from "@/lib/flags";
 import { EmptyState, Panel, SeverityBadge, Timestamp } from "@/components/ui";
 import { ModuleIcon } from "@/components/module-icon";
+import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
+import { JsonLd } from "@/components/json-ld";
+import { breadcrumbLd, webPageLd } from "@/lib/structured-data";
 
-export const metadata: Metadata = { title: "Lookout" };
+export const metadata = pageMetadata({
+  title: "Lookout",
+  description: PAGE_DESCRIPTIONS.lookout,
+  path: "/lookout",
+  feeds: { rss: "/lookout/feed.xml", json: "/lookout/feed.json" },
+});
 export const dynamic = "force-dynamic";
 
 const str = (v: string | string[] | undefined): string =>
@@ -36,6 +43,8 @@ export default async function LookoutPage({
 
   return (
     <div className="space-y-6">
+      <JsonLd data={webPageLd({ type: "CollectionPage", name: "Lookout", description: PAGE_DESCRIPTIONS.lookout, path: "/lookout" })} />
+      <JsonLd data={breadcrumbLd([{ name: "Daylight", path: "/" }, { name: "Lookout", path: "/lookout" }])} />
       <div>
         <div className="flex items-center gap-2.5"><ModuleIcon name="lookout" className="h-6 w-6 shrink-0 text-ink" /><h1 className="text-2xl font-semibold tracking-tight">Lookout</h1></div>
         <p className="mt-1 max-w-2xl text-sm text-muted">

@@ -1,12 +1,19 @@
-import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { coverageSnapshotRows, removalLedgerRows, snapshotCount, type SnapshotRow } from "@/lib/data";
 import { flags } from "@/lib/flags";
 import { EmptyState, Eyebrow, Panel, SeverityBadge, Timestamp } from "@/components/ui";
 import { ModuleIcon } from "@/components/module-icon";
+import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
+import { JsonLd } from "@/components/json-ld";
+import { breadcrumbLd, webPageLd } from "@/lib/structured-data";
 
-export const metadata: Metadata = { title: "Receipts — removal ledger" };
+export const metadata = pageMetadata({
+  title: "Receipts — removal ledger",
+  description: PAGE_DESCRIPTIONS.receipts,
+  path: "/receipts",
+  feeds: { rss: "/receipts/feed.xml", json: "/receipts/feed.json" },
+});
 export const dynamic = "force-dynamic";
 
 function trackerCount(s: SnapshotRow): number {
@@ -25,6 +32,8 @@ export default function ReceiptsPage() {
 
   return (
     <div className="space-y-8">
+      <JsonLd data={webPageLd({ type: "CollectionPage", name: "Receipts", description: PAGE_DESCRIPTIONS.receipts, path: "/receipts" })} />
+      <JsonLd data={breadcrumbLd([{ name: "Daylight", path: "/" }, { name: "Receipts", path: "/receipts" }])} />
       <div>
         <div className="flex items-center gap-2.5">
           <ModuleIcon name="receipts" className="h-6 w-6 shrink-0 text-ink" />

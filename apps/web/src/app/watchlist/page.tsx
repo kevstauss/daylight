@@ -1,11 +1,15 @@
-import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { watchlist } from "@/lib/watchlist";
 import { TIPS_EMAIL } from "@/lib/site";
 import { Eyebrow, InternalLink, Panel } from "@/components/ui";
+import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Watchlist" };
+export const metadata = pageMetadata({
+  title: "Watchlist",
+  description: PAGE_DESCRIPTIONS.watchlist,
+  path: "/watchlist",
+});
 export const dynamic = "force-dynamic";
 
 const submitHref = `mailto:${TIPS_EMAIL}?subject=${encodeURIComponent(

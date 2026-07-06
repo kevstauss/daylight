@@ -1,10 +1,14 @@
 import { readFileSync } from "node:fs";
-import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { renderTrustedMarkdown } from "@/lib/markdown";
 import { findRepoFile } from "@/lib/repoFile";
+import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Changelog" };
+export const metadata = pageMetadata({
+  title: "Changelog",
+  description: PAGE_DESCRIPTIONS.changelog,
+  path: "/changelog",
+});
 // Read the repo-committed CHANGELOG.md at request time so a redeploy surfaces new entries
 // immediately (the file ships in the image via the Dockerfile `COPY . .`).
 export const dynamic = "force-dynamic";

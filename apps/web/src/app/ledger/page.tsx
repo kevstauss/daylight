@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { FLAG_TYPES, type FlagKind, classifyChangeFlag } from "@daylight/core";
@@ -8,8 +7,16 @@ import { flags } from "@/lib/flags";
 import { Eyebrow, InternalLink, Panel, SeverityBadge, SourceRef, Timestamp } from "@/components/ui";
 import { ModuleIcon } from "@/components/module-icon";
 import { LedgerTabs } from "@/components/ledger-tabs";
+import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
+import { JsonLd } from "@/components/json-ld";
+import { breadcrumbLd, webPageLd } from "@/lib/structured-data";
 
-export const metadata: Metadata = { title: "Ledger activity" };
+export const metadata = pageMetadata({
+  title: "Ledger activity",
+  description: PAGE_DESCRIPTIONS.ledger,
+  path: "/ledger",
+  feeds: { rss: "/ledger/feed.xml", json: "/ledger/feed.json" },
+});
 export const dynamic = "force-dynamic";
 
 const SEVERITIES = [
@@ -56,6 +63,8 @@ export default async function LedgerPage({
 
   return (
     <div className="space-y-6">
+      <JsonLd data={webPageLd({ type: "CollectionPage", name: "Ledger", description: PAGE_DESCRIPTIONS.ledger, path: "/ledger" })} />
+      <JsonLd data={breadcrumbLd([{ name: "Daylight", path: "/" }, { name: "Ledger", path: "/ledger" }])} />
       <div>
         <Eyebrow>ledger · activity</Eyebrow>
         <div className="flex items-center gap-2.5"><ModuleIcon name="registry" className="h-6 w-6 shrink-0 text-ink" /><h1 className="text-2xl font-semibold tracking-tight">Ledger activity</h1></div>

@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { DomainRow } from "@daylight/db";
@@ -8,8 +7,15 @@ import { domainFlag, orgResolver } from "@/lib/ledger";
 import { EmptyState, Panel } from "@/components/ui";
 import { ModuleIcon } from "@/components/module-icon";
 import { LedgerTabs } from "@/components/ledger-tabs";
+import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
+import { JsonLd } from "@/components/json-ld";
+import { breadcrumbLd, webPageLd } from "@/lib/structured-data";
 
-export const metadata: Metadata = { title: "Registry" };
+export const metadata = pageMetadata({
+  title: "Registry",
+  description: PAGE_DESCRIPTIONS.registry,
+  path: "/registry",
+});
 export const dynamic = "force-dynamic";
 
 const str = (v: string | string[] | undefined): string =>
@@ -39,6 +45,8 @@ export default async function RegistryPage({
 
   return (
     <div className="space-y-6">
+      <JsonLd data={webPageLd({ type: "CollectionPage", name: "Registry", description: PAGE_DESCRIPTIONS.registry, path: "/registry" })} />
+      <JsonLd data={breadcrumbLd([{ name: "Daylight", path: "/" }, { name: "Registry", path: "/registry" }])} />
       <div>
         <div className="flex items-center gap-2.5"><ModuleIcon name="registry" className="h-6 w-6 shrink-0 text-ink" /><h1 className="text-2xl font-semibold tracking-tight">Registry</h1></div>
         <p className="mt-1 max-w-2xl text-sm text-muted">

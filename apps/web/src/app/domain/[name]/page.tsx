@@ -25,6 +25,10 @@ import {
   SourceRef,
   Timestamp,
 } from "@/components/ui";
+import { SITE_NAME } from "@/lib/site";
+import { pageMetadata } from "@/lib/seo";
+import { JsonLd } from "@/components/json-ld";
+import { breadcrumbLd, datasetLd } from "@/lib/structured-data";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +42,36 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { name } = await params;
   // The App Router already URL-decodes the param; decoding again throws URIError on a bare '%'.
-  // safeDecode is idempotent for real domains and never throws.
-  return { title: safeDecode(name) };
+  // safeDecode is idempotent for real domains and never throws. Lowercasing is the canonical form,
+  // so VOTE.GOV and vote.gov both canonicalize to /domain/vote.gov (no duplicate content).
+  const domain = safeDecode(name).trim().toLowerCase();
+  const apex = safe(() => domainRow(domain), null);
+  const sub = apex ? null : safe(() => subdomainRow(domain), null);
+
+  if (!apex && !sub) {
+    // Resolves to neither an apex nor a known subdomain — a thin/empty page. Keep it crawlable
+    // (so the internal links work) but out of the index.
+    return pageMetadata({
+      title: domain,
+      description: `Daylight has no federal .gov registry or Certificate Transparency record for ${domain} yet.`,
+      path: `/domain/${domain}`,
+      noindex: true,
+      ogImage: false,
+    });
+  }
+
+  const org = apex?.org ?? sub?.apex_owner_org ?? null;
+  const description = apex
+    ? `Ownership, security contact, certificates, and tracking observations for ${domain}${org ? `, operated by ${org}` : ""} — a federal .gov domain. Every record is timestamped and linked to its public source.`
+    : `${domain} — a federal .gov subdomain first observed in public Certificate Transparency logs${org ? ` under ${org}` : ""}. Existence-only record; the host is never probed or entered.`;
+
+  return pageMetadata({
+    title: domain,
+    ogTitle: `${domain} · ${SITE_NAME}`,
+    description,
+    path: `/domain/${domain}`,
+    ogImage: false, // per-domain card comes from domain/[name]/opengraph-image.tsx
+  });
 }
 
 /** Resolve which legit/shadow domain to compare this one against, from watchlist.comparators. */
@@ -89,8 +121,27 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
   const sc = comp?.scorecards[0] ?? null;
   const gap = comp?.gaps[0] ?? null;
 
+  const lastObserved = history.at(-1)?.detected_at ?? row.last_seen;
+
   return (
     <div className="space-y-6">
+      <JsonLd
+        data={datasetLd({
+          name: `${row.domain} — Daylight observations`,
+          description: `Ownership, security contact, certificates, subdomains, and tracking observations for ${row.domain}${row.org ? `, operated by ${row.org}` : ""} — a federal .gov domain. Timestamped and source-linked.`,
+          path: `/domain/${row.domain}`,
+          distributions: [{ format: "application/json", path: `/api/v1/domain/${row.domain}` }],
+          dateModified: lastObserved,
+          keywords: [row.domain, row.org, "federal .gov domain ownership"].filter(Boolean) as string[],
+        })}
+      />
+      <JsonLd
+        data={breadcrumbLd([
+          { name: "Daylight", path: "/" },
+          ...(f.registry ? [{ name: "Registry", path: "/registry" }] : []),
+          { name: row.domain, path: `/domain/${row.domain}` },
+        ])}
+      />
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="font-mono text-2xl text-ink">{row.domain}</h1>
@@ -380,6 +431,22 @@ function SubdomainView({ sub }: { sub: SubdomainRow }) {
   const scorecards = safe(() => scorecardsForHost(sub.fqdn), [] as ScorecardRow[]);
   return (
     <div className="space-y-6">
+      <JsonLd
+        data={datasetLd({
+          name: `${sub.fqdn} — Daylight observations`,
+          description: `${sub.fqdn} — a federal .gov subdomain first observed in public Certificate Transparency logs under ${sub.apex}${sub.apex_owner_org ? ` (${sub.apex_owner_org})` : ""}. Existence-only record; the host is never probed or entered.`,
+          path: `/domain/${sub.fqdn}`,
+          dateModified: sub.last_seen,
+          keywords: [sub.fqdn, sub.apex, "federal .gov subdomain"].filter(Boolean) as string[],
+        })}
+      />
+      <JsonLd
+        data={breadcrumbLd([
+          { name: "Daylight", path: "/" },
+          { name: sub.apex, path: `/domain/${sub.apex}` },
+          { name: sub.fqdn, path: `/domain/${sub.fqdn}` },
+        ])}
+      />
       <div>
         <nav aria-label="Breadcrumb" className="mb-1 font-mono text-xs text-faint">
           <Link href={`/domain/${encodeURIComponent(sub.apex)}`} className="link">

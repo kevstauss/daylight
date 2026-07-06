@@ -5,8 +5,18 @@ import { flags, type Flags } from "@/lib/flags";
 import { EmptyState, Eyebrow, InternalLink, Panel, SeverityBadge, SourceRef, Timestamp } from "@/components/ui";
 import { GlobalSearch } from "@/components/global-search";
 import { ModuleIcon } from "@/components/module-icon";
+import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
+import { JsonLd } from "@/components/json-ld";
+import { datasetLd } from "@/lib/structured-data";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = pageMetadata({
+  description: PAGE_DESCRIPTIONS.home,
+  path: "/",
+  feeds: { rss: "/feed.xml", json: "/feed.json" },
+  ogImage: false, // root segment has app/opengraph-image.tsx — let the file convention attach it.
+});
 
 const MODULES = [
   { key: "registry", href: "/registry", name: "Ledger", blurb: "Who owns each federal .gov, and every change to the record." },
@@ -42,9 +52,33 @@ export default function Home() {
   const domains = safe(() => domainCount(), 0);
   const changes = safe(() => changeCount(), 0);
   const live = MODULES.filter((m) => f[m.key as keyof typeof f]);
+  const latestChange = safe(() => globalChanges(1), [])[0]?.detected_at;
 
   return (
     <div className="space-y-14">
+      <JsonLd
+        data={datasetLd({
+          name: "Daylight — federal .gov infrastructure observations",
+          description:
+            "A public, timestamped, source-linked record of who owns each federal .gov domain, what certificates and subdomains appear, what trackers run on public pages, and what quietly changed or vanished.",
+          path: "/",
+          distributions: [
+            { format: "application/json", path: "/api/v1/changes" },
+            { format: "application/feed+json", path: "/feed.json" },
+            { format: "application/rss+xml", path: "/feed.xml" },
+          ],
+          dateModified: latestChange,
+          keywords: [
+            "federal government",
+            ".gov domains",
+            "CISA dotgov-data",
+            "Certificate Transparency",
+            "website trackers",
+            "session replay",
+            "government transparency",
+          ],
+        })}
+      />
       <section className="space-y-6">
         <h1 className="max-w-3xl text-[30px] font-extrabold leading-[1.06] tracking-[-0.02em] text-ink sm:text-[42px]">
           A public record of who runs the federal web — and what quietly changes when no one is looking.

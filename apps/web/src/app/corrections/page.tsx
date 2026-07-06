@@ -1,9 +1,13 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { correctionsRows, type CorrectionRow } from "@/lib/data";
 import { EmptyState, Eyebrow, Panel, Timestamp } from "@/components/ui";
+import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Corrections" };
+export const metadata = pageMetadata({
+  title: "Corrections",
+  description: PAGE_DESCRIPTIONS.corrections,
+  path: "/corrections",
+});
 export const dynamic = "force-dynamic";
 
 export default function CorrectionsPage() {

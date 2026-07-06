@@ -13,6 +13,9 @@ import { SupportBanner } from "@/components/support-banner";
 import { BackToTop } from "@/components/back-to-top";
 import { flags } from "@/lib/flags";
 import { CREDIT_LINE, FUNDING_URL, HEADER_TAGLINE, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
+import { absolute, metadataBase, SITE_URL } from "@/lib/seo";
+import { JsonLd } from "@/components/json-ld";
+import { siteGraphLd } from "@/lib/structured-data";
 
 // Applies a saved theme choice before first paint (no flash). System pref is the default.
 const NO_FLASH = `(function(){try{var t=localStorage.getItem('daylight-theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`;
@@ -33,8 +36,43 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase,
   title: { default: `${SITE_NAME} — federal .gov watch`, template: `%s · ${SITE_NAME}` },
   description: SITE_TAGLINE,
+  applicationName: SITE_NAME,
+  authors: [{ name: SITE_NAME, url: SITE_URL }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  manifest: "/manifest.webmanifest",
+  // Phone-number autolinking mangles domain/contact strings; turn it off.
+  formatDetection: { telephone: false, address: false, email: false },
+  // Site-wide feed discovery only. Canonical is intentionally NOT set here — it would cascade to any
+  // page that forgot to override it, silently canonicalizing everything to "/". Each page sets its own.
+  alternates: {
+    types: {
+      "application/rss+xml": [{ url: absolute("/feed.xml"), title: `${SITE_NAME} — all changes (RSS)` }],
+      "application/feed+json": [{ url: absolute("/feed.json"), title: `${SITE_NAME} — all changes (JSON Feed)` }],
+    },
+  },
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    locale: "en_US",
+    url: SITE_URL,
+    title: `${SITE_NAME} — a public watchdog for federal .gov infrastructure`,
+    description: SITE_TAGLINE,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${SITE_NAME} — federal .gov watch`,
+    description: SITE_TAGLINE,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+  },
+  category: "technology",
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
@@ -51,6 +89,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const meta = [
     { href: "/watchlist", label: "Watchlist" },
     { href: "/methods", label: "Methods" },
+    { href: "/faq", label: "FAQ" },
     { href: "/privacy", label: "Privacy" },
     { href: "/status", label: "Status" },
   ];
@@ -59,6 +98,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <body className="min-h-screen bg-paper font-sans text-ink antialiased">
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: NO_FLASH }} />
+        <JsonLd data={siteGraphLd()} />
         <a href="#main" className="skip-link">Skip to main content</a>
         <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-5 sm:px-8">
           <header className="border-b border-edgeStrong">
@@ -119,6 +159,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             </p>
             <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
               <Link href="/methods" className="link">Methods</Link>
+              <Link href="/faq" className="link">FAQ</Link>
               <Link href="/watchlist" className="link">Watchlist</Link>
               <Link href="/corrections" className="link">Corrections</Link>
               <Link href="/changelog" className="link">Changelog</Link>

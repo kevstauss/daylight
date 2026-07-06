@@ -18,12 +18,15 @@ export default defineConfig({
       "@daylight/floodlight": r("./workers/floodlight/src/index.ts"),
       "@daylight/receipts": r("./workers/receipts/src/index.ts"),
       "@daylight/redtape": r("./workers/redtape/src/index.ts"),
+      // apps/web's "@/..." path alias. Only matches "@/…" (not "@daylight/…"), so it composes with
+      // the package aliases above and lets web unit tests import server helpers by their real path.
+      "@": r("./apps/web/src"),
     },
   },
   test: {
     globals: true,
     environment: "node",
-    include: ["packages/**/*.test.ts", "workers/**/*.test.ts"],
+    include: ["packages/**/*.test.ts", "workers/**/*.test.ts", "apps/web/**/*.test.ts"],
     // better-sqlite3 is a native module; keep tests single-threaded-friendly.
     pool: "forks",
   },

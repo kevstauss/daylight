@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { GapRow } from "@/lib/data";
@@ -6,8 +5,16 @@ import { publicGaps } from "@/lib/data";
 import { flags } from "@/lib/flags";
 import { EmptyState, Panel, SeverityBadge } from "@/components/ui";
 import { ModuleIcon } from "@/components/module-icon";
+import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
+import { JsonLd } from "@/components/json-ld";
+import { breadcrumbLd, webPageLd } from "@/lib/structured-data";
 
-export const metadata: Metadata = { title: "Redtape — filing gaps" };
+export const metadata = pageMetadata({
+  title: "Redtape — filing gaps",
+  description: PAGE_DESCRIPTIONS.redtape,
+  path: "/redtape",
+  feeds: { rss: "/redtape/feed.xml", json: "/redtape/feed.json" },
+});
 export const dynamic = "force-dynamic";
 
 const parse = (json: string | null): string[] => {
@@ -37,6 +44,8 @@ export default function RedtapePage() {
 
   return (
     <div className="space-y-6">
+      <JsonLd data={webPageLd({ type: "CollectionPage", name: "Redtape", description: PAGE_DESCRIPTIONS.redtape, path: "/redtape" })} />
+      <JsonLd data={breadcrumbLd([{ name: "Daylight", path: "/" }, { name: "Redtape", path: "/redtape" }])} />
       <div>
         <div className="flex items-center gap-2.5"><ModuleIcon name="redtape" className="h-6 w-6 shrink-0 text-ink" /><h1 className="text-2xl font-semibold tracking-tight">Filing gaps</h1></div>
         <p className="mt-1 max-w-2xl text-sm text-muted">

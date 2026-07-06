@@ -4,6 +4,28 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Made legible to search engines and AI — 2026-07-06
+
+- A full SEO/AIO pass so the record is discoverable and citable. None of it changes what Daylight
+  observes — it only publishes the existing public data in machine-readable form.
+- **Discovery.** A dynamic [`/sitemap.xml`](/sitemap.xml) mapping every module page, all ~1,300
+  domains, known subdomains, and every change permalink (freshest first); a
+  [`/robots.txt`](/robots.txt) that *welcomes* the major AI crawlers (GPTBot, ClaudeBot,
+  PerplexityBot, Google-Extended, and more) by name — because a public accountability record should
+  be citable — while keeping the internal `/review` queue out; and a web manifest.
+- **Structured data.** Every page now carries schema.org JSON-LD: the whole corpus and each domain
+  as a `Dataset` (with the JSON API + feeds as downloads), each change as a citable `Report` carrying
+  its content fingerprint and public source, plus `Organization`, `WebSite`, `BreadcrumbList`, and a
+  `FAQPage`. This is what lets an assistant cite a specific, timestamped, re-verifiable finding.
+- **Per-page metadata.** Unique, factual titles and descriptions, canonical URLs, and OpenGraph /
+  Twitter cards on every page — all rooted at the configured site origin, never a request header.
+- **Social & citation cards.** Branded 1,200×630 preview images generated on the fly — a default
+  card, plus per-domain (name, owner, status) and per-change (the finding, severity, date) — so a
+  shared or cited Daylight link unfurls with the fact, not a blank box.
+- **Built for machines.** A new [`/llms.txt`](/llms.txt) site map for LLM/agent tooling, and a new
+  [`/faq`](/faq) with a plain-language Q&A and a glossary (PIA, SORN, Certificate Transparency,
+  session replay, reverse-proxied analytics) — the terms the record is built on, defined once.
+
 ## Real first-seen dates in the raw column — 2026-07-06
 
 - A one-time, idempotent `pnpm ledger:backfill-first-seen` rewrites the `domains.first_seen` column

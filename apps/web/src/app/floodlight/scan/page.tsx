@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import Link from "next/link";
@@ -6,8 +5,13 @@ import { getDb } from "@daylight/db";
 import { captureAndScore } from "@daylight/floodlight/capture";
 import { flags } from "@/lib/flags";
 import { Eyebrow, Panel } from "@/components/ui";
+import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Scan a URL" };
+export const metadata = pageMetadata({
+  title: "Scan a URL",
+  description: PAGE_DESCRIPTIONS.scan,
+  path: "/floodlight/scan",
+});
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 

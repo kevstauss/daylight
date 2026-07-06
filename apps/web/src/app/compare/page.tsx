@@ -1,10 +1,14 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { composite } from "@/lib/ledger";
 import { watchlist } from "@/lib/watchlist";
 import { EmptyState, Eyebrow, Panel } from "@/components/ui";
+import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Compare" };
+export const metadata = pageMetadata({
+  title: "Compare",
+  description: PAGE_DESCRIPTIONS.compare,
+  path: "/compare",
+});
 export const dynamic = "force-dynamic";
 
 const str = (v: string | string[] | undefined): string =>

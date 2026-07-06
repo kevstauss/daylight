@@ -1,12 +1,18 @@
-import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { foundryReport } from "@/lib/data";
 import { flags } from "@/lib/flags";
 import { EmptyState, Panel } from "@/components/ui";
 import { ModuleIcon } from "@/components/module-icon";
+import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
+import { JsonLd } from "@/components/json-ld";
+import { breadcrumbLd, webPageLd } from "@/lib/structured-data";
 
-export const metadata: Metadata = { title: "Foundry" };
+export const metadata = pageMetadata({
+  title: "Foundry",
+  description: PAGE_DESCRIPTIONS.foundry,
+  path: "/foundry",
+});
 export const dynamic = "force-dynamic";
 
 export default function FoundryPage() {
@@ -16,6 +22,8 @@ export default function FoundryPage() {
 
   return (
     <div className="space-y-6">
+      <JsonLd data={webPageLd({ type: "CollectionPage", name: "Foundry", description: PAGE_DESCRIPTIONS.foundry, path: "/foundry" })} />
+      <JsonLd data={breadcrumbLd([{ name: "Daylight", path: "/" }, { name: "Foundry", path: "/foundry" }])} />
       <div>
         <div className="flex items-center gap-2.5">
           <ModuleIcon name="foundry" className="h-6 w-6 shrink-0 text-ink" />

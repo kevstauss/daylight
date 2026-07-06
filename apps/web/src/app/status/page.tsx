@@ -1,9 +1,13 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { statusReport, type ModuleStatus } from "@/lib/status";
 import { EmptyState, Panel, Timestamp } from "@/components/ui";
+import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Status" };
+export const metadata = pageMetadata({
+  title: "Status",
+  description: PAGE_DESCRIPTIONS.status,
+  path: "/status",
+});
 export const dynamic = "force-dynamic";
 
 export default function StatusPage() {

@@ -485,6 +485,14 @@ export class DaylightDb {
     return row ?? null;
   }
 
+  /** Minimal (id, detected_at) for every change, newest first — powers the sitemap without loading
+   *  full rows. Goes through the DB seam so the Postgres swap never touches the sitemap route. */
+  changeStamps(): { id: number; detected_at: string }[] {
+    return this.sql
+      .prepare(`SELECT id, detected_at FROM changes ORDER BY id DESC`)
+      .all() as { id: number; detected_at: string }[];
+  }
+
   // ---- scans / status -----------------------------------------------------
 
   recordScanStart(module: string): number {

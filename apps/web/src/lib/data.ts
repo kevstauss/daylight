@@ -156,6 +156,23 @@ export function changeCount(): number {
   return row.n;
 }
 
+// ---- Sitemap listing helpers (id/slug + lastmod only; go through the DB seam) ----
+
+/** Every apex domain row — for the sitemap's /domain/{name} entries. */
+export function allDomainRows(): DomainRow[] {
+  return getDb().allDomains();
+}
+
+/** Every known subdomain (Lookout) — for the sitemap's /domain/{fqdn} entries. */
+export function allSubdomainRows(): SubdomainRow[] {
+  return getDb().allSubdomains();
+}
+
+/** Minimal (id, detected_at) for every change permalink — for the sitemap. */
+export function allChangeStamps(): { id: number; detected_at: string }[] {
+  return getDb().changeStamps();
+}
+
 // ---- Lookout (Phase 2) ----------------------------------------------------
 
 export function lookoutChanges(opts: { severity?: string; limit?: number } = {}): ChangeRow[] {
