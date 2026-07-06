@@ -99,10 +99,24 @@ numbered files in `packages/db/migrations/` (additive only).
 
 ### Watchlist-driven
 
-`config/watchlist.yaml` is the heart of the system — one file drives every module (watched apexes,
-comparators, person/org/suborg watches, the security-contact allowlist, subdomain-flag scoring,
-known subdomains). Parsed and normalized by `packages/core/src/watchlist.ts` into the `Watchlist`
-type. Change behavior by editing the watchlist, not by hard-coding domains in a module.
+`config/watchlist.yaml` is the heart of the system — one file supplies the hand-picked **priority**
+domains + the comparators, person/org/suborg watches, the security-contact allowlist,
+subdomain-flag scoring, and known subdomains. Parsed and normalized by
+`packages/core/src/watchlist.ts` into the `Watchlist` type. Change *priority* behavior by editing the
+watchlist, not by hard-coding domains in a module.
+
+**Scope vs. priority (important).** The watchlist is a *priority tier*, not the scope boundary.
+Ledger diffs the **entire** federal registry (all ~1,300 `.gov`). The browser modules
+(Floodlight/Receipts) and Lookout sweep three tiers, composed in `apps/web/src/instrumentation.ts`
+(`sweepTargets`): (1) `CURATED_GOV` — a hand-kept baseline of high-traffic/high-PII sites; (2) the
+watchlist apexes/subdomain-apexes; (3) a **dynamic** tier from the DB — brand-new `.gov`
+registrations inside a probation window (`DaylightDb.recentlyAddedDomains`, default 90 days,
+`DAYLIGHT_NEW_DOMAIN_WATCH_DAYS`) plus domains kept for turning up a finding
+(`keptWatchDomains`). A newly-registered federal domain is the highest-signal, lowest-volume event
+in the system (~1/week), so it is auto-watched from day one — keyed on Ledger's `added` **change**
+(the baseline seed runs with `emit=false`, so it is seed-safe), never on a hand edit. Redtape
+inherits this scope transitively (its candidates come from Floodlight's scorecards). The SSRF guards
+gate on `.gov` + public-IP, never the watchlist, so expanding scope stays within the guardrails.
 
 ---
 

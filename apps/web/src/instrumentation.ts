@@ -2,6 +2,30 @@
 // batch workers (Ledger daily diff, Lookout crt.sh backfill), sharing the one SQLite
 // volume. Each cron activates only when its env var is set (so `pnpm dev` stays quiet).
 
+// A type-only import (erased at build) so the browser/DB stays out of the module graph — the
+// runtime `@daylight/db` is still loaded lazily inside register().
+import type { DaylightDb } from "@daylight/db";
+
+// How long a brand-new .gov registration stays in the auto-watch tier (see
+// DaylightDb.recentlyAddedDomains). Override with DAYLIGHT_NEW_DOMAIN_WATCH_DAYS.
+const NEW_DOMAIN_WATCH_DAYS = Number(process.env.DAYLIGHT_NEW_DOMAIN_WATCH_DAYS) || 90;
+
+/**
+ * Sweep targets = the static tiers the caller passes (curated and/or the watchlist) PLUS the
+ * dynamic tier read fresh from the DB each run: brand-new .gov registrations inside the probation
+ * window (auto-watched from day one) and domains kept for turning up a finding. Deduped,
+ * lowercased, .gov-only. Watchlist/curated are the priority tiers; scope is not limited to them.
+ */
+function sweepTargets(database: DaylightDb, ...staticTiers: string[]): string[] {
+  const cutoff = new Date(Date.now() - NEW_DOMAIN_WATCH_DAYS * 86_400_000).toISOString();
+  const all = [
+    ...staticTiers,
+    ...database.recentlyAddedDomains(cutoff),
+    ...database.keptWatchDomains(),
+  ];
+  return [...new Set(all.map((h) => h.toLowerCase()))].filter((h) => h.endsWith(".gov"));
+}
+
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
@@ -64,7 +88,9 @@ export async function register(): Promise<void> {
     try {
       let added = 0;
       let certsSeen = 0;
-      for (const apex of [...wl.apexDomains, ...wl.subdomainApexes]) {
+      // Watchlist apexes + the dynamic tier (newly-registered + kept) so a brand-new .gov also
+      // gets its certs/subdomains enumerated. No CURATED_GOV here — Lookout stays watchlist-first.
+      for (const apex of sweepTargets(database, ...wl.apexDomains, ...wl.subdomainApexes)) {
         const certs = await lookout.fetchCrtShCerts(apex);
         certsSeen += certs.length;
         added += lookout.runLookoutBackfill({ db: database, watchlist: wl, certs, recordScan: false }).subdomainsAdded;
@@ -109,18 +135,20 @@ export async function register(): Promise<void> {
   }
 
   const channel = process.env.DAYLIGHT_BROWSER_CHANNEL;
-  const sweepHosts = (): string[] | null => {
+  // Floodlight + Receipts sweep the same set: curated baseline + watchlist + the dynamic tier
+  // (newly-registered within the probation window + kept). Computed per run from the live DB.
+  const browserSweepHosts = (database: DaylightDb): string[] | null => {
     const wl = loadWl();
     if (!wl) return null;
-    return [...floodlight.CURATED_GOV, ...wl.apexDomains, ...wl.subdomainApexes];
+    return sweepTargets(database, ...floodlight.CURATED_GOV, ...wl.apexDomains, ...wl.subdomainApexes);
   };
 
   // ---- Floodlight sweep (live capture; public .gov homepages, load-only) ----
   const runFloodlight = async (): Promise<void> => {
-    const hosts = sweepHosts();
-    if (!hosts) return;
     const database = db.createDb(db.resolveDbPath());
     try {
+      const hosts = browserSweepHosts(database);
+      if (!hosts) return;
       const r = await floodlight.runFloodlightSweep(database, hosts, { channel });
       console.log(
         `[floodlight:cron] sweep — ${r.scanned} scanned, ${r.gated} gated, ${r.flagged} flagged, ${r.retried} recovered` +
@@ -135,12 +163,12 @@ export async function register(): Promise<void> {
 
   // ---- Receipts sweep (snapshot + removal diff of the same public .gov homepages) ----
   const runReceipts = async (): Promise<void> => {
-    const hosts = sweepHosts();
-    if (!hosts) return;
     const wayback =
       process.env.DAYLIGHT_WAYBACK === "1" ? (u: string) => receipts.saveToWayback(u) : undefined;
     const database = db.createDb(db.resolveDbPath());
     try {
+      const hosts = browserSweepHosts(database);
+      if (!hosts) return;
       const r = await receiptsSweep.runReceiptsSweep(database, hosts, { channel, waybackSave: wayback });
       console.log(`[receipts:cron] sweep — ${r.captured} captured, ${r.gated} gated, ${r.removals} removals`);
     } catch (err) {

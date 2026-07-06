@@ -29,7 +29,7 @@ apps/web/     Next.js public site + per-domain dashboard + feeds
 workers/      ledger · lookout · foundry · floodlight · receipts · redtape (batch jobs / crons)
 packages/     core · db · feeds · redact · enrich · fingerprints (shared libraries)
 config/
-  watchlist.yaml   the domains, patterns, and watches that drive every module
+  watchlist.yaml   priority domains, patterns, and watches (scope is all .gov; this sets priority)
 ```
 
 ## Develop

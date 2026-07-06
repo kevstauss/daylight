@@ -171,6 +171,45 @@ describe("featuredChanges — homepage notable-findings trio", () => {
   });
 });
 
+describe("dynamic watch tier — new registrations + auto-keep", () => {
+  const iso = (d: string) => `${d}T00:00:00.000Z`;
+  const mkChange = (over: Partial<Change>): Change => ({
+    module: "ledger",
+    domain: "x.gov",
+    detectedAt: iso("2026-06-20"),
+    kind: "added",
+    severity: "info",
+    ...over,
+  });
+
+  it("recentlyAddedDomains returns ledger 'added' domains in the window — deduped, seed-safe", () => {
+    db.insertChange(mkChange({ domain: "fraud.gov", detectedAt: iso("2026-06-20") }));
+    db.insertChange(mkChange({ domain: "fraud.gov", detectedAt: iso("2026-06-25") })); // re-add collapses
+    db.insertChange(mkChange({ domain: "moms.gov", detectedAt: iso("2026-06-30") }));
+    db.insertChange(mkChange({ domain: "old.gov", detectedAt: iso("2026-01-01") })); // before window
+    db.insertChange(mkChange({ domain: "modonly.gov", kind: "modified", field: "org" })); // not an add
+    db.insertChange(mkChange({ module: "lookout", domain: "sub.gov", severity: "high" })); // other module
+
+    // Only genuine ledger 'added' inside the window, one row per domain, sorted.
+    expect(db.recentlyAddedDomains(iso("2026-06-01"))).toEqual(["fraud.gov", "moms.gov"]);
+    // A window that predates every add returns nothing (no false positives from a wide net).
+    expect(db.recentlyAddedDomains(iso("2027-01-01"))).toEqual([]);
+  });
+
+  it("keptWatchDomains returns only domains with a notable/high scorecard (auto-keep)", () => {
+    const sc = (url: string, domain: string, severity: string) => ({
+      url, domain, trackerCount: 1, sessionReplay: false, firstPartyProxied: false,
+      privacyNoticeUrl: null, requestCount: 10, engineVersion: "test", severity,
+      trackersJson: "[]", reasonsJson: "[]", formFieldsJson: null,
+    });
+    db.upsertScorecard(sc("https://fraud.gov/", "fraud.gov", "high"), iso("2026-06-22"));
+    db.upsertScorecard(sc("https://moms.gov/", "moms.gov", "notable"), iso("2026-06-22"));
+    db.upsertScorecard(sc("https://clean.gov/", "clean.gov", "info"), iso("2026-06-22")); // excluded
+
+    expect(db.keptWatchDomains()).toEqual(["fraud.gov", "moms.gov"]);
+  });
+});
+
 describe("scans / status", () => {
   it("records start + finish and returns latest per module", () => {
     const id = db.recordScanStart("ledger");

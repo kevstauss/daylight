@@ -130,6 +130,43 @@ export class DaylightDb {
     return this.sql.prepare(`SELECT * FROM domains ORDER BY domain ASC`).all() as DomainRow[];
   }
 
+  /**
+   * The DYNAMIC watch tier — domains the sweeps target on top of the curated baseline and the
+   * hand-picked watchlist, both computed (no extra table):
+   *
+   *  - {@link recentlyAddedDomains}: a brand-new federal registration is the highest-signal,
+   *    lowest-volume event in the system (~1/week), so a domain Ledger recorded as `added` within
+   *    the probation window is watched from day one. Keyed on the `added` CHANGE — the baseline
+   *    seed runs with emit=false so it records none — NOT on first_seen, which a one-shot seed
+   *    makes identical across the whole registry.
+   *  - {@link keptWatchDomains}: auto-keep — a probation domain that turned up a real finding
+   *    (a notable/high scorecard) stays watched after its window closes, so interesting new
+   *    domains don't silently age out.
+   */
+  recentlyAddedDomains(sinceIso: string): string[] {
+    return (
+      this.sql
+        .prepare(
+          `SELECT DISTINCT domain FROM changes
+             WHERE module = 'ledger' AND kind = 'added' AND detected_at >= @since
+           ORDER BY domain ASC`,
+        )
+        .all({ since: sinceIso }) as { domain: string }[]
+    ).map((r) => r.domain);
+  }
+
+  keptWatchDomains(): string[] {
+    return (
+      this.sql
+        .prepare(
+          `SELECT DISTINCT domain FROM scorecards
+             WHERE severity IN ('notable', 'high')
+           ORDER BY domain ASC`,
+        )
+        .all() as { domain: string }[]
+    ).map((r) => r.domain);
+  }
+
   /** Remove a domain from the current-snapshot table (its history stays in `changes`). */
   deleteDomain(name: string): void {
     this.sql.prepare(`DELETE FROM domains WHERE domain = ?`).run(name.trim().toLowerCase());

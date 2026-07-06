@@ -4,6 +4,23 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Auto-watch brand-new .gov registrations — 2026-07-06
+
+- A newly-registered federal domain is the highest-signal, lowest-volume event Daylight sees
+  (~1 a week), so it&rsquo;s now watched from day one instead of only when someone hand-adds it. When
+  Ledger records a domain as `added`, it enters a dynamic watch tier that Floodlight, Receipts, and
+  Lookout sweep alongside the curated baseline and the hand-picked watchlist — its trackers, a dated
+  snapshot, and its certs/subdomains, automatically.
+- **The watchlist is a priority tier, not the scope boundary.** It was never a fence (the SSRF
+  guards gate on `.gov`, not the list). New registrations — plus any domain that turns up a finding
+  (auto-keep) — ride alongside the hand-picked priorities.
+- Keyed on Ledger&rsquo;s `added` change, not `first_seen`: the baseline seed emits no changes, so a
+  one-time seed can never flood the tier. The probation window defaults to 90 days
+  (`DAYLIGHT_NEW_DOMAIN_WATCH_DAYS`); a domain that flags during probation is kept past it.
+- Backfill check: **17** federal `.gov` domains registered in the last ~90 days (13 of them not
+  previously page-scanned — e.g. `fraud.gov`, `moms.gov`, `usvisabond.gov`) are now picked up
+  automatically.
+
 ## Honest support copy, corrected module status, no more screenshots — 2026-07-06
 
 - The **support note on `/methods`** is now first-person and plain — a person doing this on the side
