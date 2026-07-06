@@ -18,6 +18,13 @@ export type { Sqlite } from "./client.js";
 export { openConnection, resolveDbPath } from "./client.js";
 export * from "./rows.js";
 
+// The public .gov record (cisagov/dotgov-data) begins with the 2019-02-06 commit; domains present
+// in that baseline get no `added` event during the git-history replay, so — once the backfill has
+// run — absence of an `added` change means "on the record since it began" (longstanding). Mirrors
+// workers/ledger/src/history.ts (kept in sync by hand: a DB package must not import a worker).
+const LEDGER_RECORD_START_ISO = "2019-02-06T00:00:00.000Z";
+const LEDGER_HISTORY_SENTINEL = "__ledger_history__";
+
 export interface SearchFilter {
   q?: string;
   org?: string;
@@ -165,6 +172,29 @@ export class DaylightDb {
         )
         .all() as { domain: string }[]
     ).map((r) => r.domain);
+  }
+
+  /**
+   * Honest provenance for a domain's "first seen", so the UI never shows a seed date as if it were
+   * a registration date. Three cases:
+   *  - `registered`: Ledger recorded an `added` change → the date is when it first appeared in the
+   *    public registry (its earliest `added`).
+   *  - `longstanding`: no `added` event AND the git-history backfill has run → the domain was
+   *    present in the 2019 baseline commit; true registration predates the public record.
+   *  - `seeded`: no `added` event and no backfill yet → we only know when we first observed it.
+   */
+  firstSeenProvenance(domain: string): { kind: "registered" | "longstanding" | "seeded"; date: string } {
+    const d = domain.trim().toLowerCase();
+    const added = this.sql
+      .prepare(
+        `SELECT MIN(detected_at) AS at FROM changes
+           WHERE module = 'ledger' AND kind = 'added' AND domain = @d`,
+      )
+      .get({ d }) as { at: string | null };
+    if (added?.at) return { kind: "registered", date: added.at };
+    const backfilled = this.latestObservation("ledger", LEDGER_HISTORY_SENTINEL) !== null;
+    if (backfilled) return { kind: "longstanding", date: LEDGER_RECORD_START_ISO };
+    return { kind: "seeded", date: this.getDomain(d)?.first_seen ?? "" };
   }
 
   /** Remove a domain from the current-snapshot table (its history stays in `changes`). */

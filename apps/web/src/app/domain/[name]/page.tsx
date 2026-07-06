@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { synthesizeTitle } from "@daylight/feeds";
 import {
+  domainFirstSeen,
   domainHistoryRows,
   domainRow,
   scorecardsForHost,
@@ -78,6 +79,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
   }
 
   const flag = safe(() => domainFlag(row), null);
+  const firstSeen = safe(() => domainFirstSeen(domain), { kind: "seeded" as const, date: row.first_seen });
   const subdomains = f.lookout ? safe(() => subdomainsForApex(domain), []) : [];
   const history = safe(() => domainHistoryRows(domain), []);
   const comp = safe(() => composite(domain), null);
@@ -186,7 +188,7 @@ export default async function DomainPage({ params }: { params: Promise<{ name: s
             <Field label="Domain type" value={row.domain_type} />
             <Field label="Location" value={[row.city, row.state].filter(Boolean).join(", ") || null} />
             <Field label="Security contact" value={row.security_contact_email} mono />
-            <Field label="First seen" value={fmtInstant(row.first_seen)} mono />
+            <FirstSeenField provenance={firstSeen} fallbackIso={row.first_seen} />
           </dl>
           <p className="mt-4 border-t border-edge pt-3 text-xs text-faint">
             Source: <SourceLink href={CISA_SOURCE}>cisagov/dotgov-data · current-federal.csv</SourceLink>
@@ -443,15 +445,45 @@ function SubdomainView({ sub }: { sub: SubdomainRow }) {
   );
 }
 
-function Field({ label, value, mono }: { label: string; value: string | null; mono?: boolean }) {
+function Field({
+  label,
+  value,
+  mono,
+  hint,
+}: {
+  label: string;
+  value: string | null;
+  mono?: boolean;
+  hint?: string;
+}) {
   return (
     <div>
       <dt className="text-xs uppercase tracking-wide text-faint">{label}</dt>
       <dd className={`mt-0.5 text-sm text-ink ${mono ? "font-mono" : ""}`}>
         {value && value.trim() ? value : <span className="text-faint">—</span>}
       </dd>
+      {hint ? <dd className="mt-0.5 text-xs leading-snug text-faint">{hint}</dd> : null}
     </div>
   );
+}
+
+/** The "first seen" field, told honestly: a real registry-appearance date when we have one, a
+ *  "Longstanding" badge for domains on the record since it began (2019), else "on our record since".
+ *  Never labels a seed date as if it were a registration date. */
+function FirstSeenField({
+  provenance,
+  fallbackIso,
+}: {
+  provenance: { kind: "registered" | "longstanding" | "seeded"; date: string };
+  fallbackIso: string;
+}) {
+  if (provenance.kind === "registered") {
+    return <Field label="First appeared" value={fmtInstant(provenance.date)} mono hint="in the public .gov registry" />;
+  }
+  if (provenance.kind === "longstanding") {
+    return <Field label="First seen" value="Longstanding" hint="on the public .gov record since it began · Feb 2019" />;
+  }
+  return <Field label="On our record since" value={fmtInstant(fallbackIso)} mono />;
 }
 
 function AnswerChip({

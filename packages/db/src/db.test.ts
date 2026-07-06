@@ -196,6 +196,33 @@ describe("dynamic watch tier — new registrations + auto-keep", () => {
     expect(db.recentlyAddedDomains(iso("2027-01-01"))).toEqual([]);
   });
 
+  it("firstSeenProvenance: registered (real date) → longstanding (post-backfill) → seeded (fallback)", () => {
+    // A domain with an `added` change reports its earliest appearance date, honestly registered.
+    db.insertChange(mkChange({ domain: "fraud.gov", detectedAt: iso("2026-05-10") }));
+    db.insertChange(mkChange({ domain: "fraud.gov", detectedAt: iso("2026-05-20") })); // later add ignored
+    expect(db.firstSeenProvenance("fraud.gov")).toEqual({ kind: "registered", date: iso("2026-05-10") });
+
+    // A domain with NO `added` change: before the history backfill has run we can only say "seeded".
+    db.upsertDomain(rec({ domain: "nasa.gov" }), iso("2026-07-01"));
+    expect(db.firstSeenProvenance("nasa.gov")).toEqual({ kind: "seeded", date: iso("2026-07-01") });
+
+    // Once the backfill marker is present, that same no-`added` domain is longstanding (2019 baseline).
+    db.insertObservation({
+      module: "ledger",
+      domain: "__ledger_history__",
+      observedAt: iso("2026-07-01"),
+      sourceUrl: "https://github.com/cisagov/dotgov-data",
+      contentHash: sha256("history-done"),
+      payload: {},
+    });
+    expect(db.firstSeenProvenance("nasa.gov")).toEqual({
+      kind: "longstanding",
+      date: "2019-02-06T00:00:00.000Z",
+    });
+    // …but a domain that DOES have an `added` change stays registered even post-backfill.
+    expect(db.firstSeenProvenance("fraud.gov").kind).toBe("registered");
+  });
+
   it("keptWatchDomains returns only domains with a notable/high scorecard (auto-keep)", () => {
     const sc = (url: string, domain: string, severity: string) => ({
       url, domain, trackerCount: 1, sessionReplay: false, firstPartyProxied: false,

@@ -4,6 +4,18 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Honest &ldquo;first seen&rdquo; — registered, longstanding, or on record — 2026-07-06
+
+- The `/domain` &ldquo;First seen&rdquo; field stops showing a seed date as if it were a
+  registration date. It now tells the truth in three shapes:
+  - **First appeared {date}** — when Ledger recorded the domain&rsquo;s `added` event, its real first
+    appearance in CISA&rsquo;s public registry.
+  - **Longstanding** — for domains on the public `.gov` record since it began (Feb 2019); their true
+    registration predates the record, so Daylight doesn&rsquo;t invent a date.
+  - **On our record since {date}** — the honest fallback before the git-history backfill has run.
+- Derived at read time from Ledger&rsquo;s `added` changes plus the history-backfill marker — no data
+  mutation, and the raw seed date is never surfaced as a fact it isn&rsquo;t.
+
 ## Auto-watch brand-new .gov registrations — 2026-07-06
 
 - A newly-registered federal domain is the highest-signal, lowest-volume event Daylight sees

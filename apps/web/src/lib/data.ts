@@ -121,6 +121,13 @@ export function domainRow(name: string): DomainRow | null {
   return getDb().getDomain(name);
 }
 
+export function domainFirstSeen(name: string): {
+  kind: "registered" | "longstanding" | "seeded";
+  date: string;
+} {
+  return getDb().firstSeenProvenance(name);
+}
+
 export function domainHistoryRows(name: string): ChangeRow[] {
   return getDb().domainHistory(name);
 }
