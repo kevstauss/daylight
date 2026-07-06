@@ -69,6 +69,13 @@ export default function RedtapePage() {
                   <span className="text-sm text-muted">— {a.text} as of {date}</span>
                 </div>
 
+                {/* The two required filings, broken out. "No PIA AND no SORN" is the strongest
+                    finding; "SORN found but no PIA" is why a filing reads as incomplete. */}
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <FilingLeg name="PIA" found={g.pia_found} />
+                  <FilingLeg name="SORN" found={g.sorn_found} />
+                </div>
+
                 {g.fact_vs_inference_notes ? (
                   <p className="mt-2 text-sm text-muted">{g.fact_vs_inference_notes}</p>
                 ) : null}
@@ -76,6 +83,9 @@ export default function RedtapePage() {
                 <Trail label="Collection evidence" items={parse(g.collects_pii_evidence_json)} />
                 <Trail label="Searches run" items={parse(g.queries_run_json)} mono />
                 <Trail label="Sources checked" items={parse(g.sources_checked_json)} mono />
+                {parse(g.pia_refs_json).length > 0 ? (
+                  <Trail label="PIA references" items={parse(g.pia_refs_json)} mono />
+                ) : null}
                 {parse(g.sorn_refs_json).length > 0 ? (
                   <Trail label="SORN references" items={parse(g.sorn_refs_json)} mono />
                 ) : null}
@@ -91,6 +101,31 @@ export default function RedtapePage() {
         </div>
       )}
     </div>
+  );
+}
+
+/** One of the two required filings (PIA / SORN), stated as a plain fact. Finding a filing is the
+ *  reassuring/"covered" state (calm); a filing not found is neutral, not alarm-colored — the
+ *  severity badge above already grades the gap, and the page never asserts illegality. */
+function FilingLeg({ name, found }: { name: string; found: number | null }) {
+  if (found === 1) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-sm border border-calm/50 bg-calm/[0.07] px-2 py-0.5 font-mono text-[11px] text-calm">
+        <span aria-hidden>✓</span> {name} published
+      </span>
+    );
+  }
+  if (found === 0) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-sm border border-edgeStrong px-2 py-0.5 font-mono text-[11px] text-muted">
+        {name} — none found
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-sm border border-edge px-2 py-0.5 font-mono text-[11px] text-faint">
+      {name} — not assessed
+    </span>
   );
 }
 

@@ -1,64 +1,155 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { removalLedgerRows, snapshotCount } from "@/lib/data";
+import { coverageSnapshotRows, removalLedgerRows, snapshotCount, type SnapshotRow } from "@/lib/data";
 import { flags } from "@/lib/flags";
-import { EmptyState, Panel, SeverityBadge, Timestamp } from "@/components/ui";
+import { EmptyState, Eyebrow, Panel, SeverityBadge, Timestamp } from "@/components/ui";
 import { ModuleIcon } from "@/components/module-icon";
 
 export const metadata: Metadata = { title: "Receipts — removal ledger" };
 export const dynamic = "force-dynamic";
 
+function trackerCount(s: SnapshotRow): number {
+  try {
+    return (JSON.parse(s.tracker_snapshot_json ?? "[]") as unknown[]).length;
+  } catch {
+    return 0;
+  }
+}
+
 export default function ReceiptsPage() {
   if (!flags().receipts) notFound();
   const ledger = safe(() => removalLedgerRows(200), []);
+  const coverage = safe(() => coverageSnapshotRows(500), []);
   const snaps = safe(() => snapshotCount(), 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <div className="flex items-center gap-2.5"><ModuleIcon name="receipts" className="h-6 w-6 shrink-0 text-ink" /><h1 className="text-2xl font-semibold tracking-tight">Removal ledger</h1></div>
+        <div className="flex items-center gap-2.5">
+          <ModuleIcon name="receipts" className="h-6 w-6 shrink-0 text-ink" />
+          <h1 className="text-2xl font-semibold tracking-tight">Receipts</h1>
+        </div>
         <p className="mt-1 max-w-2xl text-sm text-muted">
           Snapshot before they delete it. When a watched page quietly drops a tracker, a privacy
           notice, or an agency seal, Receipts captures it — dated, with an independent archived copy.
           &ldquo;We took it down&rdquo; becomes a timestamped record of exactly what was there and
-          when it vanished. {snaps.toLocaleString()} snapshots on file.
+          when it vanished.
+        </p>
+        <p className="mt-2 font-mono text-xs text-faint">
+          {coverage.length.toLocaleString()} pages watched · {snaps.toLocaleString()} snapshots on
+          file · {ledger.length.toLocaleString()} removals recorded
         </p>
       </div>
 
-      {ledger.length === 0 ? (
-        <EmptyState
-          title="No removals recorded yet."
-          hint="Receipts snapshots each watched page twice a week and pushes a copy to the Internet Archive. A removal lands here the moment a later snapshot shows something that was there before is gone — a tracker, a privacy notice, an agency seal, or a form field."
-        />
-      ) : (
-        <Panel>
-          <ul className="divide-y divide-edge">
-            {ledger.map((c) => (
-              <li key={c.id} className="flex items-start gap-3 px-4 py-3">
-                <SeverityBadge severity={c.severity} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-ink">{c.reason ?? `${c.field ?? "item"} removed from ${c.domain}`}</p>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs">
-                    <Link href={`/domain/${encodeURIComponent(c.domain)}`} className="link">
-                      {c.domain}
-                    </Link>
-                    {c.old_value ? <span className="font-mono text-faint">was: {c.old_value}</span> : null}
-                    <Timestamp iso={c.detected_at} prefix="vanished" />
+      {/* ── What quietly changed: the removal ledger ── */}
+      <section className="space-y-3">
+        <Eyebrow>receipts · what quietly changed</Eyebrow>
+        {ledger.length === 0 ? (
+          <EmptyState
+            title="No removals recorded yet."
+            hint="A removal lands here the moment a later snapshot shows something that was there before is gone — a tracker, a privacy notice, an agency seal, or a form field. Until then, the baseline of what's on each page is below."
+          />
+        ) : (
+          <Panel>
+            <ul className="divide-y divide-edge">
+              {ledger.map((c) => (
+                <li key={c.id} className="flex items-start gap-3 px-4 py-3">
+                  <SeverityBadge severity={c.severity} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-ink">
+                      {c.reason ?? `${c.field ?? "item"} removed from ${c.domain}`}
+                    </p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs">
+                      <Link href={`/domain/${encodeURIComponent(c.domain)}`} className="link">
+                        {c.domain}
+                      </Link>
+                      {c.old_value ? (
+                        <span className="font-mono text-faint">was: {c.old_value}</span>
+                      ) : null}
+                      <Timestamp iso={c.detected_at} prefix="vanished" />
+                    </div>
                   </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Panel>
-      )}
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        )}
+        <p className="text-xs text-faint">
+          <Link href="/receipts/feed.xml" className="link">
+            Removal feed (RSS) →
+          </Link>
+        </p>
+      </section>
 
-      <p className="text-xs text-faint">
-        <Link href="/receipts/feed.xml" className="link">
-          Removal feed (RSS) →
-        </Link>
-      </p>
+      {/* ── What we're watching now: the coverage baseline ── */}
+      <section className="space-y-3">
+        <Eyebrow>receipts · what we&rsquo;re watching</Eyebrow>
+        {coverage.length === 0 ? (
+          <EmptyState
+            title="No snapshots captured yet."
+            hint="Receipts snapshots each watched page twice a week; the baseline for every page appears here after the first capture."
+          />
+        ) : (
+          <Panel>
+            <p className="border-b border-edge px-4 py-2.5 text-xs text-muted">
+              The current baseline for each watched page — what a future snapshot is diffed against.
+              A removal above is simply one of these facts going from present to gone.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[36rem] text-sm">
+                <thead>
+                  <tr className="border-b border-edge text-left text-[11px] uppercase tracking-wide text-faint">
+                    <th className="px-4 py-2 font-medium">Page</th>
+                    <th className="px-4 py-2 font-medium">Last captured</th>
+                    <th className="px-4 py-2 text-right font-medium">Trackers</th>
+                    <th className="px-4 py-2 font-medium">Privacy notice</th>
+                    <th className="px-4 py-2 font-medium">Seal</th>
+                    <th className="px-4 py-2 font-medium">Archive</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-edge">
+                  {coverage.map((s) => (
+                    <tr key={s.id}>
+                      <td className="px-4 py-2.5">
+                        <Link href={`/domain/${encodeURIComponent(s.domain)}`} className="link font-mono text-xs">
+                          {s.domain}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-muted">
+                        <Timestamp iso={s.captured_at} />
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono text-xs text-ink">{trackerCount(s)}</td>
+                      <td className="px-4 py-2.5"><Presence on={!!s.privacy_text_hash} /></td>
+                      <td className="px-4 py-2.5"><Presence on={s.seal_present === 1} /></td>
+                      <td className="px-4 py-2.5 text-xs">
+                        {s.wayback_url ? (
+                          <a href={s.wayback_url} target="_blank" rel="noopener noreferrer" className="link">
+                            Archived ↗
+                          </a>
+                        ) : (
+                          <span className="text-faint">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        )}
+      </section>
     </div>
+  );
+}
+
+/** A present/absent fact, stated plainly. "Present" (a privacy notice, a seal) reads as the
+ *  reassuring state; absence is neutral — never alarm-colored. */
+function Presence({ on }: { on: boolean }) {
+  return on ? (
+    <span className="font-mono text-xs text-calm">✓ present</span>
+  ) : (
+    <span className="font-mono text-xs text-faint">none</span>
   );
 }
 

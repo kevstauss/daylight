@@ -4,6 +4,26 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Receipts: a coverage baseline, not just a removal list — 2026-07-06
+
+- `/receipts` was a flat removal list that sat empty whenever nothing had been removed — which is
+  most of the time. It&rsquo;s now two sections: **what quietly changed** (the removal ledger) and
+  **what we&rsquo;re watching** — a coverage table of every watched page&rsquo;s current baseline:
+  last captured, tracker count, whether a privacy notice and an agency seal are present, and a link
+  to the independent Internet Archive copy. A removal is just one of those facts going from present
+  to gone, so the baseline makes the page legible even at zero removals. A summary line shows pages
+  watched · snapshots on file · removals recorded.
+
+## Redtape: PIA and SORN, broken out — 2026-07-06
+
+- Each filing gap now shows the two legally-required filings as **distinct legs** — a **PIA** and a
+  **SORN** — each marked *published* (with its references) or *none found*, instead of collapsing
+  both into one line. &ldquo;No PIA **and** no SORN&rdquo; (the strongest finding) reads at a glance,
+  as does &ldquo;SORN found but PIA missing&rdquo; (why a filing reads as incomplete). PIA references
+  are surfaced alongside SORN references. The data was already captured per gap; this makes it
+  visible. Neutral by design: a filing found reads as reassuring (calm ✓); a filing not found is
+  stated plainly, never alarm-colored — the severity badge already grades it.
+
 ## Honest &ldquo;first seen&rdquo; — registered, longstanding, or on record — 2026-07-06
 
 - The `/domain` &ldquo;First seen&rdquo; field stops showing a seed date as if it were a

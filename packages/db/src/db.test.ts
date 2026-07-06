@@ -237,6 +237,29 @@ describe("dynamic watch tier — new registrations + auto-keep", () => {
   });
 });
 
+describe("receipts coverage view — latest snapshot per page", () => {
+  const iso = (d: string) => `${d}T00:00:00.000Z`;
+  const snap = (url: string, capturedAt: string, over: Record<string, unknown> = {}) => ({
+    url, domain: url.replace(/^https?:\/\//, "").replace(/\/.*/, ""), capturedAt,
+    domHash: "h", screenshotRef: null, trackerSnapshotJson: "[]", privacyTextHash: null,
+    formFieldsJson: "[]", sealPresent: false, redirectTarget: null, waybackUrl: null, ...over,
+  });
+
+  it("returns one row per url — the newest capture — newest page first", () => {
+    db.insertSnapshot(snap("https://a.gov/", iso("2026-06-01")));
+    db.insertSnapshot(snap("https://a.gov/", iso("2026-06-08"), { privacyTextHash: "p", trackerSnapshotJson: '["ga"]' }));
+    db.insertSnapshot(snap("https://b.gov/", iso("2026-06-05"), { sealPresent: true, waybackUrl: "https://web.archive.org/x" }));
+
+    const cov = db.coverageSnapshots();
+    // one row per url (a collapses its two captures), newest capture first → a (Jun 8) before b (Jun 5)
+    expect(cov.map((s) => s.url)).toEqual(["https://a.gov/", "https://b.gov/"]);
+    const a = cov.find((s) => s.url === "https://a.gov/")!;
+    expect(a.captured_at).toBe(iso("2026-06-08")); // the LATEST, not the first
+    expect(a.privacy_text_hash).toBe("p");
+    expect(db.coverageSnapshots().find((s) => s.url === "https://b.gov/")?.seal_present).toBe(1);
+  });
+});
+
 describe("scans / status", () => {
   it("records start + finish and returns latest per module", () => {
     const id = db.recordScanStart("ledger");

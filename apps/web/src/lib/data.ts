@@ -237,6 +237,11 @@ export function receiptsSnapshots(url: string): SnapshotRow[] {
   return getDb().listSnapshots(url);
 }
 
+/** Latest snapshot per watched page — the "what we're watching" coverage view. */
+export function coverageSnapshotRows(limit = 500): SnapshotRow[] {
+  return getDb().coverageSnapshots(limit);
+}
+
 export function receiptsUrlChanges(url: string, limit = 50): ChangeRow[] {
   return getDb()
     .listChanges({ module: "receipts", limit: 500 })

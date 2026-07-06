@@ -703,6 +703,21 @@ export class DaylightDb {
       .all(domain.trim().toLowerCase()) as SnapshotRow[];
   }
 
+  /** Coverage view: the latest snapshot for each watched page, newest capture first. Powers the
+   *  "what we're watching" table so the page is useful even when nothing has been removed yet. */
+  coverageSnapshots(limit = 500): SnapshotRow[] {
+    const n = Math.max(1, Math.min(limit, 2000));
+    return this.sql
+      .prepare(
+        `SELECT * FROM (
+           SELECT *, ROW_NUMBER() OVER (PARTITION BY url ORDER BY captured_at DESC, id DESC) AS rn
+           FROM snapshots
+         ) WHERE rn = 1
+         ORDER BY captured_at DESC, url ASC LIMIT ${n}`,
+      )
+      .all() as SnapshotRow[];
+  }
+
   /** The removal ledger: high-severity `removed` change events from Receipts. */
   removalLedger(limit = 100): ChangeRow[] {
     const n = Math.max(1, Math.min(limit, 1000));
