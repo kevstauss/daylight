@@ -14,6 +14,7 @@
     "start": "tsx src/cli.ts",
     "seed": "tsx src/cli.ts --seed",
     "history": "tsx src/history-cli.ts",
+    "backfill-first-seen": "tsx src/backfill-first-seen-cli.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -4,6 +4,16 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Real first-seen dates in the raw column — 2026-07-06
+
+- A one-time, idempotent `pnpm ledger:backfill-first-seen` rewrites the `domains.first_seen` column
+  from the uniform baseline-seed date to each domain&rsquo;s **earliest Ledger `added` date** — its
+  true first appearance in the registry. Once the git-history backfill has run, longstanding domains
+  (present since the 2019 baseline) are set to the record-start date as a lower bound. On the current
+  data that&rsquo;s 1,053 real dates recovered + 289 longstanding (a single seed date → 164 distinct
+  dates). The `/domain` label already derived this honestly; this makes the raw column accurate for
+  any future consumer (feeds, sorting, the public API).
+
 ## Receipts: a coverage baseline, not just a removal list — 2026-07-06
 
 - `/receipts` was a flat removal list that sat empty whenever nothing had been removed — which is

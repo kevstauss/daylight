@@ -197,6 +197,38 @@ export class DaylightDb {
     return { kind: "seeded", date: this.getDomain(d)?.first_seen ?? "" };
   }
 
+  /**
+   * One-time, idempotent correction of the `first_seen` COLUMN. The read path already derives an
+   * honest label via {@link firstSeenProvenance}, but the raw column still holds the uniform seed
+   * date from the initial baseline. This rewrites it to the earliest Ledger `added` date per domain
+   * (its true first appearance in the public registry); once the git-history backfill has run,
+   * domains with no `added` event were present at the 2019 baseline, so their column is set to the
+   * record-start date (a lower bound). Safe to re-run — the sources are stable. Returns row counts.
+   */
+  backfillFirstSeen(): { registered: number; longstanding: number } {
+    const hasAdd = `EXISTS (SELECT 1 FROM changes c
+        WHERE c.module = 'ledger' AND c.kind = 'added' AND c.domain = domains.domain)`;
+    return this.sql.transaction((): { registered: number; longstanding: number } => {
+      const registered = this.sql
+        .prepare(
+          `UPDATE domains SET first_seen = (
+             SELECT MIN(c.detected_at) FROM changes c
+             WHERE c.module = 'ledger' AND c.kind = 'added' AND c.domain = domains.domain
+           ) WHERE ${hasAdd}`,
+        )
+        .run().changes;
+      // Only claim "present since the 2019 baseline" once the history replay has actually run —
+      // otherwise a domain with no `added` event might simply predate our watching, not the record.
+      let longstanding = 0;
+      if (this.latestObservation("ledger", LEDGER_HISTORY_SENTINEL) !== null) {
+        longstanding = this.sql
+          .prepare(`UPDATE domains SET first_seen = @start WHERE NOT ${hasAdd}`)
+          .run({ start: LEDGER_RECORD_START_ISO }).changes;
+      }
+      return { registered, longstanding };
+    })();
+  }
+
   /** Remove a domain from the current-snapshot table (its history stays in `changes`). */
   deleteDomain(name: string): void {
     this.sql.prepare(`DELETE FROM domains WHERE domain = ?`).run(name.trim().toLowerCase());

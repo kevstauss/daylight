@@ -175,6 +175,7 @@ pnpm ci               # typecheck + test (what GitHub Actions runs)
 pnpm ledger           # one daily Ledger diff pass
 pnpm ledger:seed      # silent baseline (populate state, emit no changes)
 pnpm ledger:history   # replay the full CISA git history (dated backfill)
+pnpm ledger:backfill-first-seen  # one-time: rewrite domains.first_seen from earliest `added` date
 pnpm redtape:assess   # turn Floodlight collection evidence into queued gaps
 pnpm analytics:reset  # wipe first-party analytics counts (--yes to confirm)
 ```

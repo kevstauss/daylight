@@ -223,6 +223,32 @@ describe("dynamic watch tier — new registrations + auto-keep", () => {
     expect(db.firstSeenProvenance("fraud.gov").kind).toBe("registered");
   });
 
+  it("backfillFirstSeen: column ← earliest 'added' per domain; 2019 for longstanding once backfilled", () => {
+    // A "registered" domain: two adds — the EARLIEST wins — overrides its seed date.
+    db.upsertDomain(rec({ domain: "fraud.gov" }), iso("2026-07-01"));
+    db.insertChange(mkChange({ domain: "fraud.gov", detectedAt: iso("2026-05-20") }));
+    db.insertChange(mkChange({ domain: "fraud.gov", detectedAt: iso("2026-05-10") }));
+    // A "longstanding" domain: no `added` event, still on its seed date.
+    db.upsertDomain(rec({ domain: "nasa.gov" }), iso("2026-07-01"));
+
+    // Before the history marker exists: only registered domains move; longstanding is left alone
+    // (a missing add could mean "predates our watching", not "the 2019 baseline").
+    let res = db.backfillFirstSeen();
+    expect(db.getDomain("fraud.gov")?.first_seen).toBe(iso("2026-05-10"));
+    expect(db.getDomain("nasa.gov")?.first_seen).toBe(iso("2026-07-01"));
+    expect(res).toEqual({ registered: 1, longstanding: 0 });
+
+    // Once the backfill marker is present, no-`added` domains are set to the 2019 record start.
+    db.insertObservation({
+      module: "ledger", domain: "__ledger_history__", observedAt: iso("2026-07-01"),
+      sourceUrl: "https://github.com/cisagov/dotgov-data", contentHash: sha256("done"), payload: {},
+    });
+    res = db.backfillFirstSeen();
+    expect(db.getDomain("nasa.gov")?.first_seen).toBe("2019-02-06T00:00:00.000Z");
+    expect(db.getDomain("fraud.gov")?.first_seen).toBe(iso("2026-05-10")); // real add date preserved
+    expect(res.longstanding).toBe(1);
+  });
+
   it("keptWatchDomains returns only domains with a notable/high scorecard (auto-keep)", () => {
     const sc = (url: string, domain: string, severity: string) => ({
       url, domain, trackerCount: 1, sessionReplay: false, firstPartyProxied: false,
