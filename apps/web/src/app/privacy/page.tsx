@@ -145,7 +145,7 @@ export default function PrivacyPage() {
           <p className="max-w-2xl text-sm text-muted">
             Daylight runs on one small always-on server. If you want to help keep it lit,{" "}
             <a href={FUNDING_URL} target="_blank" rel="noopener noreferrer" className="link">
-              you can support it
+              you can leave a tip
             </a>{" "}
             — no tracking attached to that, either.
           </p>

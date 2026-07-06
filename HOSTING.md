@@ -92,10 +92,14 @@ fly secrets set DAYLIGHT_CONTACT="tips@daylight.watch" -a daylight-watchdog
 # rate-limited endpoint (a burst of pages will mostly 429).
 fly secrets set IA_S3_ACCESS_KEY="..." IA_S3_SECRET="..." -a daylight-watchdog
 
-# OPTIONAL — a funding/donation link shown in the footer + /methods. Omit to hide it entirely.
-# Recommended platform: GitHub Sponsors (no fees, developer-native). Alternatives: Ko-fi / Buy Me a
-# Coffee (one-off tips, low friction) or Open Collective (transparent public ledger — on-brand).
-fly secrets set DAYLIGHT_FUNDING_URL="https://github.com/sponsors/kevstauss" -a daylight-watchdog
+# OPTIONAL — the reader-support ask is a Ko-fi tip picker (footer + banner + /methods + /privacy),
+# ON by default with the project's handle baked in. It loads no third-party script or iframe (the
+# strict CSP blocks those, and a tracker on this site would be self-defeating) — the amount picker
+# is self-hosted and only links out to Ko-fi's checkout. This is a NON-secret, so set it in
+# fly.toml [env], not `fly secrets`. Set DAYLIGHT_KOFI to a different handle to override, or to an
+# empty value to hide the ask everywhere:
+#   [env] DAYLIGHT_KOFI = "kevstauss"   # override handle
+#   [env] DAYLIGHT_KOFI = ""            # hide the support ask
 ```
 
 `DAYLIGHT_SITE_URL` is already set in `fly.toml [env]` (`https://daylight.watch`). Change it there if
@@ -218,8 +222,8 @@ empty, so even without step 1 you won't get a flood of phantom "added" events.)
 1. **Authenticate**: `fly auth login`.
 2. **Create the volume** (once): `fly volumes create daylight_data --region iad --size 1 -a daylight-watchdog`.
 3. **Set secrets** (§3): at minimum `DAYLIGHT_CONTACT`, `DAYLIGHT_REVIEW_TOKEN`, and `DAYLIGHT_WAYBACK=1`.
-   Add `ANTHROPIC_API_KEY` + `DAYLIGHT_REDTAPE_MODEL` when you want Redtape; add `DAYLIGHT_FUNDING_URL`
-   if you want the Support link.
+   Add `ANTHROPIC_API_KEY` + `DAYLIGHT_REDTAPE_MODEL` when you want Redtape. The Ko-fi support ask is
+   on by default; set `DAYLIGHT_KOFI` (in `fly.toml [env]`) only to change the handle or blank it to hide.
 4. **Review `fly.toml`** cadence + flags (§1, §4). Defaults are sane; edit if you want a different
    schedule or to hide a surface.
 5. **Decide screenshot storage** (§5): keep the volume-prune default, or provision R2/Tigris and set

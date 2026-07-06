@@ -58,9 +58,26 @@ export const CONTACT = resolveContact();
 /** The human-readable form (scheme stripped) for display. */
 export const CONTACT_LABEL = CONTACT.replace(/^mailto:/, "");
 
-/** Optional funding/donation link (GitHub Sponsors / Ko-fi / Open Collective). Rendered in the
- *  footer + methods only when set — no placeholder shown when absent. */
-export const FUNDING_URL = process.env.DAYLIGHT_FUNDING_URL?.trim() || null;
+/** Ko-fi handle that receives tips. Defaults to the project's handle so the ask works out of the
+ *  box; set DAYLIGHT_KOFI to a different handle to override, or to an empty value to hide the
+ *  support ask everywhere (footer, banner, /methods, /privacy). */
+export const KOFI_USERNAME =
+  process.env.DAYLIGHT_KOFI === undefined ? "kevstauss" : process.env.DAYLIGHT_KOFI.trim();
+
+/** Preset one-tap tip amounts (USD). Ko-fi reads the amount straight off the URL path and prefills
+ *  it, so the visitor picks a size on our page and only hops to Ko-fi for the actual checkout. */
+export const TIP_PRESETS = [3, 10, 25] as const;
+
+/** Build a Ko-fi link. With an amount it deep-links a prefilled tip (`ko-fi.com/<user>/10`);
+ *  without one it opens the plain tip page so the visitor chooses their own amount. */
+export function kofiUrl(amount?: number): string {
+  const base = `https://ko-fi.com/${KOFI_USERNAME}`;
+  return amount && amount > 0 ? `${base}/${amount}` : base;
+}
+
+/** The support destination for the footer + /privacy simple links (the banner and /methods use the
+ *  inline preset picker instead). Null — ask hidden — only when DAYLIGHT_KOFI is explicitly blanked. */
+export const FUNDING_URL: string | null = KOFI_USERNAME ? kofiUrl() : null;
 
 export const USER_AGENT = `DaylightBot/0.4 (+${configuredSiteUrl()}/methods; observational; public-data-only)`;
 

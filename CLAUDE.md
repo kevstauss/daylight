@@ -202,7 +202,8 @@ the config.
 - **Secrets** (via `fly secrets set`, never in the repo): `DAYLIGHT_CONTACT` (real contact for
   `/methods`), `DAYLIGHT_REVIEW_TOKEN` (gates `/review`; the queue 404s without it),
   `ANTHROPIC_API_KEY` + optional `DAYLIGHT_REDTAPE_MODEL` (Redtape researcher), `IA_S3_ACCESS_KEY`
-  / `IA_S3_SECRET` (authenticated Wayback), `DAYLIGHT_FUNDING_URL` (optional footer link). See
+  / `IA_S3_SECRET` (authenticated Wayback). The Ko-fi support ask is on by default; non-secret
+  `DAYLIGHT_KOFI` (in `fly.toml [env]`) overrides the handle or blanks it to hide. See
   `HOSTING.md` §3.
 - **Provenance of URLs:** in prod, feed/canonical/UA URLs derive from `DAYLIGHT_SITE_URL`, **never**
   from a client `Host`/`X-Forwarded-Host` header (cache-poisoning). See `site.ts`

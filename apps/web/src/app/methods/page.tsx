@@ -10,6 +10,7 @@ import {
 } from "@/lib/site";
 import { Panel, SourceLink } from "@/components/ui";
 import { PlainTechnical } from "@/components/plain-technical";
+import { TipJar } from "@/components/tip-jar";
 
 export const metadata: Metadata = { title: "Methods" };
 // Render at request time so the runtime origin (User-Agent/contact) and flag-gated nav
@@ -271,13 +272,13 @@ export default function MethodsPage() {
         <>
           <h2>Support this work</h2>
           <p>
-            Daylight is independent and runs on a shoestring — a small always-on machine, a browser
-            image, and an archive push. If it&rsquo;s useful to you, you can{" "}
-            <a href={FUNDING_URL} target="_blank" rel="noopener noreferrer">
-              chip in to keep the lights on
-            </a>
-            . Funding only pays for infrastructure; it never buys a flag or a finding.
+            Daylight is independent and self-funded — it runs on a shoestring: a small always-on
+            machine, a browser image, and an archive push. If it&rsquo;s useful to you, a tip keeps
+            the lights on. It pays only for infrastructure; it never buys a flag or a finding.
           </p>
+          <div className="not-prose mt-2">
+            <TipJar />
+          </div>
         </>
       ) : null}
 

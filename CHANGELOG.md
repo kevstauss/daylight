@@ -4,6 +4,19 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Reader support: an inline Ko-fi tip picker — 2026-07-05
+
+- The support ask is now a small **inline tip picker** — preset `$3 / $10 / $25 / Custom` chips in
+  the site-wide banner and on [`/methods`](/methods) — instead of a single "Support" link. You pick
+  an amount **on Daylight's own page**; the only hop off-site is Ko-fi's checkout, which has to
+  process the payment. Neutral "Support" framing, tip-sized action.
+- **No third-party anything.** The picker is self-hosted markup — no Ko-fi script, iframe, or remote
+  image. The strict per-request CSP would block those, and loading a tracker onto the one site whose
+  job is naming trackers would be self-defeating. It stays true to the banner's own line: *no ads,
+  grants, or trackers.*
+- On by default (handle baked in); the non-secret `DAYLIGHT_KOFI` overrides the handle or, blanked,
+  hides the ask everywhere — footer, banner, `/methods`, and `/privacy` render cleanly with no ask.
+
 ## Severity grades only what the data shows — 2026-07-05
 
 - A **tracker being removed** from a `.gov` is now **notable**, not high. On the data alone a tracker
