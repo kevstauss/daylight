@@ -4,6 +4,22 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Honest support copy, corrected module status, no more screenshots — 2026-07-06
+
+- The **support note on `/methods`** is now first-person and plain — a person doing this on the side
+  because it matters, not an institution. It says where a tip goes (hosting) and that findings come
+  from public data, so money doesn&rsquo;t touch them; the forced "never buys a finding" line is gone.
+- **Corrected stale status copy.** Floodlight and Receipts live capture are running (weekly, and
+  twice weekly) — `/methods` and `/receipts` no longer describe them as "deferred / capture pending."
+  The `/methods` note on privacy filings now reflects that the researcher checks the **PIA** leg too
+  (it web-searches the operating agency&rsquo;s PIA inventory and reads it directly, guarded), not
+  just the SORN. Only the real-time certstream feed remains genuinely deferred.
+- **Stopped storing screenshots.** Receipts captured a full-page screenshot into the raw store on
+  every snapshot, but nothing ever served or read it — the removal ledger works off DOM facts +
+  hashes, and the Internet Archive keeps the durable visual copy. Capturing them only grew the disk,
+  so the snapshot path now skips the screenshot by default (re-enableable if a review→publish flow
+  ever needs it).
+
 ## Reader support: an inline Ko-fi tip picker — 2026-07-05
 
 - The support ask is now a small **inline tip picker** — preset `$3 / $10 / $25 / Custom` chips in

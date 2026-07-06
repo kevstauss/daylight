@@ -92,7 +92,11 @@ export async function captureAndSnapshot(
 ): Promise<LiveSnapshotResult> {
   let live;
   try {
-    live = await capturePage(url, opts);
+    // Screenshots land in the raw store but are never served and never read back for the diff
+    // (the removal ledger works off DOM facts + hashes), so capturing them only bloats the raw
+    // store on the Fly volume. Default them OFF; Wayback keeps the durable visual copy. A caller
+    // can still opt back in (skipScreenshot: false) if a review→publish flow ever needs the image.
+    live = await capturePage(url, { ...opts, skipScreenshot: opts.skipScreenshot ?? true });
   } catch (err) {
     return { ok: false, gated: false, url, error: err instanceof Error ? err.message : String(err) };
   }

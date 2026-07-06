@@ -272,9 +272,12 @@ export default function MethodsPage() {
         <>
           <h2>Support this work</h2>
           <p>
-            Daylight is independent and self-funded — it runs on a shoestring: a small always-on
-            machine, a browser image, and an archive push. If it&rsquo;s useful to you, a tip keeps
-            the lights on. It pays only for infrastructure; it never buys a flag or a finding.
+            I build Daylight on the side. There&rsquo;s no team or outside funding; I just think it
+            matters that someone keeps a public, timestamped record of who runs the federal web and
+            what quietly changes, so I do. It runs on one small always-on server, a browser image,
+            and an archive push; a few dollars a month. If it&rsquo;s useful to you and you want to
+            help cover that, there&rsquo;s a tip jar below. It only goes toward hosting; the findings
+            come from public data, so money doesn&rsquo;t touch them. No pressure either way.
           </p>
           <div className="not-prose mt-2">
             <TipJar />
