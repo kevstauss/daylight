@@ -4,6 +4,34 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Receipts: only a real capture counts as an observation — 2026-07-15
+
+- A page Daylight never actually saw was being published as a baseline. Two ways, both now closed
+  at the source, and the false records are retracted.
+- **A failed load is not a redirect.** A navigation that dies leaves the browser on
+  `chrome-error://chromewebdata/`, whose &ldquo;host&rdquo; parses as `chromewebdata` — different
+  from the requested domain, so it read as an **off-domain redirect**, which is graded `high`.
+  Daylight published four: *&ldquo;https://studentaid.gov/ now redirects off-domain to
+  chrome-error://chromewebdata/&rdquo;* (also state.gov, usda.gov, fcc.gov). For a watchdog, a
+  `.gov` silently redirecting off-domain is close to the most alarming thing it can say. All four
+  were browser timeouts. Retracted.
+- **A block page is not the page.** A browser renders a 403 refusal as willingly as the real site,
+  and capture only read the HTTP status for the 401/gated check — so a refusal was filed as the
+  homepage, complete with &ldquo;0 trackers, no privacy notice, no seal&rdquo;. The proof:
+  `fcc.gov`, `state.gov` and `usda.gov` shared **one DOM hash** — three federal homepages cannot be
+  byte-identical; it was one Akamai block page filed as three agencies&rsquo;. Published as fact,
+  that told readers these sites run no analytics and publish no privacy notice — flattering,
+  false, and priming a bogus &ldquo;added 20 trackers&rdquo; the moment a real capture landed.
+- **What was retracted.** All 48 snapshots of the 11 hosts that refuse our crawler (7 return HTTP
+  403; 4 kill the navigation): faa, fcc, ftc, getactive, hhs, moms, noaa, state, studentaid,
+  transportation, usda. Every one recorded nothing — Daylight has never actually seen these sites,
+  and now says so by having no baseline for them rather than by inventing a flattering one. Pages
+  reporting zero trackers fell from 17 to 6, and those six detected a privacy notice, so they are
+  real captures of pages that genuinely carry no third-party trackers.
+- Capture now surfaces the main document&rsquo;s HTTP status, and Receipts records a snapshot only
+  for a **2xx** document that ended on a real web URL. Anything else is a failed observation to
+  retry, never a fact to publish.
+
 ## Receipts: fall back to the Archive's own copy, and name a declared block — 2026-07-15
 
 - **When our archive attempt fails, surface the Internet Archive&rsquo;s nearest existing copy.**
