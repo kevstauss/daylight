@@ -493,7 +493,7 @@ describe("originRefusedArchiver — the Archive's own words, not our inference",
         status: "403",
         existingCaptures: 0,
         archiveMessage: "The target server blocks access to https://techprosperitycorps.gov/. (HTTP status=403)",
-        weCapturedOk: true,
+        refusesOurPlainRequest: false,
         robotsDisallowsArchiver: false,
       },
       "techprosperitycorps.gov",
@@ -501,7 +501,7 @@ describe("originRefusedArchiver — the Archive's own words, not our inference",
     );
     expect(copy).toContain("no independent public copy of it exists");
     expect(copy).toContain("Save Page Now service reports");
-    expect(copy).toContain("served Daylight's own request");
+    expect(copy).toContain("was served normally");
     // Facts and attribution, never motive.
     expect(copy.toLowerCase()).not.toMatch(/hiding|deliberate|refus(ing|es) to|evade|censor|illegal/);
   });
@@ -514,7 +514,7 @@ describe("originRefusedArchiver — the Archive's own words, not our inference",
       "2026-07-15T00:00:00.000Z",
     );
     expect(copy).not.toContain("robots.txt");
-    expect(copy).not.toContain("served Daylight's own request");
+    expect(copy).not.toContain("non-browser request");
     expect(copy).toContain("no independent public copy of it exists");
   });
 
@@ -547,8 +547,9 @@ describe("recordArchiverRefusal — write it down only when the Archive says the
 
   it("records a high-severity preservation gap when nothing has archived the site", async () => {
     await withCdx("", async () => {
-      // CDX answers, and the answer is "no captures" — the real techprosperitycorps.gov state.
-      const id = await recordArchiverRefusal(db, HOST, REFUSED, { now: T0, weCapturedOk: true });
+      // CDX answers "no captures", and the site serves our plain request → the 403 really is
+      // specific to the archiver.
+      const id = await recordArchiverRefusal(db, HOST, REFUSED, { now: T0, probe: async () => 200 });
       expect(id).not.toBeNull();
     });
     const c = db.listChanges({ module: "receipts" })[0]!;
@@ -556,13 +557,49 @@ describe("recordArchiverRefusal — write it down only when the Archive says the
     expect(c.severity).toBe("high");
     expect(c.reason).toContain("no independent public copy of it exists");
     expect(c.reason).toContain("The target server blocks access");
+    expect(c.reason).toContain("served normally");
     expect(c.source_url).toContain("web.archive.org/save/");
+  });
+
+  // The regression that matters most here: three claims went public implying these sites
+  // singled the Archive out. They 403 every non-browser client, ours included.
+  it("says the site refuses ALL automated clients when it also refuses us", async () => {
+    await withCdx("", async () => {
+      await recordArchiverRefusal(db, HOST, REFUSED, { now: T0, probe: async () => 403 });
+    });
+    const c = db.listChanges({ module: "receipts" })[0]!;
+    expect(c.reason).toContain("refuse automated clients generally rather than the Internet Archive specifically");
+    // Must NOT imply the site treats us better than the Archive.
+    expect(c.reason).not.toContain("served normally");
+    // And it is not a high-severity preservation story when nobody automated can read it.
+    expect(c.severity).toBe("notable");
+  });
+
+  it("names the redirect target that actually refused", async () => {
+    // Real case: techprosperitycorps.gov 301s to www.peacecorps.gov/tech, and Peace Corps' server
+    // is what returns the 403. Quoting a message about another domain without saying so misleads.
+    const viaRedirect =
+      "error:no-request: The target server blocks access to https://www.peacecorps.gov/tech. (HTTP status=403)";
+    await withCdx("", async () => {
+      await recordArchiverRefusal(db, HOST, viaRedirect, { now: T0, probe: async () => 403 });
+    });
+    const c = db.listChanges({ module: "receipts" })[0]!;
+    expect(c.reason).toContain("redirects to https://www.peacecorps.gov/tech, which is the server that refused");
+  });
+
+  it("keeps SPN2's sentence intact when stripping our error prefix", async () => {
+    await withCdx("", async () => {
+      await recordArchiverRefusal(db, HOST, REFUSED, { now: T0, probe: async () => 403 });
+    });
+    const c = db.listChanges({ module: "receipts" })[0]!;
+    expect(c.reason).toContain('"The target server blocks access');
+    expect(c.reason).not.toContain("no-request:"); // the old sloppy prefix strip left this behind
   });
 
   it("grades a refusal on a well-archived site as notable, not a preservation gap", async () => {
     const rows = JSON.stringify([["timestamp"], ...Array.from({ length: 148 }, (_, i) => [`2026070200${i}`])]);
     await withCdx(rows, async () => {
-      await recordArchiverRefusal(db, "moms.gov", REFUSED, { now: T0 });
+      await recordArchiverRefusal(db, "moms.gov", REFUSED, { now: T0, probe: async () => 403 });
     });
     const c = db.listChanges({ module: "receipts" })[0]!;
     expect(c.severity).toBe("notable");
@@ -596,8 +633,8 @@ describe("recordArchiverRefusal — write it down only when the Archive says the
 
   it("reports a standing refusal once, not every sweep", async () => {
     await withCdx("", async () => {
-      await recordArchiverRefusal(db, HOST, REFUSED, { now: T0 });
-      expect(await recordArchiverRefusal(db, HOST, REFUSED, { now: T1 })).toBeNull();
+      await recordArchiverRefusal(db, HOST, REFUSED, { now: T0, probe: async () => 403 });
+      expect(await recordArchiverRefusal(db, HOST, REFUSED, { now: T1, probe: async () => 403 })).toBeNull();
     });
     expect(db.listChanges({ module: "receipts" })).toHaveLength(1);
   });

@@ -138,9 +138,45 @@ export async function checkArchiverPolicy(
 
 export interface RefusalOptions {
   now?: string;
-  /** Did our own capture of the page succeed this run? */
+  /** Did our own BROWSER capture succeed this run? Deliberately not used in the published copy —
+   *  see refusesOurPlainRequest. Kept for the observation payload only. */
   weCapturedOk?: boolean;
   log?: (msg: string) => void;
+  /** Seam for tests; defaults to a real guarded request. */
+  probe?: (url: string) => Promise<number | null>;
+}
+
+/** The URL SPN2 says refused, which may be a redirect target rather than the host we asked for. */
+function refusedUrlFrom(spn2Failure: string, host: string): string | undefined {
+  const m = /blocks access to (\S+?)\.?\s*\(HTTP status=/i.exec(spn2Failure);
+  const url = m?.[1];
+  if (!url) return undefined;
+  try {
+    return new URL(url).host.toLowerCase() === host.toLowerCase() ? undefined : url;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Does this URL refuse a plain, honest, non-browser request from us?
+ *
+ * This is the control that keeps the claim honest. Our page capture drives a real browser and
+ * sails past bot protection, so "we captured it" tells us nothing about how the site treats a
+ * crawler. Asking the same way an archiver would does. Identity stays honest — same DaylightBot
+ * UA as everywhere else; the point is to be treated as what we are, not to sneak past anything.
+ */
+async function plainRequestStatus(url: string): Promise<number | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { "user-agent": ua() },
+      redirect: "follow",
+      signal: AbortSignal.timeout(15_000),
+    });
+    return res.status;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -181,22 +217,35 @@ export async function recordArchiverRefusal(
     : [];
   const robotsDisallowsArchiver = prevPolicy ? declared.length > 0 : undefined;
 
-  const message = spn2Failure.replace(/^[^:]*:\s*/, ""); // drop our "error:no-request: " prefix
+  // Strip only our own "error:<code>: " prefix, not the first colon in SPN2's sentence.
+  const message = spn2Failure.replace(/^error:[a-z-]+:\s*/i, "");
+  const refusedUrl = refusedUrlFrom(spn2Failure, host);
+
+  // The control: does the refusing server also turn away OUR plain request? Without this the
+  // report implies the site singles out the Archive, which for every case seen so far is untrue.
+  const probeUrl = refusedUrl ?? pageUrl;
+  const probe = opts.probe ?? plainRequestStatus;
+  const ourStatus = await probe(probeUrl);
+  const refusesOurPlainRequest = ourStatus === null ? undefined : ourStatus === Number(status);
+
   const refusal = {
     status,
     existingCaptures: existing,
     archiveMessage: message,
-    weCapturedOk: opts.weCapturedOk,
+    refusedUrl,
+    refusesOurPlainRequest,
     robotsDisallowsArchiver,
   };
-  const contentHash = sha256(JSON.stringify([status, existing === 0, robotsDisallowsArchiver]));
+  const contentHash = sha256(
+    JSON.stringify([status, existing === 0, robotsDisallowsArchiver, refusesOurPlainRequest, refusedUrl ?? null]),
+  );
   const { inserted } = db.insertObservation({
     module: "receipts",
     domain: refusalKey(host),
     observedAt: now,
     sourceUrl: `https://web.archive.org/save/${pageUrl}`,
     contentHash,
-    payload: { host, ...refusal, spn2Failure },
+    payload: { host, ...refusal, spn2Failure, weCapturedOk: opts.weCapturedOk },
   });
   if (!inserted) return null; // same situation as last time
 
@@ -208,7 +257,9 @@ export async function recordArchiverRefusal(
     field: "archiver_refused",
     oldValue: null,
     newValue: `HTTP ${status} to the Internet Archive`,
-    severity: existing === 0 ? "high" : "notable",
+    // A site that refuses every automated client is a preservation problem, not a story about
+    // the Archive — so it never outranks 'notable' however few copies exist.
+    severity: existing === 0 && refusesOurPlainRequest !== true ? "high" : "notable",
     reason: describeObservedRefusal(refusal, host, now),
     // The Archive's own save endpoint: anyone can re-run it and see the same refusal.
     sourceUrl: `https://web.archive.org/save/${pageUrl}`,

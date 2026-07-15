@@ -143,9 +143,24 @@ export interface ObservedRefusal {
   existingCaptures: number;
   /** The Internet Archive's own message, quoted verbatim. */
   archiveMessage: string;
-  /** Did OUR capture of the page succeed in the same run? Evidence the site serves ordinary
-   *  requests and the 403 is specific to the archiver. Omit when we didn't get that far. */
-  weCapturedOk?: boolean;
+  /**
+   * The URL that actually refused, when it isn't the host we asked about. techprosperitycorps.gov
+   * 301s to www.peacecorps.gov/tech, and it is Peace Corps' server that returns the 403 — quoting
+   * a refusal that names a different domain without saying so would be unreadable at best and
+   * misleading at worst.
+   */
+  refusedUrl?: string;
+  /**
+   * Does the site ALSO refuse Daylight's own plain (non-browser) request?
+   *
+   * This field exists because of a claim this module previously published: "the site served
+   * Daylight's own request normally" — literally true, since our capture drives a real browser,
+   * but it invites the reader to conclude the site singles the Archive out. It does not:
+   * getactive.gov, moms.gov and peacecorps.gov return 403 to any non-browser client, ours
+   * included. The honest move is to measure that and say it, not to imply the opposite by
+   * omission. Undefined = not checked.
+   */
+  refusesOurPlainRequest?: boolean;
   /** Does the site's robots.txt disallow an archiver? Omit when robots.txt was unreadable —
    *  "we couldn't read it" is not "it permits archiving". */
   robotsDisallowsArchiver?: boolean;
@@ -164,11 +179,21 @@ export interface ObservedRefusal {
  */
 export function describeObservedRefusal(r: ObservedRefusal, domain: string, observedAt: string): string {
   const date = observedAt.slice(0, 10);
+  const where = r.refusedUrl ? ` ${domain} redirects to ${r.refusedUrl}, which is the server that refused.` : "";
   const parts = [
     `The Internet Archive was unable to capture ${domain} as of ${date}: its Save Page Now service reports ` +
-      `"${r.archiveMessage}" (HTTP ${r.status} to the Archive's crawler).`,
+      `"${r.archiveMessage}" (HTTP ${r.status} to the Archive's crawler).${where}`,
   ];
-  if (r.weCapturedOk) parts.push(`${domain} served Daylight's own request for the same page normally.`);
+  // Whether this is about the Archive at all is the crux, so it is stated either way and never
+  // left to inference.
+  if (r.refusesOurPlainRequest === true) {
+    parts.push(
+      `The same server also returns HTTP ${r.status} to Daylight's own non-browser request, so it appears to refuse ` +
+        `automated clients generally rather than the Internet Archive specifically.`,
+    );
+  } else if (r.refusesOurPlainRequest === false) {
+    parts.push(`Daylight's own non-browser request for the same page was served normally.`);
+  }
   if (r.robotsDisallowsArchiver === false) parts.push(`Its robots.txt does not disallow archivers.`);
   parts.push(
     r.existingCaptures === 0

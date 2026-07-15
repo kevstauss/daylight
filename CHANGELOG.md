@@ -37,12 +37,14 @@ bot's contact, and the observational-only scope.
   count&rdquo; must never surface as &ldquo;nothing has preserved this site&rdquo;.
 - **Targeted sweeps** — `pnpm --filter @daylight/receipts snapshot --hosts a.gov,b.gov`, for when a
   newly-registered domain has no archive anywhere and shouldn&rsquo;t wait for the next full pass.
-- **First findings from all of the above.** `techprosperitycorps.gov` — a federal domain registered
-  in the last few months — returns **HTTP 403 to the Internet Archive** and has **zero captures in
-  the Wayback Machine**: no independent public copy of it exists. `getactive.gov` and `moms.gov`
-  refuse the Archive the same way. All three serve Daylight&rsquo;s own request normally and none
-  disallows archivers in robots.txt. Daylight states the observation and quotes the Archive; it
-  does not assert why, because bot protection and policy are indistinguishable from the outside.
+- **First findings from all of the above.** The Internet Archive cannot currently capture
+  `getactive.gov`, `moms.gov`, or `techprosperitycorps.gov` (which redirects to
+  `www.peacecorps.gov/tech` — Peace Corps&rsquo; server is the one returning 403). Each of these
+  servers returns the same 403 to Daylight&rsquo;s own non-browser request, so they appear to
+  refuse automated clients generally rather than the Internet Archive specifically, and the record
+  says exactly that. None disallows archivers in robots.txt. Daylight states the observation,
+  quotes the Archive, and does not assert why: bot protection and policy are indistinguishable
+  from the outside.
 
 ## Receipts: the archive column now tells the truth — 2026-07-14
 
