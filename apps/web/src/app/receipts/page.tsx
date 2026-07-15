@@ -1,7 +1,15 @@
 import { archiveDriftMinutes, archiveTimestamp } from "@daylight/core";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { coverageSnapshotRows, removalLedgerRows, snapshotCount, type CoverageRow, type SnapshotRow } from "@/lib/data";
+import {
+  archiverRefusalMap,
+  coverageSnapshotRows,
+  removalLedgerRows,
+  snapshotCount,
+  type ArchiverRefusal,
+  type CoverageRow,
+  type SnapshotRow,
+} from "@/lib/data";
 import { flags } from "@/lib/flags";
 import { EmptyState, Eyebrow, Panel, SeverityBadge, Timestamp } from "@/components/ui";
 import { ModuleIcon } from "@/components/module-icon";
@@ -30,6 +38,7 @@ export default function ReceiptsPage() {
   const ledger = safe(() => removalLedgerRows(200), []);
   const coverage = safe(() => coverageSnapshotRows(500), []);
   const snaps = safe(() => snapshotCount(), 0);
+  const refusals = safe(() => archiverRefusalMap(), new Map<string, ArchiverRefusal>());
 
   return (
     <div className="space-y-8">
@@ -133,7 +142,10 @@ export default function ReceiptsPage() {
                       <td className="px-4 py-2.5"><Presence on={!!s.privacy_text_hash} /></td>
                       <td className="px-4 py-2.5"><Presence on={s.seal_present === 1} /></td>
                       <td className="px-4 py-2.5 text-xs">
-                        <Archive row={s} />
+                        <div className="flex items-baseline gap-2">
+                          <Archive row={s} refusal={refusals.get(s.domain)} />
+                          <ArchiveHistoryLink row={s} />
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -158,10 +170,50 @@ export default function ReceiptsPage() {
  */
 const CORROBORATES_MINUTES = 60;
 
-function Archive({ row }: { row: CoverageRow }) {
-  if (!row.archive_url) return <span className="text-faint">—</span>;
+/**
+ * Where "Save Page Now" should point. A vanity domain that 301s elsewhere (techprosperitycorps.gov
+ * → www.peacecorps.gov/tech) has no content of its own, so archiving it preserves a redirect;
+ * the destination is the thing worth keeping.
+ */
+const archiveTarget = (row: CoverageRow): string => row.redirect_target ?? row.url;
+
+/**
+ * The offer to have the Internet Archive capture a page we have no copy of.
+ *
+ * The copy is careful about a genuinely counterintuitive mechanism: clicking this does NOT make
+ * the reader's browser fetch the page. It asks the Archive's servers to, so it meets the exact
+ * same door our own attempt did — a reader is not a way around a block. What a person does add
+ * is a different moment, and these refusals are probabilistic rather than absolute (moms.gov
+ * turns the Archive away right now, yet the Archive holds 148 captures of it), so the attempt is
+ * genuinely worth making. Promise nothing; say what is known.
+ */
+function SaveOffer({ row, refusal }: { row: CoverageRow; refusal?: ArchiverRefusal }) {
+  const target = archiveTarget(row);
+  return (
+    <div className="space-y-0.5">
+      <a
+        href={`https://web.archive.org/save/${target}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="link whitespace-nowrap"
+        title={`Ask the Internet Archive to capture ${target} now. The Archive's own crawler fetches the page, so this may hit the same refusal our attempt did.`}
+      >
+        Ask the Archive ↗
+      </a>
+      {refusal?.refusesOurPlainRequest ? (
+        <p className="max-w-[16rem] text-[11px] leading-snug text-faint">
+          This server refuses automated clients, including the Archive. A save may not succeed.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function Archive({ row, refusal }: { row: CoverageRow; refusal?: ArchiverRefusal }) {
+  // No copy on file — offer the reader the one action that can actually create one.
+  if (!row.archive_url) return <SaveOffer row={row} refusal={refusal} />;
   const archivedAt = archiveTimestamp(row.archive_url);
-  if (!archivedAt) return <span className="text-faint">—</span>; // unpinned: not a receipt
+  if (!archivedAt) return <SaveOffer row={row} refusal={refusal} />; // unpinned: not a receipt
   const drift = archiveDriftMinutes(row.archive_url, row.captured_at);
   const corroborates = drift !== null && drift <= CORROBORATES_MINUTES;
   const stamp = fmtArchiveDate(archivedAt);
@@ -178,6 +230,22 @@ function Archive({ row }: { row: CoverageRow }) {
       }
     >
       {corroborates ? "Archived ↗" : `Archived ${stamp} ↗`}
+    </a>
+  );
+}
+
+/** Everything the Internet Archive already holds for this page — usually the more useful click
+ *  than making a new capture. */
+function ArchiveHistoryLink({ row }: { row: CoverageRow }) {
+  return (
+    <a
+      href={`https://web.archive.org/web/*/${archiveTarget(row)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="whitespace-nowrap text-faint underline decoration-dotted underline-offset-2 hover:text-muted"
+      title="Every capture the Internet Archive holds for this page"
+    >
+      all ↗
     </a>
   );
 }

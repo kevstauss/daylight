@@ -35,6 +35,16 @@ bot's contact, and the observational-only scope.
   the Archive already holds copies of has only become harder to capture (`notable`). If the
   capture count can&rsquo;t be established, nothing is recorded at all — &ldquo;we couldn&rsquo;t
   count&rdquo; must never surface as &ldquo;nothing has preserved this site&rdquo;.
+- **Anyone can ask the Archive to try.** Where Receipts holds no copy of a page, the Archive column
+  now offers &ldquo;Ask the Archive&rdquo; (and an &ldquo;all&rdquo; link to every capture already
+  on file). Worth being precise about what that does: clicking it does **not** make your browser
+  fetch the page — it asks the Internet Archive&rsquo;s servers to, so it meets the same door
+  Daylight&rsquo;s attempt did. It is not a way around a block. What it adds is a different moment,
+  and these refusals are probabilistic rather than absolute (`moms.gov` turns the Archive away right
+  now, yet the Archive holds 148 captures of it), so the attempt is genuinely worth making and each
+  success is a permanent public copy. Where we have measured that a server refuses automated
+  clients, the row says so rather than letting the reader discover it by failing. For a vanity
+  redirect the link points at the destination — archiving a 301 preserves nothing.
 - **Targeted sweeps** — `pnpm --filter @daylight/receipts snapshot --hosts a.gov,b.gov`, for when a
   newly-registered domain has no archive anywhere and shouldn&rsquo;t wait for the next full pass.
 - **First findings from all of the above.** The Internet Archive currently cannot capture

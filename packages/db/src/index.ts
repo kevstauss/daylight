@@ -744,6 +744,46 @@ export class DaylightDb {
       .all(domain.trim().toLowerCase()) as SnapshotRow[];
   }
 
+  /**
+   * What we last observed about each host turning the Internet Archive away, keyed by host.
+   *
+   * Reads the `<host>#archiver-refusal` observations Receipts writes. The read path uses this to
+   * be straight with a reader about why an archive is missing and what pressing "save" will do:
+   * `refusesOurPlainRequest` is the measured control that separates "this server refuses every
+   * automated client" from "the Archive specifically was turned away".
+   */
+  archiverRefusals(): Map<string, { status: string; refusesOurPlainRequest?: boolean; refusedUrl?: string }> {
+    const rows = this.sql
+      .prepare(
+        `SELECT domain, payload_json FROM (
+           SELECT *, ROW_NUMBER() OVER (PARTITION BY domain ORDER BY observed_at DESC, id DESC) AS rn
+           FROM observations WHERE module = 'receipts' AND domain LIKE '%#archiver-refusal'
+         ) WHERE rn = 1`,
+      )
+      .all() as { domain: string; payload_json: string }[];
+    const out = new Map<string, { status: string; refusesOurPlainRequest?: boolean; refusedUrl?: string }>();
+    for (const r of rows) {
+      const host = r.domain.replace(/#archiver-refusal$/, "");
+      try {
+        const p = JSON.parse(r.payload_json) as {
+          status?: string;
+          refusesOurPlainRequest?: boolean;
+          refusedUrl?: string;
+        };
+        if (p.status) {
+          out.set(host, {
+            status: p.status,
+            refusesOurPlainRequest: p.refusesOurPlainRequest,
+            refusedUrl: p.refusedUrl,
+          });
+        }
+      } catch {
+        /* skip an unparseable payload rather than fail the page */
+      }
+    }
+    return out;
+  }
+
   /** Every snapshot that claims an archive, id + URL only — for auditing those URLs against the
    *  "must be timestamp-pinned" rule without pulling whole rows. */
   archivedSnapshotRefs(): { id: number; wayback_url: string }[] {

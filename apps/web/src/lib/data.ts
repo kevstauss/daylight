@@ -260,6 +260,17 @@ export function coverageSnapshotRows(limit = 500): CoverageRow[] {
   return getDb().coverageSnapshots(limit);
 }
 
+export interface ArchiverRefusal {
+  status: string;
+  refusesOurPlainRequest?: boolean;
+  refusedUrl?: string;
+}
+
+/** What we last measured about each host turning the Internet Archive away, keyed by host. */
+export function archiverRefusalMap(): Map<string, ArchiverRefusal> {
+  return getDb().archiverRefusals();
+}
+
 export function receiptsUrlChanges(url: string, limit = 50): ChangeRow[] {
   return getDb()
     .listChanges({ module: "receipts", limit: 500 })
