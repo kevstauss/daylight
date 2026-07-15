@@ -21,12 +21,15 @@ export {
   type NearbyCapture,
 } from "./cdx.js";
 export { makeArchiver, type ArchiverOptions } from "./archive.js";
-export { checkArchiverPolicy, type ArchiverPolicyResult, type ArchiverPolicyOptions } from "./policy.js";
+export { recordArchiverRefusal, checkArchiverPolicy, type ArchiverPolicyResult, type ArchiverPolicyOptions } from "./policy.js";
 export {
   declaredBlocks,
   describeDeclaredBlock,
+  originRefusedArchiver,
+  describeObservedRefusal,
   type DeclaredBlock,
   type BlockedParty,
+  type ObservedRefusal,
 } from "./blocks.js";
 export {
   runReceiptsSnapshot,

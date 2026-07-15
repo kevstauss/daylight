@@ -130,6 +130,31 @@ export async function findCaptureNear(
   }
 }
 
+/**
+ * How many captures of a URL the Archive holds, all time. Null when we can't tell — the caller
+ * must not turn "we couldn't count" into "there are none", which is the difference between
+ * "nothing has preserved this federal site" and a failed HTTP request.
+ */
+export async function countCaptures(pageUrl: string, opts: CdxOptions = {}): Promise<number | null> {
+  const f = opts.fetchImpl ?? ((url, init) => fetch(url, init));
+  const query =
+    `https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(pageUrl)}` +
+    `&output=json&fl=timestamp&limit=5000`;
+  try {
+    const res = await f(query, {
+      headers: { "user-agent": userAgent(), accept: "application/json" },
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 60_000),
+    });
+    if (!res.ok) return null;
+    const text = (await res.text()).trim();
+    if (!text) return 0; // CDX answered, and the answer is "nothing indexed"
+    const rows = JSON.parse(text) as string[][];
+    return Math.max(0, rows.length - 1); // minus the header row
+  } catch {
+    return null;
+  }
+}
+
 /** Is this capture a copy of the page itself, rather than a block page or an error? */
 export const isPageCapture = (s: CaptureStatus): boolean => s.known && s.statusCode === "200";
 

@@ -11,8 +11,11 @@ import {
   captureStatus,
   type CdxOptions,
   checkArchiverPolicy,
+  recordArchiverRefusal,
   declaredBlocks,
   describeDeclaredBlock,
+  describeObservedRefusal,
+  originRefusedArchiver,
   diffSnapshots,
   findCaptureNear,
   makeArchiver,
@@ -465,6 +468,138 @@ describe("checkArchiverPolicy — report a declared block once, on the transitio
       expect(r.blocks).toEqual([]);
       expect(db.listChanges({ module: "receipts" })).toHaveLength(0);
     });
+  });
+});
+
+describe("originRefusedArchiver — the Archive's own words, not our inference", () => {
+  it("recognises SPN2 reporting the origin turned its crawler away (real prod message)", () => {
+    const real =
+      "error:no-request: The target server blocks access to https://techprosperitycorps.gov/. (HTTP status=403)";
+    expect(originRefusedArchiver(real)).toBe("403");
+  });
+
+  it("does not treat SPN2's own failures as the origin refusing", () => {
+    // These are the Archive struggling, not the site turning it away. Reporting them as a
+    // refusal would blame the site for the archiver's bad day.
+    expect(originRefusedArchiver("error:user-session-limit")).toBeNull();
+    expect(originRefusedArchiver("capture still pending after 90s")).toBeNull();
+    expect(originRefusedArchiver("error:service-unavailable: Service unavailable for URL (HTTP status=503).")).toBeNull();
+    expect(originRefusedArchiver("no free SPN2 session slot after 120s")).toBeNull();
+  });
+
+  it("describes a zero-capture refusal as a preservation gap, quoting the Archive", () => {
+    const copy = describeObservedRefusal(
+      {
+        status: "403",
+        existingCaptures: 0,
+        archiveMessage: "The target server blocks access to https://techprosperitycorps.gov/. (HTTP status=403)",
+        weCapturedOk: true,
+        robotsDisallowsArchiver: false,
+      },
+      "techprosperitycorps.gov",
+      "2026-07-15T00:00:00.000Z",
+    );
+    expect(copy).toContain("no independent public copy of it exists");
+    expect(copy).toContain("Save Page Now service reports");
+    expect(copy).toContain("served Daylight's own request");
+    // Facts and attribution, never motive.
+    expect(copy.toLowerCase()).not.toMatch(/hiding|deliberate|refus(ing|es) to|evade|censor|illegal/);
+  });
+
+  it("states only what the caller verified — no unchecked claims about the site", () => {
+    // Caller didn't establish either fact, so the copy must not assert them.
+    const copy = describeObservedRefusal(
+      { status: "403", existingCaptures: 0, archiveMessage: "blocks access. (HTTP status=403)" },
+      "x.gov",
+      "2026-07-15T00:00:00.000Z",
+    );
+    expect(copy).not.toContain("robots.txt");
+    expect(copy).not.toContain("served Daylight's own request");
+    expect(copy).toContain("no independent public copy of it exists");
+  });
+
+  it("does not claim a preservation gap when the Archive already holds copies", () => {
+    const copy = describeObservedRefusal(
+      { status: "403", existingCaptures: 148, archiveMessage: "The target server blocks access. (HTTP status=403)" },
+      "moms.gov",
+      "2026-07-15T00:00:00.000Z",
+    );
+    expect(copy).toContain("148 earlier capture(s)");
+    expect(copy).not.toContain("no independent public copy");
+  });
+});
+
+describe("recordArchiverRefusal — write it down only when the Archive says the site refused", () => {
+  const HOST = "techprosperitycorps.gov";
+  // SPN2's real prod message for a site the Archive cannot capture.
+  const REFUSED =
+    "error:no-request: The target server blocks access to https://techprosperitycorps.gov/. (HTTP status=403)";
+
+  const withCdx = async (body: string, fn: () => Promise<void>): Promise<void> => {
+    const real = globalThis.fetch;
+    globalThis.fetch = (async () => new Response(body)) as typeof fetch;
+    try {
+      await fn();
+    } finally {
+      globalThis.fetch = real;
+    }
+  };
+
+  it("records a high-severity preservation gap when nothing has archived the site", async () => {
+    await withCdx("", async () => {
+      // CDX answers, and the answer is "no captures" — the real techprosperitycorps.gov state.
+      const id = await recordArchiverRefusal(db, HOST, REFUSED, { now: T0, weCapturedOk: true });
+      expect(id).not.toBeNull();
+    });
+    const c = db.listChanges({ module: "receipts" })[0]!;
+    expect(c.field).toBe("archiver_refused");
+    expect(c.severity).toBe("high");
+    expect(c.reason).toContain("no independent public copy of it exists");
+    expect(c.reason).toContain("The target server blocks access");
+    expect(c.source_url).toContain("web.archive.org/save/");
+  });
+
+  it("grades a refusal on a well-archived site as notable, not a preservation gap", async () => {
+    const rows = JSON.stringify([["timestamp"], ...Array.from({ length: 148 }, (_, i) => [`2026070200${i}`])]);
+    await withCdx(rows, async () => {
+      await recordArchiverRefusal(db, "moms.gov", REFUSED, { now: T0 });
+    });
+    const c = db.listChanges({ module: "receipts" })[0]!;
+    expect(c.severity).toBe("notable");
+    expect(c.reason).toContain("148 earlier capture(s)");
+  });
+
+  it("says nothing when the archiver failed for its OWN reasons", async () => {
+    for (const own of [
+      "error:user-session-limit",
+      "capture still pending after 90s",
+      "error:service-unavailable: Service unavailable for URL (HTTP status=503).",
+    ]) {
+      expect(await recordArchiverRefusal(db, HOST, own, { now: T0 })).toBeNull();
+    }
+    expect(db.listChanges({ module: "receipts" })).toHaveLength(0);
+  });
+
+  it("says nothing when the capture count is unknowable", async () => {
+    const real = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      throw new Error("cdx unreachable");
+    }) as typeof fetch;
+    try {
+      // Can't count ⇒ can't say whether a copy exists ⇒ must not claim a preservation gap.
+      expect(await recordArchiverRefusal(db, HOST, REFUSED, { now: T0 })).toBeNull();
+      expect(db.listChanges({ module: "receipts" })).toHaveLength(0);
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
+
+  it("reports a standing refusal once, not every sweep", async () => {
+    await withCdx("", async () => {
+      await recordArchiverRefusal(db, HOST, REFUSED, { now: T0 });
+      expect(await recordArchiverRefusal(db, HOST, REFUSED, { now: T1 })).toBeNull();
+    });
+    expect(db.listChanges({ module: "receipts" })).toHaveLength(1);
   });
 });
 

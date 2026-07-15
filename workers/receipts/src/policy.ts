@@ -13,10 +13,18 @@ import { nowIso, sha256 } from "@daylight/core";
 import type { Change } from "@daylight/core";
 import type { DaylightDb } from "@daylight/db";
 import { fetchRobotsTxt } from "@daylight/floodlight/guards";
-import { declaredBlocks, describeDeclaredBlock, type DeclaredBlock } from "./blocks.js";
+import {
+  declaredBlocks,
+  describeDeclaredBlock,
+  describeObservedRefusal,
+  originRefusedArchiver,
+  type DeclaredBlock,
+} from "./blocks.js";
+import { countCaptures } from "./cdx.js";
 
-/** The observation domain key — kept distinct from the page-snapshot stream for the same host. */
+/** The observation domain keys — kept distinct from the page-snapshot stream for the same host. */
 const policyKey = (host: string): string => `${host}#robots-policy`;
+const refusalKey = (host: string): string => `${host}#archiver-refusal`;
 
 export interface ArchiverPolicyResult {
   /** null = we could not read robots.txt. NOT the same as "declares nothing". */
@@ -126,4 +134,87 @@ export async function checkArchiverPolicy(
   }
 
   return { blocks, changeIds, robotsUrl: robots.url };
+}
+
+export interface RefusalOptions {
+  now?: string;
+  /** Did our own capture of the page succeed this run? */
+  weCapturedOk?: boolean;
+  log?: (msg: string) => void;
+}
+
+/**
+ * Record that the Internet Archive was turned away by a site, when — and only when — Save Page
+ * Now says so itself.
+ *
+ * `spn2Failure` must be SPN2's verbatim failure. Everything else (slot limits, timeouts, 503s)
+ * is the archiver having a bad day and is filtered out by originRefusedArchiver, because
+ * blaming the site for those would be a fabrication.
+ *
+ * Severity follows the evidence, not the vibe: a site with NO capture anywhere is a real
+ * preservation gap (`high`); a site the Archive already holds copies of has only become harder
+ * to capture (`notable`). Idempotent — a standing refusal is reported once, not every sweep.
+ */
+export async function recordArchiverRefusal(
+  db: DaylightDb,
+  host: string,
+  spn2Failure: string,
+  opts: RefusalOptions = {},
+): Promise<number | null> {
+  const status = originRefusedArchiver(spn2Failure);
+  if (!status) return null; // not the origin refusing — nothing to say about the site
+
+  const now = opts.now ?? nowIso();
+  const pageUrl = `https://${host}/`;
+  const existing = await countCaptures(pageUrl);
+  // Can't count ⇒ can't characterise the consequence ⇒ say nothing. "We couldn't reach CDX"
+  // must never surface as "nothing has preserved this site".
+  if (existing === null) {
+    opts.log?.(`[receipts] ${host}: archiver refused (HTTP ${status}) but capture count unknown — not recording`);
+    return null;
+  }
+
+  // Whether the site publishes a directive is part of the claim, so read it rather than assume.
+  const prevPolicy = db.latestObservation("receipts", policyKey(host));
+  const declared = prevPolicy
+    ? ((JSON.parse(prevPolicy.payload_json) as { blocks?: DeclaredBlock[] }).blocks ?? [])
+    : [];
+  const robotsDisallowsArchiver = prevPolicy ? declared.length > 0 : undefined;
+
+  const message = spn2Failure.replace(/^[^:]*:\s*/, ""); // drop our "error:no-request: " prefix
+  const refusal = {
+    status,
+    existingCaptures: existing,
+    archiveMessage: message,
+    weCapturedOk: opts.weCapturedOk,
+    robotsDisallowsArchiver,
+  };
+  const contentHash = sha256(JSON.stringify([status, existing === 0, robotsDisallowsArchiver]));
+  const { inserted } = db.insertObservation({
+    module: "receipts",
+    domain: refusalKey(host),
+    observedAt: now,
+    sourceUrl: `https://web.archive.org/save/${pageUrl}`,
+    contentHash,
+    payload: { host, ...refusal, spn2Failure },
+  });
+  if (!inserted) return null; // same situation as last time
+
+  const id = db.insertChange({
+    module: "receipts",
+    domain: host,
+    detectedAt: now,
+    kind: "added",
+    field: "archiver_refused",
+    oldValue: null,
+    newValue: `HTTP ${status} to the Internet Archive`,
+    severity: existing === 0 ? "high" : "notable",
+    reason: describeObservedRefusal(refusal, host, now),
+    // The Archive's own save endpoint: anyone can re-run it and see the same refusal.
+    sourceUrl: `https://web.archive.org/save/${pageUrl}`,
+  } satisfies Change);
+  opts.log?.(
+    `[receipts] ${host}: Internet Archive refused (HTTP ${status}); ${existing} existing capture(s) — recorded`,
+  );
+  return id;
 }

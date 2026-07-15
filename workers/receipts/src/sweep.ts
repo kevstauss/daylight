@@ -1,6 +1,6 @@
 import type { DaylightDb } from "@daylight/db";
 import { captureAndSnapshot } from "./live.js";
-import { checkArchiverPolicy } from "./policy.js";
+import { checkArchiverPolicy, recordArchiverRefusal } from "./policy.js";
 import type { WaybackSaver } from "./wayback.js";
 
 export interface ReceiptsSweepResult {
@@ -14,13 +14,28 @@ export interface ReceiptsSweepResult {
   archiveFailed: number;
   /** Hosts whose robots.txt newly declares (or stops declaring) a block on an archiver. */
   policyChanges: number;
+  /** Hosts where the Internet Archive itself reported the origin turning its crawler away. */
+  archiverRefusals: number;
+}
+
+export interface ReceiptsSweepOptions {
+  channel?: string;
+  waybackSave?: WaybackSaver;
+  log?: (msg: string) => void;
+  /**
+   * The archiver's verbatim failure for a host, if the caller recorded one. The reason lives in
+   * the caller's saver closure, so it has to be handed back rather than guessed at — and it must
+   * be SPN2's own text, since that is what distinguishes "the site turned the Archive away" from
+   * "the Archive was busy".
+   */
+  archiveFailureFor?: (host: string) => string | undefined;
 }
 
 /** Snapshot each host's homepage (public, load-only) and diff vs the last snapshot for removals. */
 export async function runReceiptsSweep(
   db: DaylightDb,
   hosts: string[],
-  opts: { channel?: string; waybackSave?: WaybackSaver; log?: (msg: string) => void } = {},
+  opts: ReceiptsSweepOptions = {},
 ): Promise<ReceiptsSweepResult> {
   const uniq = [...new Set(hosts.map((h) => h.toLowerCase()))].filter((h) => h.endsWith(".gov"));
   const out: ReceiptsSweepResult = {
@@ -30,6 +45,7 @@ export async function runReceiptsSweep(
     archived: 0,
     archiveFailed: 0,
     policyChanges: 0,
+    archiverRefusals: 0,
   };
   for (const host of uniq) {
     // What the site declares about archivers, before we look at the page itself. Cheap (one
@@ -53,7 +69,23 @@ export async function runReceiptsSweep(
     // on file is neither — nothing was tried and nothing is missing.
     if (r.archiveAttempted) {
       if (r.waybackUrl) out.archived++;
-      else out.archiveFailed++;
+      else {
+        out.archiveFailed++;
+        // Did the ARCHIVE say the site turned it away? Only then is there a claim to make, and
+        // recordArchiverRefusal re-checks that itself before writing anything.
+        const reason = opts.archiveFailureFor?.(host);
+        if (reason) {
+          try {
+            const id = await recordArchiverRefusal(db, host, reason, {
+              weCapturedOk: r.ok && !r.gated,
+              log: opts.log,
+            });
+            if (id !== null) out.archiverRefusals++;
+          } catch (err) {
+            opts.log?.(`[receipts] ${host}: refusal check failed — ${err instanceof Error ? err.message : err}`);
+          }
+        }
+      }
     }
     opts.log?.(
       `[receipts] ${host}: ${r.gated ? "gated" : r.ok ? `ok (${r.removed?.length ?? 0} removals)` : `error: ${r.error}`}`,

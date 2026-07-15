@@ -26,8 +26,23 @@ bot's contact, and the observational-only scope.
   directive naming an archiver is a decision someone wrote down. Only the second is evidence of
   intent, and only the second gets named. Blocks being *lifted* are recorded too — a ledger that
   only reports the damning direction is a campaign, not a ledger.
+- **When the Archive is turned away, that is now on the record too — in the Archive&rsquo;s own
+  words.** Save Page Now says which it is: `"The target server blocks access to
+  https://techprosperitycorps.gov/. (HTTP status=403)"` is the origin refusing its crawler, while
+  a session limit or a 503 is the Archive having a bad day. Only the former is recorded, quoting
+  the message verbatim and sourcing it to the save endpoint so anyone can re-run it. Severity
+  follows the evidence: a site with **no capture anywhere** is a preservation gap (`high`); a site
+  the Archive already holds copies of has only become harder to capture (`notable`). If the
+  capture count can&rsquo;t be established, nothing is recorded at all — &ldquo;we couldn&rsquo;t
+  count&rdquo; must never surface as &ldquo;nothing has preserved this site&rdquo;.
 - **Targeted sweeps** — `pnpm --filter @daylight/receipts snapshot --hosts a.gov,b.gov`, for when a
   newly-registered domain has no archive anywhere and shouldn&rsquo;t wait for the next full pass.
+- **First findings from all of the above.** `techprosperitycorps.gov` — a federal domain registered
+  in the last few months — returns **HTTP 403 to the Internet Archive** and has **zero captures in
+  the Wayback Machine**: no independent public copy of it exists. `getactive.gov` and `moms.gov`
+  refuse the Archive the same way. All three serve Daylight&rsquo;s own request normally and none
+  disallows archivers in robots.txt. Daylight states the observation and quotes the Archive; it
+  does not assert why, because bot protection and policy are indistinguishable from the outside.
 
 ## Receipts: the archive column now tells the truth — 2026-07-14
 

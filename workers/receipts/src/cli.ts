@@ -42,8 +42,12 @@ function hostsArg(): string[] | null {
 
 async function main(): Promise<void> {
   const db = createDb(resolveDbPath());
+  const failureByUrl = new Map<string, string>();
   const wayback = process.env.DAYLIGHT_WAYBACK === "1" ? makeArchiver({
-    onFailure: (url, reason) => console.warn(`[receipts] archive failed — ${url}: ${reason}`),
+    onFailure: (url, reason) => {
+      failureByUrl.set(url, reason);
+      console.warn(`[receipts] archive failed — ${url}: ${reason}`);
+    },
     onAdopt: (url, archiveUrl, drift) =>
       console.log(`[receipts] adopted existing IA capture — ${url} -> ${archiveUrl} (${drift}m drift)`),
   }) : undefined;
@@ -56,11 +60,17 @@ async function main(): Promise<void> {
   try {
     if (only) console.log(`[receipts] targeted sweep — ${hosts.join(", ")}`);
     // eslint-disable-next-line no-console
-    const r = await runReceiptsSweep(db, hosts, { channel, waybackSave: wayback, log: (m) => console.log(m) });
+    const r = await runReceiptsSweep(db, hosts, {
+      channel,
+      waybackSave: wayback,
+      log: (m) => console.log(m),
+      archiveFailureFor: (host) => failureByUrl.get(`https://${host}/`),
+    });
     // eslint-disable-next-line no-console
     console.log(
       `[receipts] sweep complete — ${r.captured} captured, ${r.gated} gated, ${r.removals} removals, ` +
-        `${r.archived} archived, ${r.archiveFailed} archive failures`,
+        `${r.archived} archived, ${r.archiveFailed} archive failures, ` +
+        `${r.policyChanges} policy changes, ${r.archiverRefusals} archiver refusals`,
     );
   } finally {
     db.close();

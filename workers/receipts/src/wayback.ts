@@ -161,7 +161,14 @@ async function saveAuthenticated(
         const archived = `https://web.archive.org/web/${st.timestamp}/${st.original_url ?? pageUrl}`;
         return isTimestampedArchiveUrl(archived) ? archived : o.fail(`malformed capture URL: ${archived}`);
       }
-      if (st.status === "error") return o.fail(st.status_ext ?? st.message ?? "spn2 error");
+      // Keep SPN2's own message, not just the code. The codes are terse and partly
+      // undocumented ("error:no-request"), while the message is the diagnosis — e.g. "The
+      // target server blocks access to <url>. (HTTP status=403)" — and it is the Archive's
+      // words, which is exactly what makes it quotable rather than our inference.
+      if (st.status === "error") {
+        const code = st.status_ext ?? "spn2 error";
+        return o.fail(st.message ? `${code}: ${st.message}` : code);
+      }
       // status "pending" → keep polling until the deadline
     }
     // Submitted but never confirmed. The capture may still land, but we cannot pin its

@@ -168,10 +168,16 @@ export async function register(): Promise<void> {
     // reasons and report them with the run.
     const archiveFailures: string[] = [];
     const adopted: string[] = [];
+    // The Archive's verbatim reason per URL — the sweep needs it to tell "the site turned the
+    // Archive away" apart from "the Archive was busy".
+    const failureByUrl = new Map<string, string>();
     const wayback =
       process.env.DAYLIGHT_WAYBACK === "1"
         ? receipts.makeArchiver({
-            onFailure: (url, reason) => archiveFailures.push(`${url} (${reason})`),
+            onFailure: (url, reason) => {
+              failureByUrl.set(url, reason);
+              archiveFailures.push(`${url} (${reason})`);
+            },
             // Our own save failed but the Archive already had a copy from around when we
             // looked. Worth logging distinctly — it is a weaker receipt than our own capture.
             onAdopt: (url, archiveUrl, drift) => adopted.push(`${url} -> ${archiveUrl} (${drift}m drift)`),
@@ -181,10 +187,15 @@ export async function register(): Promise<void> {
     try {
       const hosts = browserSweepHosts(database);
       if (!hosts) return;
-      const r = await receiptsSweep.runReceiptsSweep(database, hosts, { channel, waybackSave: wayback });
+      const r = await receiptsSweep.runReceiptsSweep(database, hosts, {
+        channel,
+        waybackSave: wayback,
+        archiveFailureFor: (host) => failureByUrl.get(`https://${host}/`),
+      });
       console.log(
         `[receipts:cron] sweep — ${r.captured} captured, ${r.gated} gated, ${r.removals} removals, ` +
-          `${r.archived} archived, ${r.archiveFailed} archive failures`,
+          `${r.archived} archived, ${r.archiveFailed} archive failures, ` +
+          `${r.policyChanges} policy changes, ${r.archiverRefusals} archiver refusals`,
       );
       if (adopted.length) {
         console.log(`[receipts:cron] adopted existing IA captures — ${adopted.join("; ")}`);
