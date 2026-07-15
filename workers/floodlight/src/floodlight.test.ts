@@ -140,6 +140,16 @@ describe("§7 rescan diff + redaction", () => {
   // scripts. — the shard rotating, not the agency doing anything. 85 of its 274 changes named a
   // rotating or conditional endpoint. Two defences: vendor-level identity (see trackerKey) and
   // never inferring absence from a load that didn't finish.
+  it("does NOT emit a tracker change against a baseline that never settled", () => {
+    // Checking only the current scan would still diff a complete capture against a partial
+    // baseline and blame the site for the difference.
+    const withTracker = VENDOR;
+    const withoutTracker = capture("https://realfood.gov/", [], dom({ privacyNoticeUrl: "https://realfood.gov/privacy" }));
+    runFloodlightScan(db, withTracker, { now: NOW, settled: false }); // partial baseline
+    runFloodlightScan(db, withoutTracker, { now: NOW, settled: true });
+    expect(db.listChanges({ module: "floodlight" }).some((c) => c.kind === "removed")).toBe(false);
+  });
+
   it("does NOT emit a tracker change when the scan never settled", () => {
     const withTracker = VENDOR;
     const withoutTracker = capture("https://realfood.gov/", [], dom({ privacyNoticeUrl: "https://realfood.gov/privacy" }));

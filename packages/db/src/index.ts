@@ -645,11 +645,11 @@ export class DaylightDb {
         `INSERT INTO scorecards
            (url, domain, scanned_at, tracker_count, session_replay, first_party_proxied,
             privacy_notice_url, request_count, engine_version, severity, trackers_json, reasons_json,
-            form_fields_json)
+            form_fields_json, settled)
          VALUES
            (@url, @domain, @scannedAt, @trackerCount, @sessionReplay, @firstPartyProxied,
             @privacyNoticeUrl, @requestCount, @engineVersion, @severity, @trackersJson, @reasonsJson,
-            @formFieldsJson)
+            @formFieldsJson, @settled)
          ON CONFLICT(url) DO UPDATE SET
            domain = excluded.domain, scanned_at = excluded.scanned_at,
            tracker_count = excluded.tracker_count, session_replay = excluded.session_replay,
@@ -657,7 +657,7 @@ export class DaylightDb {
            privacy_notice_url = excluded.privacy_notice_url, request_count = excluded.request_count,
            engine_version = excluded.engine_version, severity = excluded.severity,
            trackers_json = excluded.trackers_json, reasons_json = excluded.reasons_json,
-           form_fields_json = excluded.form_fields_json`,
+           form_fields_json = excluded.form_fields_json, settled = excluded.settled`,
       )
       .run({
         url: sc.url,
@@ -670,6 +670,7 @@ export class DaylightDb {
         requestCount: sc.requestCount,
         engineVersion: sc.engineVersion,
         severity: sc.severity,
+        settled: sc.settled ? 1 : 0,
         trackersJson: sc.trackersJson,
         reasonsJson: sc.reasonsJson,
         formFieldsJson: sc.formFieldsJson ?? null,
@@ -1323,6 +1324,8 @@ export interface SnapshotInput {
 }
 
 export interface ScorecardInput {
+  /** Did this capture finish loading? Absence is only evidence when both sides of a diff did. */
+  settled?: boolean;
   url: string;
   domain: string;
   trackerCount: number;

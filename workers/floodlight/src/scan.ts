@@ -41,8 +41,7 @@ export function runFloodlightScan(
   const o: FloodlightScanOptions = typeof opts === "string" ? { now: opts } : opts;
   const scannedAt = o.now ?? nowIso();
   const scorecard = analyzeCapture(capture);
-  // A scan can only testify to what it saw. Without a settled load, "gone" means "not yet".
-  const absenceIsMeaningful = o.settled === true;
+
 
   // Redact the page URL ONCE and use it everywhere the URL is stored or shown — the scorecard
   // row (its PK), the observation, the content hash, and change reasons. A scanned URL can
@@ -79,6 +78,10 @@ export function runFloodlightScan(
         : [];
       const prevKeys = new Set(prevTrackers.map(trackerKey));
       const currKeys = new Set(scorecard.trackers.map(trackerKey));
+      // BOTH sides must have finished loading. Checking only this scan would still diff a
+      // complete capture against a partial baseline and publish the difference as the site's
+      // doing. NULL on an older scorecard = unknown = not settled.
+      const absenceIsMeaningful = o.settled === true && prev?.settled === 1;
 
       const contentHash = sha256(
         JSON.stringify([
@@ -139,6 +142,7 @@ export function runFloodlightScan(
           requestCount: scorecard.requestCount,
           engineVersion: scorecard.engineVersion,
           severity: scorecard.severity,
+          settled: o.settled === true,
           trackersJson: JSON.stringify(redactedTrackers),
           reasonsJson: JSON.stringify(redactedReasons),
         },

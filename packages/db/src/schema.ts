@@ -100,6 +100,8 @@ CREATE TABLE IF NOT EXISTS scorecards (
   engine_version TEXT,
   severity TEXT,
   trackers_json TEXT,                 -- JSON array of {vendor,category,host,path,firstPartyProxied}
+  settled INTEGER,                    -- 1 = the capture finished loading. A diff may only infer
+                                      -- ABSENCE when BOTH sides settled; NULL = unknown.
   reasons_json TEXT,                  -- JSON array of human-readable reasons
   form_fields_json TEXT               -- JSON array of normalized PII field kinds (Redtape reads this)
 );

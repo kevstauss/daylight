@@ -73,6 +73,8 @@ export interface SubdomainRow {
 }
 
 export interface ScorecardRow {
+  /** 1 = this capture finished loading. Absence is only evidence when both sides are 1. */
+  settled?: number | null;
   id: number;
   url: string;
   domain: string;
