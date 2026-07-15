@@ -4,9 +4,18 @@ import { createDb, type DaylightDb } from "@daylight/db";
 import type { LiveCapture } from "@daylight/floodlight/capture";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  archiveDriftMinutes,
+  archiveTimestamp,
+} from "@daylight/core";
+import {
   captureStatus,
   type CdxOptions,
+  checkArchiverPolicy,
+  declaredBlocks,
+  describeDeclaredBlock,
   diffSnapshots,
+  findCaptureNear,
+  makeArchiver,
   isDefinitelyNotPageCapture,
   isPageCapture,
   isTimestampedArchiveUrl,
@@ -319,6 +328,262 @@ describe("cdx — is a stored archive actually a capture of the page?", () => {
       ["20260602013316", "-"],
     ]));
     expect(isDefinitelyNotPageCapture(s)).toBe(false);
+  });
+});
+
+describe("declaredBlocks — only report what a site actually declares", () => {
+  it("reports a site-wide Disallow aimed at the Internet Archive, quoting it verbatim", () => {
+    const b = declaredBlocks(["User-agent: ia_archiver", "Disallow: /"].join("\n"));
+    expect(b).toHaveLength(1);
+    expect(b[0]!.party).toBe("internet-archive");
+    expect(b[0]!.directive).toBe("User-agent: ia_archiver / Disallow: /");
+    const copy = describeDeclaredBlock(b[0]!, "example.gov", "2026-07-15T00:00:00.000Z");
+    expect(copy).toContain("as of 2026-07-15");
+    expect(copy).toContain("the site's own published crawl policy");
+    // Neutral: states the directive, never a motive.
+    expect(copy.toLowerCase()).not.toMatch(/hiding|cover|evade|illegal|violat/);
+  });
+
+  it("reports a block aimed at Daylight itself", () => {
+    const b = declaredBlocks(["User-agent: DaylightBot", "Disallow: /"].join("\n"));
+    expect(b.map((x) => x.party)).toEqual(["daylight"]);
+  });
+
+  it("groups consecutive User-agent lines under one rule block", () => {
+    const b = declaredBlocks(["User-agent: ia_archiver", "User-agent: DaylightBot", "Disallow: /"].join("\n"));
+    expect(b.map((x) => x.party).sort()).toEqual(["daylight", "internet-archive"]);
+  });
+
+  // ---- Everything below must report NOTHING. Each is a real pattern from the watched set. ----
+
+  it("a wildcard block is not a decision about archiving", () => {
+    // Blanket crawl policy. Reading "they block the Archive" into this would be an overclaim.
+    expect(declaredBlocks(["User-agent: *", "Disallow: /"].join("\n"))).toEqual([]);
+  });
+
+  it("an empty Disallow ALLOWS everything — the opposite of a block", () => {
+    expect(declaredBlocks(["User-agent: ia_archiver", "Disallow:"].join("\n"))).toEqual([]);
+  });
+
+  it("a path-scoped rule is housekeeping, not a refusal to be preserved", () => {
+    expect(declaredBlocks(["User-agent: ia_archiver", "Disallow: /search"].join("\n"))).toEqual([]);
+  });
+
+  it("blocking AI crawlers is not blocking the archive (real techprosperitycorps.gov robots.txt)", () => {
+    const real = [
+      "# content signals",
+      "User-agent: *",
+      "Content-Signal: search=yes,ai-train=no,use=reference",
+      "Allow: /",
+      "User-agent: ClaudeBot",
+      "Disallow: /",
+      "User-agent: CCBot",
+      "Disallow: /",
+      "User-agent: Bytespider",
+      "Disallow: /",
+    ].join("\n");
+    expect(declaredBlocks(real)).toEqual([]);
+  });
+
+  it("an Allow-everything archiver group is not a block", () => {
+    expect(declaredBlocks(["User-agent: ia_archiver", "Allow: /"].join("\n"))).toEqual([]);
+  });
+
+  it("comments mentioning the archive are not directives", () => {
+    expect(declaredBlocks(["# we love ia_archiver Disallow: /", "User-agent: *", "Allow: /"].join("\n"))).toEqual([]);
+  });
+
+  it("an empty or junk robots.txt declares nothing", () => {
+    expect(declaredBlocks("")).toEqual([]);
+    expect(declaredBlocks("<!DOCTYPE html><html>404</html>")).toEqual([]);
+  });
+});
+
+describe("checkArchiverPolicy — report a declared block once, on the transition", () => {
+  const HOST = "example.gov";
+  /** checkArchiverPolicy fetches through the guards' fetchRobotsTxt, so drive it via global fetch. */
+  const withRobots = async (body: string | null, status = 200, fn: () => Promise<void>): Promise<void> => {
+    const real = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      body === null ? new Response("", { status: 404 }) : new Response(body, { status })) as typeof fetch;
+    try {
+      await fn();
+    } finally {
+      globalThis.fetch = real;
+    }
+  };
+
+  it("emits one high-severity change when a site declares a block on the Internet Archive", async () => {
+    await withRobots(["User-agent: ia_archiver", "Disallow: /"].join("\n"), 200, async () => {
+      const r = await checkArchiverPolicy(db, HOST, { now: T0, allowPrivate: true });
+      expect(r.blocks).toHaveLength(1);
+      expect(r.changeIds).toHaveLength(1);
+      const c = db.listChanges({ module: "receipts" })[0]!;
+      expect(c.field).toBe("archiver_disallowed");
+      expect(c.severity).toBe("high");
+      expect(c.kind).toBe("added");
+      expect(c.source_url).toContain("/robots.txt"); // one-click checkable
+      expect(c.reason).toContain("Disallow: /");
+    });
+  });
+
+  it("does not re-emit a standing directive on every sweep", async () => {
+    const body = ["User-agent: ia_archiver", "Disallow: /"].join("\n");
+    await withRobots(body, 200, async () => {
+      await checkArchiverPolicy(db, HOST, { now: T0, allowPrivate: true });
+      const second = await checkArchiverPolicy(db, HOST, { now: T1, allowPrivate: true });
+      expect(second.changeIds).toHaveLength(0);
+      expect(db.listChanges({ module: "receipts" })).toHaveLength(1);
+    });
+  });
+
+  it("records a block being lifted too — the ledger runs both directions", async () => {
+    await withRobots(["User-agent: ia_archiver", "Disallow: /"].join("\n"), 200, async () => {
+      await checkArchiverPolicy(db, HOST, { now: T0, allowPrivate: true });
+    });
+    await withRobots(["User-agent: *", "Allow: /"].join("\n"), 200, async () => {
+      const r = await checkArchiverPolicy(db, HOST, { now: T1, allowPrivate: true });
+      expect(r.changeIds).toHaveLength(1);
+    });
+    const kinds = db.listChanges({ module: "receipts" }).map((c) => c.kind).sort();
+    expect(kinds).toEqual(["added", "removed"]);
+  });
+
+  it("says nothing at all when robots.txt is unreachable (Akamai denies moms.gov's)", async () => {
+    await withRobots(null, 403, async () => {
+      const r = await checkArchiverPolicy(db, HOST, { now: T0, allowPrivate: true });
+      // null, NOT [] — "we could not read it" must never render as "declares nothing".
+      expect(r.blocks).toBeNull();
+      expect(r.changeIds).toHaveLength(0);
+      expect(db.listChanges({ module: "receipts" })).toHaveLength(0);
+    });
+  });
+
+  it("stays silent for a site that blocks AI crawlers but not the archive", async () => {
+    await withRobots(["User-agent: *", "Allow: /", "User-agent: ClaudeBot", "Disallow: /"].join("\n"), 200, async () => {
+      const r = await checkArchiverPolicy(db, HOST, { now: T0, allowPrivate: true });
+      expect(r.blocks).toEqual([]);
+      expect(db.listChanges({ module: "receipts" })).toHaveLength(0);
+    });
+  });
+});
+
+describe("findCaptureNear — adopt the Archive's nearest real capture", () => {
+  const cdxRows = (rows: string[][]): CdxOptions => ({
+    fetchImpl: async () => new Response(JSON.stringify([["timestamp", "statuscode"], ...rows])),
+  });
+
+  it("picks the capture closest to when we looked, and reports the drift honestly", async () => {
+    const near = await findCaptureNear("https://trumpaccounts.gov/", "2026-07-13T04:35:00.000Z", {
+      ...cdxRows([
+        ["20260713010000", "200"], // 3h35m before
+        ["20260713044000", "200"], // 5m after  <- closest
+        ["20260713080000", "200"], // 3h25m after
+      ]),
+      windowHours: 6,
+    });
+    expect(near?.archiveUrl).toBe("https://web.archive.org/web/20260713044000/https://trumpaccounts.gov/");
+    expect(near?.driftMinutes).toBe(5);
+    expect(near?.capturedAt).toBe("2026-07-13T04:40:00.000Z");
+  });
+
+  it("never adopts a block page — only 200s are a copy of the page", async () => {
+    const near = await findCaptureNear("https://trumpaccounts.gov/", "2026-07-13T04:35:00.000Z", {
+      ...cdxRows([["20260713043600", "403"]]), // 1m away, but a refusal
+      windowHours: 6,
+    });
+    expect(near).toBeNull();
+  });
+
+  it("refuses a capture outside the window — too far to be evidence of what we saw", async () => {
+    const near = await findCaptureNear("https://trumpaccounts.gov/", "2026-07-13T04:35:00.000Z", {
+      ...cdxRows([["20260710040000", "200"]]), // 3 days off
+      windowHours: 6,
+    });
+    expect(near).toBeNull();
+  });
+
+  it("returns null (not a throw) when CDX is unreachable", async () => {
+    const near = await findCaptureNear("https://x.gov/", "2026-07-13T04:35:00.000Z", {
+      fetchImpl: async () => {
+        throw new Error("fetch failed");
+      },
+    });
+    expect(near).toBeNull();
+  });
+});
+
+describe("makeArchiver — save, else adopt", () => {
+  it("prefers our own capture and does not touch CDX when the save works", async () => {
+    let cdxCalls = 0;
+    const archiver = makeArchiver({
+      accessKey: "k",
+      secret: "s",
+      pollIntervalMs: 1,
+      slotPollIntervalMs: 1,
+      fetchImpl: async (url) => {
+        if (url.includes("/cdx/")) cdxCalls++;
+        if (url.includes("/status/user")) return new Response(JSON.stringify({ available: 3 }));
+        if (url === "https://web.archive.org/save") return new Response(JSON.stringify({ job_id: "j" }));
+        return new Response(
+          JSON.stringify({ status: "success", timestamp: "20260713043500", original_url: "https://a.gov/" }),
+        );
+      },
+    });
+    expect(await archiver("https://a.gov/")).toBe("https://web.archive.org/web/20260713043500/https://a.gov/");
+    expect(cdxCalls).toBe(0);
+  });
+
+  it("falls back to the Archive's existing capture when our save fails", async () => {
+    const adopted: { url: string; drift: number }[] = [];
+    const archiver = makeArchiver({
+      accessKey: "k",
+      secret: "s",
+      pollIntervalMs: 1,
+      slotPollIntervalMs: 1,
+      now: () => "2026-07-13T04:35:00.000Z",
+      onAdopt: (_u, archiveUrl, drift) => adopted.push({ url: archiveUrl, drift }),
+      fetchImpl: async (url) => {
+        if (url.includes("/status/user")) return new Response(JSON.stringify({ available: 3 }));
+        if (url === "https://web.archive.org/save")
+          return new Response(JSON.stringify({ status_ext: "error:user-session-limit" }));
+        if (url.includes("/cdx/"))
+          return new Response(JSON.stringify([["timestamp", "statuscode"], ["20260713043800", "200"]]));
+        return new Response("{}");
+      },
+    });
+    expect(await archiver("https://a.gov/")).toBe("https://web.archive.org/web/20260713043800/https://a.gov/");
+    expect(adopted[0]?.drift).toBe(3);
+  });
+
+  it("returns null when the save fails and no nearby capture exists", async () => {
+    const archiver = makeArchiver({
+      accessKey: "k",
+      secret: "s",
+      pollIntervalMs: 1,
+      slotPollIntervalMs: 1,
+      now: () => "2026-07-13T04:35:00.000Z",
+      fetchImpl: async (url) => {
+        if (url.includes("/status/user")) return new Response(JSON.stringify({ available: 3 }));
+        if (url === "https://web.archive.org/save") return new Response(JSON.stringify({ status_ext: "error:x" }));
+        return new Response(""); // CDX: nothing indexed (techprosperitycorps.gov's real state)
+      },
+    });
+    expect(await archiver("https://techprosperitycorps.gov/")).toBeNull();
+  });
+});
+
+describe("archive dating — an archive is dated by its OWN capture, not the row holding it", () => {
+  it("reads the capture instant off a pinned URL", () => {
+    expect(archiveTimestamp("https://web.archive.org/web/20260702181455/https://trumpaccounts.gov/")).toBe(
+      "2026-07-02T18:14:55.000Z",
+    );
+    expect(archiveTimestamp("https://web.archive.org/web/https://cdc.gov/")).toBeNull();
+  });
+
+  it("measures drift between the archive and the observation it backs", () => {
+    const url = "https://web.archive.org/web/20260713044000/https://a.gov/";
+    expect(archiveDriftMinutes(url, "2026-07-13T04:35:00.000Z")).toBe(5);
   });
 });
 

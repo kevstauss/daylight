@@ -12,6 +12,13 @@ export type {
 
 export { sha256 } from "./hash.js";
 export { nowIso } from "./time.js";
+export {
+  isTimestampedArchiveUrl,
+  cdxTsToIso,
+  isoToCdxTs,
+  archiveTimestamp,
+  archiveDriftMinutes,
+} from "./archive-url.js";
 export { flag } from "./flags.js";
 export { loadWatchlist, parseWatchlist, watchSubscriptions } from "./watchlist.js";
 export type { FlagKind, FlagClassifiable, FlagMeta } from "./flag.js";

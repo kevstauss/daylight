@@ -167,12 +167,15 @@ export async function register(): Promise<void> {
     // null, so a page could go unarchived for weeks with nothing in the logs. Collect the
     // reasons and report them with the run.
     const archiveFailures: string[] = [];
+    const adopted: string[] = [];
     const wayback =
       process.env.DAYLIGHT_WAYBACK === "1"
-        ? (u: string) =>
-            receipts.saveToWayback(u, {
-              onFailure: (url, reason) => archiveFailures.push(`${url} (${reason})`),
-            })
+        ? receipts.makeArchiver({
+            onFailure: (url, reason) => archiveFailures.push(`${url} (${reason})`),
+            // Our own save failed but the Archive already had a copy from around when we
+            // looked. Worth logging distinctly — it is a weaker receipt than our own capture.
+            onAdopt: (url, archiveUrl, drift) => adopted.push(`${url} -> ${archiveUrl} (${drift}m drift)`),
+          })
         : undefined;
     const database = db.createDb(db.resolveDbPath());
     try {
@@ -183,6 +186,9 @@ export async function register(): Promise<void> {
         `[receipts:cron] sweep — ${r.captured} captured, ${r.gated} gated, ${r.removals} removals, ` +
           `${r.archived} archived, ${r.archiveFailed} archive failures`,
       );
+      if (adopted.length) {
+        console.log(`[receipts:cron] adopted existing IA captures — ${adopted.join("; ")}`);
+      }
       if (archiveFailures.length) {
         console.warn(`[receipts:cron] archive failures — ${archiveFailures.join("; ")}`);
       }

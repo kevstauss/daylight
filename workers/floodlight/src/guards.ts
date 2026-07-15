@@ -124,13 +124,37 @@ export function robotsAllows(robotsTxt: string, path: string, uaToken = "dayligh
  * metadata service. Network/parse failure ⇒ allowed (courtesy — the scan itself is guarded).
  */
 export async function isAllowedByRobots(url: string, ua: string, opts: UrlGuardOptions = {}): Promise<boolean> {
+  const robots = await fetchRobotsTxt(url, ua, opts);
+  if (!robots) return true; // unreachable / unvettable ⇒ courtesy allow (the scan itself is guarded)
+  try {
+    return robotsAllows(robots.text, new URL(url).pathname);
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * The origin's robots.txt itself, fetched under the same hop-by-hop SSRF validation as
+ * isAllowedByRobots (see above — a page could 302 /robots.txt at the metadata service).
+ * Returns null whenever the file can't be fetched or a hop can't be vetted; callers must treat
+ * null as "we don't know", never as "nothing declared".
+ *
+ * Separate from isAllowedByRobots because robots.txt answers two different questions: "may we
+ * fetch this path" (a boolean we obey) and "what has this site declared about archivers" (text
+ * we report on). One safe fetcher, two readers.
+ */
+export async function fetchRobotsTxt(
+  url: string,
+  ua: string,
+  opts: UrlGuardOptions = {},
+): Promise<{ text: string; url: string } | null> {
   try {
     const u = new URL(url);
     let target = `${u.origin}/robots.txt`;
     for (let hop = 0; hop < 5; hop++) {
       const t = new URL(target);
-      if (t.protocol !== "http:" && t.protocol !== "https:") return true;
-      if (!(await hostAllowed(t.hostname, opts))) return true; // can't vet the hop → courtesy allow
+      if (t.protocol !== "http:" && t.protocol !== "https:") return null;
+      if (!(await hostAllowed(t.hostname, opts))) return null; // can't vet the hop
       const res = await fetch(target, {
         headers: { "user-agent": ua },
         redirect: "manual",
@@ -138,16 +162,16 @@ export async function isAllowedByRobots(url: string, ua: string, opts: UrlGuardO
       });
       if (res.status >= 300 && res.status < 400) {
         const loc = res.headers.get("location");
-        if (!loc) return true;
+        if (!loc) return null;
         target = new URL(loc, target).toString(); // resolve, re-validate on next iteration
         continue;
       }
-      if (!res.ok) return true;
-      return robotsAllows(await res.text(), u.pathname);
+      if (!res.ok) return null;
+      return { text: await res.text(), url: target };
     }
-    return true; // redirect loop / too many hops → courtesy allow
+    return null; // redirect loop / too many hops
   } catch {
-    return true;
+    return null;
   }
 }
 

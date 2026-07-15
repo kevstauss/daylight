@@ -1,3 +1,4 @@
+import { archiveDriftMinutes, archiveTimestamp } from "@daylight/core";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { coverageSnapshotRows, removalLedgerRows, snapshotCount, type CoverageRow, type SnapshotRow } from "@/lib/data";
@@ -147,16 +148,23 @@ export default function ReceiptsPage() {
 }
 
 /**
- * The independent archived copy. An archive belongs to the capture it was taken for, so when
- * the newest capture has no archive of its own we surface the most recent one we DO hold and
- * date it explicitly — an archive from an earlier capture is real evidence, but it is evidence
- * of that day's page, not today's. Saying "Archived" flat would imply the current row is
- * covered when it isn't.
+ * The independent archived copy, dated by the archive's OWN capture instant — never by the
+ * snapshot row that happens to hold the link. The two can differ a lot: an archive may be
+ * carried forward from an earlier capture, or adopted from the Internet Archive's own crawl
+ * when our save failed, in which case it can sit hours from what we looked at. It is still real
+ * evidence; it is just evidence of the page at *that* moment, and the reader has to be able to
+ * see which. Anything close enough to our capture to corroborate it reads as "Archived"; the
+ * rest carries its date on its face.
  */
+const CORROBORATES_MINUTES = 60;
+
 function Archive({ row }: { row: CoverageRow }) {
   if (!row.archive_url) return <span className="text-faint">—</span>;
-  const current = row.archive_captured_at === row.captured_at;
-  const stamp = fmtArchiveDate(row.archive_captured_at);
+  const archivedAt = archiveTimestamp(row.archive_url);
+  if (!archivedAt) return <span className="text-faint">—</span>; // unpinned: not a receipt
+  const drift = archiveDriftMinutes(row.archive_url, row.captured_at);
+  const corroborates = drift !== null && drift <= CORROBORATES_MINUTES;
+  const stamp = fmtArchiveDate(archivedAt);
   return (
     <a
       href={row.archive_url}
@@ -164,12 +172,12 @@ function Archive({ row }: { row: CoverageRow }) {
       rel="noopener noreferrer"
       className="link whitespace-nowrap"
       title={
-        current
-          ? "Independent archived copy of this capture (Internet Archive)"
-          : `Latest archived copy on file — from the ${stamp} capture, not the current one`
+        corroborates
+          ? `Independent archived copy (Internet Archive), captured ${fmtArchiveInstant(archivedAt)} — alongside this snapshot`
+          : `Nearest independent archived copy (Internet Archive), captured ${fmtArchiveInstant(archivedAt)} — ${fmtDrift(drift)} from this snapshot, not a copy of it`
       }
     >
-      {current ? "Archived ↗" : `Archived ${stamp} ↗`}
+      {corroborates ? "Archived ↗" : `Archived ${stamp} ↗`}
     </a>
   );
 }
@@ -179,6 +187,20 @@ function fmtArchiveDate(iso: string | null): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(d);
+}
+
+function fmtArchiveInstant(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(d)} UTC`;
+}
+
+function fmtDrift(mins: number | null): string {
+  if (mins === null) return "an unknown distance";
+  if (mins < 90) return `${mins} min`;
+  const h = Math.round(mins / 60);
+  if (h < 48) return `${h} h`;
+  return `${Math.round(h / 24)} days`;
 }
 
 /** A present/absent fact, stated plainly. "Present" (a privacy notice, a seal) reads as the

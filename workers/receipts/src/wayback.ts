@@ -11,6 +11,10 @@
 // the page's *current* state, so a tracker we recorded as present could silently render as
 // absent. If we cannot pin a dated capture, we return null and let the next sweep retry.
 
+import { isTimestampedArchiveUrl } from "@daylight/core";
+
+export { isTimestampedArchiveUrl };
+
 export type WaybackSaver = (url: string) => Promise<string | null>;
 
 export interface WaybackOptions {
@@ -35,11 +39,6 @@ const SPN2_ENDPOINT = "https://web.archive.org/save";
 const SPN2_USER_STATUS = "https://web.archive.org/save/status/user";
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-/** A real receipt is pinned to a capture timestamp. Anything else is a "latest" pointer. */
-const TIMESTAMPED_RE = /^https:\/\/web\.archive\.org\/web\/\d{14}\//;
-export function isTimestampedArchiveUrl(url: string): boolean {
-  return TIMESTAMPED_RE.test(url);
-}
 
 function userAgent(): string {
   const site = (process.env.DAYLIGHT_SITE_URL?.trim() || "http://localhost:3000").replace(/\/+$/, "");

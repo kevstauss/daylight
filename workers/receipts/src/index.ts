@@ -13,11 +13,21 @@ export {
 } from "./wayback.js";
 export {
   captureStatus,
+  findCaptureNear,
   isPageCapture,
   isDefinitelyNotPageCapture,
   type CaptureStatus,
   type CdxOptions,
+  type NearbyCapture,
 } from "./cdx.js";
+export { makeArchiver, type ArchiverOptions } from "./archive.js";
+export { checkArchiverPolicy, type ArchiverPolicyResult, type ArchiverPolicyOptions } from "./policy.js";
+export {
+  declaredBlocks,
+  describeDeclaredBlock,
+  type DeclaredBlock,
+  type BlockedParty,
+} from "./blocks.js";
 export {
   runReceiptsSnapshot,
   type RunReceiptsOptions,

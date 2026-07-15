@@ -4,6 +4,31 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Receipts: fall back to the Archive's own copy, and name a declared block — 2026-07-15
+
+- **When our archive attempt fails, surface the Internet Archive&rsquo;s nearest existing copy.**
+  Save Page Now fails often enough to matter (a 3-session concurrency cap; intermittent 403s from
+  hosts behind Akamai/Cloudflare), while the same sites are independently crawled many times a day
+  — `trumpaccounts.gov` alone has **702** captures. So rather than reporting a gap, Receipts now
+  adopts the closest real capture within a few hours of when it looked. Only `200` captures are
+  eligible: a 403 block page is not a copy of the page.
+- **Every archive is dated by its own capture instant**, never by the snapshot holding the link.
+  An adopted or carried-forward copy is real evidence of the page *at that moment*, not of the
+  bytes we hashed — so the drift is on the face of it (&ldquo;Archived Jul 2&rdquo;, with the exact
+  time and distance on hover) instead of a bare &ldquo;Archived&rdquo; that overclaims.
+- **A site that tells archivers to go away is now a finding.** If a watched host&rsquo;s
+  `robots.txt` carries a site-wide `Disallow` naming the Internet Archive&rsquo;s crawler
+  (`ia_archiver`) or Daylight&rsquo;s own, that is recorded as a dated, `high` change quoting the
+  directive verbatim, with the `robots.txt` URL as the source so anyone can check it.
+  **What is deliberately NOT reported as a block:** a CDN intermittently returning 403 to the
+  archiver. `trumpaccounts.gov` returns 403 to roughly one attempt in six and has no `robots.txt`
+  at all — while the Archive holds 702 copies of it. Bot protection is a hosting default; a
+  directive naming an archiver is a decision someone wrote down. Only the second is evidence of
+  intent, and only the second gets named. Blocks being *lifted* are recorded too — a ledger that
+  only reports the damning direction is a campaign, not a ledger.
+- **Targeted sweeps** — `pnpm --filter @daylight/receipts snapshot --hosts a.gov,b.gov`, for when a
+  newly-registered domain has no archive anywhere and shouldn&rsquo;t wait for the next full pass.
+
 ## Receipts: the archive column now tells the truth — 2026-07-14
 
 - An audit of the [`/receipts`](/receipts) coverage table found 21 of 73 watched pages showing no

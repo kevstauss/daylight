@@ -8,6 +8,8 @@
 //
 // Read-only queries against a public index; no auth, no capture created.
 
+import { cdxTsToIso, isoToCdxTs } from "@daylight/core";
+
 export type CaptureStatus =
   | { known: true; statusCode: string } // the index has this exact capture
   | { known: false; reason: string }; // not indexed, or we could not tell — NEVER act on this
@@ -61,6 +63,70 @@ export async function captureStatus(
     return { known: true, statusCode };
   } catch (err) {
     return { known: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export interface NearbyCapture {
+  archiveUrl: string;
+  /** The capture's real instant (ISO), which may differ from when we looked. */
+  capturedAt: string;
+  /** Distance from our observation, in minutes. Surfaced so callers can be honest about it. */
+  driftMinutes: number;
+}
+
+/**
+ * The Internet Archive's own capture of `pageUrl` closest to `targetIso`, within `windowHours`.
+ *
+ * Why adopt someone else's capture at all: for a heavily-crawled site IA already holds hundreds
+ * of good captures, so when our Save Page Now call fails there is very often an independent,
+ * dated copy taken minutes from when we looked. That is a real receipt — it is public, dated,
+ * third-party, and not ours to tamper with. What it is NOT is a capture of the exact bytes we
+ * hashed, so the drift travels with it and the UI dates it by the capture's own timestamp.
+ *
+ * Only 200s are eligible: a 403 block page is not a copy of the page.
+ */
+export async function findCaptureNear(
+  pageUrl: string,
+  targetIso: string,
+  opts: CdxOptions & { windowHours?: number } = {},
+): Promise<NearbyCapture | null> {
+  const f = opts.fetchImpl ?? ((url, init) => fetch(url, init));
+  const windowMs = (opts.windowHours ?? 6) * 3600_000;
+  const target = new Date(targetIso).getTime();
+  if (Number.isNaN(target)) return null;
+  const from = isoToCdxTs(new Date(target - windowMs).toISOString());
+  const to = isoToCdxTs(new Date(target + windowMs).toISOString());
+  if (!from || !to) return null;
+  const query =
+    `https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(pageUrl)}` +
+    `&output=json&fl=timestamp,statuscode&from=${from}&to=${to}&filter=statuscode:200&limit=500`;
+  try {
+    const res = await f(query, {
+      headers: { "user-agent": userAgent(), accept: "application/json" },
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 60_000),
+    });
+    if (!res.ok) return null;
+    const text = (await res.text()).trim();
+    if (!text) return null;
+    const rows = (JSON.parse(text) as string[][]).slice(1).filter((r) => r[1] === "200" && r[0]);
+    let best: NearbyCapture | null = null;
+    let bestDriftMs = Infinity; // raw ms — comparing against a rounded minute count loses ties
+    for (const r of rows) {
+      const ts = r[0]!;
+      const iso = cdxTsToIso(ts);
+      if (!iso) continue;
+      const driftMs = Math.abs(new Date(iso).getTime() - target);
+      if (driftMs > windowMs || driftMs >= bestDriftMs) continue;
+      bestDriftMs = driftMs;
+      best = {
+        archiveUrl: `https://web.archive.org/web/${ts}/${pageUrl}`,
+        capturedAt: iso,
+        driftMinutes: Math.round(driftMs / 60_000),
+      };
+    }
+    return best;
+  } catch {
+    return null;
   }
 }
 
