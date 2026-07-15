@@ -778,6 +778,21 @@ describe("a dead navigation is a failed capture, not a redirect and not a baseli
     } as unknown as LiveCapture["capture"],
   } as unknown as LiveCapture;
 
+  // The same failure in its subtler form: the browser loads a 403 block page perfectly happily.
+  // Prod filed one Akamai refusal as the homepage of fcc.gov, state.gov AND usda.gov — proven by
+  // all three sharing a single DOM hash — each recorded as "0 trackers, no privacy notice, no
+  // seal". Three flattering falsehoods about three agencies, and a primed false "added 20
+  // trackers" the moment a real capture landed.
+  it("a 403 block page is not a capture of the page (guarded in captureAndSnapshot)", () => {
+    // Contract check on the field the guard reads: only a 2xx document is the page.
+    const isPage = (status: number | null): boolean => status === null || (status >= 200 && status < 300);
+    expect(isPage(200)).toBe(true);
+    expect(isPage(204)).toBe(true);
+    expect(isPage(403)).toBe(false); // Akamai/Cloudflare refusal
+    expect(isPage(404)).toBe(false);
+    expect(isPage(503)).toBe(false); // Cloudflare interstitial
+  });
+
   it("isWebUrl rejects browser-internal URLs", () => {
     expect(isWebUrl("https://studentaid.gov/")).toBe(true);
     expect(isWebUrl("http://x.gov/")).toBe(true);
@@ -821,6 +836,7 @@ describe("snapshotFromLiveCapture — maps a live capture to a Snapshot", () => 
       screenshotPng: null,
       gated: false,
       finalUrl: "https://ndstudio.gov/",
+      status: 200,
     };
     const snap = snapshotFromLiveCapture("https://ndstudio.gov/", live, T0, "/raw/x.png");
     expect(snap.domain).toBe("ndstudio.gov");

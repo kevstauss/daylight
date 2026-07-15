@@ -113,6 +113,18 @@ export async function captureAndSnapshot(
     return { ok: false, gated: false, url, error: `navigation failed (ended at ${live.finalUrl})` };
   }
 
+  // A browser renders a 403 block page exactly as willingly as the real site, and a block page
+  // has no trackers, no privacy notice and no seal — so filing one as a baseline states three
+  // flattering falsehoods about an agency, and sets the next real capture up to read as a wave of
+  // additions. Prod filed the SAME Akamai refusal as the homepage of fcc.gov, state.gov AND
+  // usda.gov; the giveaway was all three sharing one DOM hash.
+  //
+  // Only a 2xx document is the page. Anything else is a failed observation to retry, not a fact
+  // to publish. (A gated page is handled above: recorded as existing, never entered.)
+  if (live.status !== null && (live.status < 200 || live.status >= 300)) {
+    return { ok: false, gated: false, url, error: `page returned HTTP ${live.status} — not a capture of the page` };
+  }
+
   const capturedAt = opts.now ?? nowIso();
   const screenshotRef = storeScreenshot(live.screenshotPng, sha256(url + capturedAt));
   const snapshot = snapshotFromLiveCapture(url, live, capturedAt, screenshotRef);

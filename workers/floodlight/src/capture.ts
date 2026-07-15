@@ -151,6 +151,15 @@ export interface LiveCapture {
   /** True if the URL sits behind an access wall — we note it exists and stop (no scrape). */
   gated: boolean;
   finalUrl: string;
+  /**
+   * The MAIN DOCUMENT's HTTP status (null if the navigation produced no response).
+   *
+   * A browser renders a 403 block page as happily as it renders the site, and until this was
+   * surfaced the two were indistinguishable downstream: Receipts filed Akamai's refusal as
+   * fcc.gov's, state.gov's and usda.gov's homepage — all three with the same DOM hash, since it
+   * was literally the same block page. "We loaded something" is not "we saw the page".
+   */
+  status: number | null;
 }
 
 /**
@@ -332,6 +341,7 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
       screenshotPng: screenshotPng ?? null,
       gated,
       finalUrl,
+      status: navResponse?.status() ?? null,
     };
       })(),
       overallTimeout,
