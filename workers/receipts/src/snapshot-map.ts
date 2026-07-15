@@ -12,6 +12,17 @@ const hostOf = (u: string): string => {
   }
 };
 
+/** A real web page, as opposed to a browser-internal error page (chrome-error://chromewebdata/)
+ *  or any other scheme a dead navigation can leave behind. */
+export const isWebUrl = (u: string): boolean => {
+  try {
+    const p = new URL(u).protocol;
+    return p === "http:" || p === "https:";
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Build a Snapshot from a live page capture. Tracker inventory comes from Floodlight's
  * network analysis (richer than scraping <script src>); privacy notice / seal / PII fields
@@ -31,7 +42,14 @@ export function snapshotFromLiveCapture(
   // on the right /domain page. Same-domain (incl. www / http->https) navigation is not a redirect.
   const requestedDomain = registrableDomain(hostOf(url));
   const finalDomain = registrableDomain(hostOf(live.finalUrl));
-  const redirected = Boolean(requestedDomain && finalDomain && requestedDomain !== finalDomain);
+  // A navigation that died in the browser ends on chrome-error://chromewebdata/, whose "host"
+  // parses as chromewebdata — which differs from the requested domain and so read as an
+  // off-domain redirect. Daylight published four HIGH-severity claims that way: "studentaid.gov
+  // now redirects off-domain to chrome-error://chromewebdata/". A failed load is not a redirect,
+  // and only a real web URL can be one.
+  const redirected = Boolean(
+    isWebUrl(live.finalUrl) && requestedDomain && finalDomain && requestedDomain !== finalDomain,
+  );
   return {
     url,
     domain: redirected ? requestedDomain : scorecard.domain,

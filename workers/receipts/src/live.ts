@@ -6,7 +6,7 @@ import { capturePage, type CaptureOptions } from "@daylight/floodlight/capture";
 import { hostAllowed, isGovHost } from "@daylight/floodlight/guards";
 import { redactText } from "@daylight/redact";
 import { runReceiptsSnapshot } from "./run.js";
-import { snapshotFromLiveCapture } from "./snapshot-map.js";
+import { isWebUrl, snapshotFromLiveCapture } from "./snapshot-map.js";
 import type { WaybackSaver } from "./wayback.js";
 
 function ua(): string {
@@ -103,6 +103,15 @@ export async function captureAndSnapshot(
     return { ok: false, gated: false, url, error: err instanceof Error ? err.message : String(err) };
   }
   if (live.gated) return { ok: true, gated: true, url };
+
+  // A navigation that died in the browser leaves finalUrl on chrome-error://chromewebdata/ and an
+  // empty DOM. Snapshotting that records a FALSE baseline — "0 trackers, no privacy notice, no
+  // seal" — for a page we never actually saw, and the next real capture would then read as a
+  // wave of additions. Prod carried four of these (studentaid.gov, state.gov, usda.gov, fcc.gov).
+  // A failed load is an error to retry, not an observation to publish.
+  if (!isWebUrl(live.finalUrl)) {
+    return { ok: false, gated: false, url, error: `navigation failed (ended at ${live.finalUrl})` };
+  }
 
   const capturedAt = opts.now ?? nowIso();
   const screenshotRef = storeScreenshot(live.screenshotPng, sha256(url + capturedAt));

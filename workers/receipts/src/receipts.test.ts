@@ -21,6 +21,7 @@ import {
   makeArchiver,
   isDefinitelyNotPageCapture,
   isPageCapture,
+  isWebUrl,
   isTimestampedArchiveUrl,
   runReceiptsSnapshot,
   saveToWayback,
@@ -756,6 +757,47 @@ describe("archive dating — an archive is dated by its OWN capture, not the row
   it("measures drift between the archive and the observation it backs", () => {
     const url = "https://web.archive.org/web/20260713044000/https://a.gov/";
     expect(archiveDriftMinutes(url, "2026-07-13T04:35:00.000Z")).toBe(5);
+  });
+});
+
+describe("a dead navigation is a failed capture, not a redirect and not a baseline", () => {
+  // Prod published four HIGH-severity claims from this: "https://studentaid.gov/ now redirects
+  // off-domain to chrome-error://chromewebdata/". Chrome's error URL parses to host
+  // "chromewebdata", which differs from the requested domain and so read as an off-domain
+  // redirect. It also stored the empty error page as the page's baseline: 0 trackers, no privacy
+  // notice, no seal — for pages nobody ever saw.
+  const deadCapture: LiveCapture = {
+    finalUrl: "chrome-error://chromewebdata/",
+    gated: false,
+    html: "",
+    screenshotPng: null,
+    capture: {
+      url: "https://studentaid.gov/",
+      requests: [],
+      dom: { formFields: [], hasSeal: false, privacyNoticeUrl: null },
+    } as unknown as LiveCapture["capture"],
+  } as unknown as LiveCapture;
+
+  it("isWebUrl rejects browser-internal URLs", () => {
+    expect(isWebUrl("https://studentaid.gov/")).toBe(true);
+    expect(isWebUrl("http://x.gov/")).toBe(true);
+    expect(isWebUrl("chrome-error://chromewebdata/")).toBe(false);
+    expect(isWebUrl("about:blank")).toBe(false);
+    expect(isWebUrl("")).toBe(false);
+  });
+
+  it("never records a browser error page as an off-domain redirect", () => {
+    const snap = snapshotFromLiveCapture("https://studentaid.gov/", deadCapture, T0, null);
+    expect(snap.redirectTarget).toBeNull();
+  });
+
+  it("still records a REAL off-domain redirect", () => {
+    const real = {
+      ...deadCapture,
+      finalUrl: "https://travel.state.gov/en/passports.html",
+    } as unknown as LiveCapture;
+    const snap = snapshotFromLiveCapture("https://passports.gov/", real, T0, null);
+    expect(snap.redirectTarget).toBe("https://travel.state.gov/en/passports.html");
   });
 });
 

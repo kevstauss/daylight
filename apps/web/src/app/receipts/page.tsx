@@ -174,8 +174,22 @@ const CORROBORATES_MINUTES = 60;
  * Where "Save Page Now" should point. A vanity domain that 301s elsewhere (techprosperitycorps.gov
  * → www.peacecorps.gov/tech) has no content of its own, so archiving it preserves a redirect;
  * the destination is the thing worth keeping.
+ *
+ * redirect_target is NOT trustworthy input: a capture that failed in the browser records Chrome's
+ * internal error URL (chrome-error://chromewebdata/), which produced links like
+ * web.archive.org/save/chrome-error://chromewebdata/. Anything that isn't a real http(s) URL falls
+ * back to the page we actually watch.
  */
-const archiveTarget = (row: CoverageRow): string => row.redirect_target ?? row.url;
+function archiveTarget(row: CoverageRow): string {
+  const t = row.redirect_target;
+  if (!t) return row.url;
+  try {
+    const u = new URL(t);
+    return u.protocol === "http:" || u.protocol === "https:" ? t : row.url;
+  } catch {
+    return row.url;
+  }
+}
 
 /**
  * The offer to have the Internet Archive capture a page we have no copy of.
