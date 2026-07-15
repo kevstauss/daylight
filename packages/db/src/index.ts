@@ -5,6 +5,7 @@ import type {
   AlertRow,
   ChangeRow,
   CorrectionRow,
+  CoverageRow,
   DomainRow,
   GapRow,
   ObservationRow,
@@ -743,19 +744,47 @@ export class DaylightDb {
       .all(domain.trim().toLowerCase()) as SnapshotRow[];
   }
 
-  /** Coverage view: the latest snapshot for each watched page, newest capture first. Powers the
-   *  "what we're watching" table so the page is useful even when nothing has been removed yet. */
-  coverageSnapshots(limit = 500): SnapshotRow[] {
+  /** Every snapshot that claims an archive, id + URL only — for auditing those URLs against the
+   *  "must be timestamp-pinned" rule without pulling whole rows. */
+  archivedSnapshotRefs(): { id: number; wayback_url: string }[] {
+    return this.sql
+      .prepare(`SELECT id, wayback_url FROM snapshots WHERE wayback_url IS NOT NULL`)
+      .all() as { id: number; wayback_url: string }[];
+  }
+
+  /** Point an existing snapshot at an archive found after the fact (a retried/backfilled save).
+   *  Used when a re-capture is content-identical — the snapshot short-circuits, but a missing
+   *  archive still deserves another attempt. */
+  updateSnapshotWayback(snapshotId: number, waybackUrl: string | null): void {
+    this.sql.prepare(`UPDATE snapshots SET wayback_url = ? WHERE id = ?`).run(waybackUrl, snapshotId);
+  }
+
+  /** Coverage view: the latest snapshot for each watched page, newest capture first, joined to
+   *  the most recent archive on file for that page. Powers the "what we're watching" table so
+   *  the page is useful even when nothing has been removed yet.
+   *
+   *  The archive is looked up across ALL of a page's snapshots, not just the latest: a single
+   *  failed SPN2 save used to blank the column for a page we had archived perfectly well. The
+   *  archive's own `captured_at` rides along so the UI can date it honestly rather than imply
+   *  it covers the newest capture. */
+  coverageSnapshots(limit = 500): CoverageRow[] {
     const n = Math.max(1, Math.min(limit, 2000));
     return this.sql
       .prepare(
-        `SELECT * FROM (
+        `SELECT s.*, a.wayback_url AS archive_url, a.captured_at AS archive_captured_at
+         FROM (
            SELECT *, ROW_NUMBER() OVER (PARTITION BY url ORDER BY captured_at DESC, id DESC) AS rn
            FROM snapshots
-         ) WHERE rn = 1
-         ORDER BY captured_at DESC, url ASC LIMIT ${n}`,
+         ) s
+         LEFT JOIN (
+           SELECT url, wayback_url, captured_at,
+                  ROW_NUMBER() OVER (PARTITION BY url ORDER BY captured_at DESC, id DESC) AS arn
+           FROM snapshots WHERE wayback_url IS NOT NULL
+         ) a ON a.url = s.url AND a.arn = 1
+         WHERE s.rn = 1
+         ORDER BY s.captured_at DESC, s.url ASC LIMIT ${n}`,
       )
-      .all() as SnapshotRow[];
+      .all() as CoverageRow[];
   }
 
   /** The removal ledger: high-severity `removed` change events from Receipts. */

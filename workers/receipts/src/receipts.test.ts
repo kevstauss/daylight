@@ -5,7 +5,9 @@ import type { LiveCapture } from "@daylight/floodlight/capture";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   diffSnapshots,
+  isTimestampedArchiveUrl,
   runReceiptsSnapshot,
+  saveToWayback,
   snapshotFromHtml,
   snapshotFromLiveCapture,
 } from "./index.js";
@@ -88,6 +90,172 @@ describe("§7.3 idempotency — an unchanged re-capture emits zero changes", () 
     expect(db.listSnapshots(URL_)).toHaveLength(1); // no duplicate snapshot row
   });
 });
+
+// ---- Archive provenance regressions -------------------------------------------------
+// All three trace to one prod incident: 21 of 203 archive links were un-timestamped "latest"
+// pointers, 176 rows were null, and 10 pages showed "—" despite having a real archive on file.
+
+describe("archive retry — a failed save is retried on the next sweep, not left forever", () => {
+  it("an unchanged re-capture retries a missing archive and backfills the existing row", async () => {
+    const snap = snapshotFromHtml(URL_, read("before.html"), T0);
+    // First save fails (SPN2 slot exhaustion in prod) → row lands with no archive.
+    const r1 = await runReceiptsSnapshot({ db, snapshot: snap, waybackSave: async () => null });
+    expect(r1.waybackUrl).toBeNull();
+    expect(r1.archiveAttempted).toBe(true);
+    expect(db.listSnapshots(URL_)[0]?.wayback_url).toBeNull();
+
+    // Same content next sweep: short-circuits, but MUST still retry the archive.
+    const again = snapshotFromHtml(URL_, read("before.html"), T1);
+    const r2 = await runReceiptsSnapshot({ db, snapshot: again, waybackSave: mockWayback });
+    expect(r2.shortCircuited).toBe(true);
+    expect(r2.archiveAttempted).toBe(true);
+    expect(r2.waybackUrl).toContain("web.archive.org");
+    expect(db.listSnapshots(URL_)).toHaveLength(1); // still no duplicate row
+    expect(db.listSnapshots(URL_)[0]?.wayback_url).toContain("web.archive.org");
+  });
+
+  it("does not re-archive a page that already has one (no attempt, no false failure)", async () => {
+    const snap = snapshotFromHtml(URL_, read("before.html"), T0);
+    await runReceiptsSnapshot({ db, snapshot: snap, waybackSave: mockWayback });
+    const again = snapshotFromHtml(URL_, read("before.html"), T1);
+    let calls = 0;
+    const r = await runReceiptsSnapshot({
+      db,
+      snapshot: again,
+      waybackSave: async (u) => {
+        calls++;
+        return mockWayback(u);
+      },
+    });
+    expect(r.shortCircuited).toBe(true);
+    expect(r.archiveAttempted).toBe(false);
+    expect(calls).toBe(0);
+  });
+});
+
+describe("coverage view — an archive on an older snapshot is carried forward, with its own date", () => {
+  it("surfaces the last archive on file when the newest capture's save failed", async () => {
+    const before = snapshotFromHtml(URL_, read("before.html"), T0);
+    const after = snapshotFromHtml(URL_, read("after.html"), T1);
+    await runReceiptsSnapshot({ db, snapshot: before, waybackSave: mockWayback }); // archived
+    await runReceiptsSnapshot({ db, snapshot: after, waybackSave: async () => null }); // save failed
+
+    const rows = db.coverageSnapshots();
+    expect(rows).toHaveLength(1);
+    const row = rows[0]!;
+    // The row shown is the NEWEST capture, which genuinely has no archive of its own…
+    expect(row.captured_at).toBe(T1);
+    expect(row.wayback_url).toBeNull();
+    // …but we still hold one from T0, and it is dated to T0 — never implied to cover T1.
+    expect(row.archive_url).toContain("web.archive.org");
+    expect(row.archive_captured_at).toBe(T0);
+  });
+
+  it("reports no archive when the page has never been archived", async () => {
+    const snap = snapshotFromHtml(URL_, read("before.html"), T0);
+    await runReceiptsSnapshot({ db, snapshot: snap, waybackSave: async () => null });
+    const row = db.coverageSnapshots()[0]!;
+    expect(row.archive_url).toBeNull();
+    expect(row.archive_captured_at).toBeNull();
+  });
+});
+
+describe("isTimestampedArchiveUrl — only a pinned capture counts as a receipt", () => {
+  it("accepts a timestamp-pinned capture and rejects a bare 'latest' pointer", () => {
+    expect(isTimestampedArchiveUrl("https://web.archive.org/web/20260702181455/https://trumpaccounts.gov/")).toBe(true);
+    // This is what the old 90s-timeout fallback wrote. It resolves to whatever IA has captured
+    // most recently, so it would show the page's CURRENT state — the opposite of a receipt.
+    expect(isTimestampedArchiveUrl("https://web.archive.org/web/https://cdc.gov/")).toBe(false);
+    expect(isTimestampedArchiveUrl("https://example.com/web/20260702181455/x")).toBe(false);
+  });
+});
+
+describe("saveToWayback — never fabricates an archive URL", () => {
+  // Fast poll intervals: the seam exists so CI never sleeps on real SPN2 cadence.
+  const keys = { accessKey: "k", secret: "s", pollIntervalMs: 1, slotPollIntervalMs: 1 };
+
+  it("returns null (with a reason) when the capture never confirms, instead of a 'latest' pointer", async () => {
+    const reasons: string[] = [];
+    const fetchImpl = async (url: string): Promise<Response> => {
+      if (url.includes("/status/user")) return json({ available: 3 });
+      if (url === "https://web.archive.org/save") return json({ job_id: "j1" });
+      return json({ status: "pending" }); // never resolves
+    };
+    const out = await saveToWayback("https://cdc.gov/", {
+      ...keys,
+      fetchImpl,
+      maxWaitMs: 10,
+      onFailure: (_u, r) => reasons.push(r),
+    });
+    expect(out).toBeNull();
+    expect(reasons[0]).toContain("pending");
+  });
+
+  it("surfaces the SPN2 error instead of swallowing it", async () => {
+    const reasons: string[] = [];
+    const fetchImpl = async (url: string): Promise<Response> => {
+      if (url.includes("/status/user")) return json({ available: 3 });
+      return json({ status: "error", status_ext: "error:user-session-limit" });
+    };
+    const out = await saveToWayback("https://va.gov/", {
+      ...keys,
+      fetchImpl,
+      onFailure: (_u, r) => reasons.push(r),
+    });
+    expect(out).toBeNull();
+    expect(reasons).toEqual(["error:user-session-limit"]);
+  });
+
+  it("waits for a free session slot rather than burning the attempt", async () => {
+    let slotChecks = 0;
+    const fetchImpl = async (url: string): Promise<Response> => {
+      if (url.includes("/status/user")) return json({ available: slotChecks++ === 0 ? 0 : 1 });
+      if (url === "https://web.archive.org/save") return json({ job_id: "j1" });
+      return json({ status: "success", timestamp: "20260713043508", original_url: "https://va.gov/" });
+    };
+    const out = await saveToWayback("https://va.gov/", { ...keys, fetchImpl, maxSlotWaitMs: 30_000 });
+    expect(slotChecks).toBeGreaterThan(1); // it re-checked rather than giving up on the first busy read
+    expect(out).toBe("https://web.archive.org/web/20260713043508/https://va.gov/");
+  });
+
+  it("rejects a capture of a block page (SPN2 'success' with a non-200 origin status)", async () => {
+    // Real case: our stored archive for trumpaccounts.gov (20260702181455) is a capture of a
+    // 403 — the origin's bot protection refused IA's crawler. Archiving the refusal and citing
+    // it as evidence is worse than reporting no archive.
+    const reasons: string[] = [];
+    const fetchImpl = async (url: string): Promise<Response> => {
+      if (url.includes("/status/user")) return json({ available: 3 });
+      if (url === "https://web.archive.org/save") return json({ job_id: "j1" });
+      return json({
+        status: "success",
+        timestamp: "20260702181455",
+        original_url: "https://trumpaccounts.gov/",
+        http_status: 403,
+      });
+    };
+    const out = await saveToWayback("https://trumpaccounts.gov/", {
+      ...keys,
+      fetchImpl,
+      onFailure: (_u, r) => reasons.push(r),
+    });
+    expect(out).toBeNull();
+    expect(reasons[0]).toContain("403");
+  });
+
+  it("returns a pinned URL on success", async () => {
+    const fetchImpl = async (url: string): Promise<Response> => {
+      if (url.includes("/status/user")) return json({ available: 3 });
+      if (url === "https://web.archive.org/save") return json({ job_id: "j1" });
+      return json({ status: "success", timestamp: "20260702181455", original_url: "https://trumpaccounts.gov/" });
+    };
+    const out = await saveToWayback("https://trumpaccounts.gov/", { ...keys, fetchImpl });
+    expect(out).not.toBeNull();
+    expect(isTimestampedArchiveUrl(out!)).toBe(true);
+  });
+});
+
+const json = (body: unknown): Response =>
+  new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
 
 describe("snapshotFromLiveCapture — maps a live capture to a Snapshot", () => {
   it("takes trackers from network analysis + DOM facts, keeping the screenshot in the raw store", () => {

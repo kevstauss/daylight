@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { coverageSnapshotRows, removalLedgerRows, snapshotCount, type SnapshotRow } from "@/lib/data";
+import { coverageSnapshotRows, removalLedgerRows, snapshotCount, type CoverageRow, type SnapshotRow } from "@/lib/data";
 import { flags } from "@/lib/flags";
 import { EmptyState, Eyebrow, Panel, SeverityBadge, Timestamp } from "@/components/ui";
 import { ModuleIcon } from "@/components/module-icon";
@@ -132,13 +132,7 @@ export default function ReceiptsPage() {
                       <td className="px-4 py-2.5"><Presence on={!!s.privacy_text_hash} /></td>
                       <td className="px-4 py-2.5"><Presence on={s.seal_present === 1} /></td>
                       <td className="px-4 py-2.5 text-xs">
-                        {s.wayback_url ? (
-                          <a href={s.wayback_url} target="_blank" rel="noopener noreferrer" className="link">
-                            Archived ↗
-                          </a>
-                        ) : (
-                          <span className="text-faint">—</span>
-                        )}
+                        <Archive row={s} />
                       </td>
                     </tr>
                   ))}
@@ -150,6 +144,41 @@ export default function ReceiptsPage() {
       </section>
     </div>
   );
+}
+
+/**
+ * The independent archived copy. An archive belongs to the capture it was taken for, so when
+ * the newest capture has no archive of its own we surface the most recent one we DO hold and
+ * date it explicitly — an archive from an earlier capture is real evidence, but it is evidence
+ * of that day's page, not today's. Saying "Archived" flat would imply the current row is
+ * covered when it isn't.
+ */
+function Archive({ row }: { row: CoverageRow }) {
+  if (!row.archive_url) return <span className="text-faint">—</span>;
+  const current = row.archive_captured_at === row.captured_at;
+  const stamp = fmtArchiveDate(row.archive_captured_at);
+  return (
+    <a
+      href={row.archive_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="link whitespace-nowrap"
+      title={
+        current
+          ? "Independent archived copy of this capture (Internet Archive)"
+          : `Latest archived copy on file — from the ${stamp} capture, not the current one`
+      }
+    >
+      {current ? "Archived ↗" : `Archived ${stamp} ↗`}
+    </a>
+  );
+}
+
+function fmtArchiveDate(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(d);
 }
 
 /** A present/absent fact, stated plainly. "Present" (a privacy notice, a seal) reads as the

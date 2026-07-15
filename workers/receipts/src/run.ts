@@ -21,6 +21,9 @@ export interface RunReceiptsResult {
   changeIds: number[];
   removed: string[];
   waybackUrl: string | null;
+  /** Whether this run tried to archive. Distinguishes "no archive attempted (already have one)"
+   *  from "tried and failed" — only the latter is a gap worth reporting. */
+  archiveAttempted: boolean;
 }
 
 function rowToSnapshot(row: SnapshotRow): Snapshot {
@@ -54,17 +57,34 @@ export async function runReceiptsSnapshot(opts: RunReceiptsOptions): Promise<Run
     const contentHash = snapshotContentHash(snapshot);
     const prevRow = db.latestSnapshot(snapshot.url);
 
-    // Idempotent by content: an unchanged re-capture emits nothing (and skips Wayback).
+    // Idempotent by content: an unchanged re-capture emits no change and inserts no row.
+    // It DOES retry a missing archive, though — archiving fails independently of capture
+    // (SPN2 slot limits, a slow origin), and without this a page whose content is stable
+    // would keep short-circuiting and never get archived at all.
     if (prevRow && snapshotContentHash(rowToSnapshot(prevRow)) === contentHash) {
+      const retryArchive = !prevRow.wayback_url && !!opts.waybackSave;
+      let retried: string | null = null;
+      if (retryArchive) {
+        retried = await opts.waybackSave!(snapshot.url);
+        if (retried) db.updateSnapshotWayback(prevRow.id, retried);
+      }
       db.recordScanFinish(scanId, { ok: true, itemsSeen: 1, changesEmitted: 0 });
-      return { ok: true, shortCircuited: true, snapshotId: null, changeIds: [], removed: [], waybackUrl: null };
+      return {
+        ok: true,
+        shortCircuited: true,
+        snapshotId: null,
+        changeIds: [],
+        removed: [],
+        waybackUrl: retried,
+        archiveAttempted: retryArchive,
+      };
     }
 
     const waybackUrl = opts.waybackSave ? await opts.waybackSave(snapshot.url) : null;
     const redactedPrivacy = snapshot.privacyText ? redactText(snapshot.privacyText).value : null;
     const prev = prevRow ? rowToSnapshot(prevRow) : null;
 
-    const out = db.sql.transaction((): Omit<RunReceiptsResult, "ok" | "waybackUrl"> => {
+    const out = db.sql.transaction((): Omit<RunReceiptsResult, "ok" | "waybackUrl" | "archiveAttempted"> => {
       db.insertObservation({
         module: "receipts",
         domain: snapshot.domain,
@@ -99,7 +119,7 @@ export async function runReceiptsSnapshot(opts: RunReceiptsOptions): Promise<Run
     })();
 
     db.recordScanFinish(scanId, { ok: true, itemsSeen: 1, changesEmitted: out.changeIds.length });
-    return { ok: true, waybackUrl, ...out };
+    return { ok: true, waybackUrl, archiveAttempted: !!opts.waybackSave, ...out };
   } catch (err) {
     db.recordScanFinish(scanId, {
       ok: false,

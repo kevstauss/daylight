@@ -5,6 +5,7 @@ import {
   getDb,
   type ChangeRow,
   type CorrectionRow,
+  type CoverageRow,
   type DomainRow,
   type ScanRow,
   type GapRow,
@@ -17,7 +18,7 @@ import { changeToEntry, describeFinding, type FeedEntry } from "@daylight/feeds"
 import { runFoundry, type FoundryReport } from "@daylight/foundry";
 import type { FlagKind } from "@daylight/core";
 
-export type { ChangeRow, CorrectionRow, DomainRow, GapRow, ScanRow, ScorecardRow, SnapshotRow, SubdomainRow } from "@daylight/db";
+export type { ChangeRow, CorrectionRow, CoverageRow, DomainRow, GapRow, ScanRow, ScorecardRow, SnapshotRow, SubdomainRow } from "@daylight/db";
 export type { FlagKind } from "@daylight/core";
 
 export function statusRows(): ScanRow[] {
@@ -255,7 +256,7 @@ export function receiptsSnapshots(url: string): SnapshotRow[] {
 }
 
 /** Latest snapshot per watched page — the "what we're watching" coverage view. */
-export function coverageSnapshotRows(limit = 500): SnapshotRow[] {
+export function coverageSnapshotRows(limit = 500): CoverageRow[] {
   return getDb().coverageSnapshots(limit);
 }
 

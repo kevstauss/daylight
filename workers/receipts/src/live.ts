@@ -77,6 +77,8 @@ export interface LiveSnapshotResult {
   changeIds?: number[];
   removed?: string[];
   waybackUrl?: string | null;
+  /** Whether this capture tried to archive (see RunReceiptsResult.archiveAttempted). */
+  archiveAttempted?: boolean;
   error?: string;
 }
 
@@ -119,5 +121,6 @@ export async function captureAndSnapshot(
     changeIds: r.changeIds,
     removed: r.removed,
     waybackUrl: r.waybackUrl,
+    archiveAttempted: r.archiveAttempted,
   };
 }

@@ -104,6 +104,19 @@ export interface SnapshotRow {
   wayback_url: string | null;
 }
 
+/**
+ * A coverage-table row: the latest snapshot for a page, plus the most recent archive we hold
+ * for that page from ANY snapshot. Archiving fails independently of capture (SPN2 rate limits,
+ * a slow origin), so the newest snapshot often has no archive while an older one does. These
+ * two dates are deliberately separate: `archive_captured_at` is the snapshot the archive
+ * actually belongs to, and it must be rendered as such — an archive from last week is NOT an
+ * archive of today's capture, and must never be presented as one.
+ */
+export interface CoverageRow extends SnapshotRow {
+  archive_url: string | null;
+  archive_captured_at: string | null;
+}
+
 export interface GapRow {
   id: number;
   domain: string;

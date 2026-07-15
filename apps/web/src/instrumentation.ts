@@ -163,14 +163,29 @@ export async function register(): Promise<void> {
 
   // ---- Receipts sweep (snapshot + removal diff of the same public .gov homepages) ----
   const runReceipts = async (): Promise<void> => {
+    // A failed archive used to be invisible: saveToWayback swallowed the reason and returned
+    // null, so a page could go unarchived for weeks with nothing in the logs. Collect the
+    // reasons and report them with the run.
+    const archiveFailures: string[] = [];
     const wayback =
-      process.env.DAYLIGHT_WAYBACK === "1" ? (u: string) => receipts.saveToWayback(u) : undefined;
+      process.env.DAYLIGHT_WAYBACK === "1"
+        ? (u: string) =>
+            receipts.saveToWayback(u, {
+              onFailure: (url, reason) => archiveFailures.push(`${url} (${reason})`),
+            })
+        : undefined;
     const database = db.createDb(db.resolveDbPath());
     try {
       const hosts = browserSweepHosts(database);
       if (!hosts) return;
       const r = await receiptsSweep.runReceiptsSweep(database, hosts, { channel, waybackSave: wayback });
-      console.log(`[receipts:cron] sweep — ${r.captured} captured, ${r.gated} gated, ${r.removals} removals`);
+      console.log(
+        `[receipts:cron] sweep — ${r.captured} captured, ${r.gated} gated, ${r.removals} removals, ` +
+          `${r.archived} archived, ${r.archiveFailed} archive failures`,
+      );
+      if (archiveFailures.length) {
+        console.warn(`[receipts:cron] archive failures — ${archiveFailures.join("; ")}`);
+      }
     } catch (err) {
       console.error("[receipts] sweep error", err);
     } finally {

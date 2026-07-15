@@ -4,6 +4,36 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Receipts: the archive column now tells the truth — 2026-07-14
+
+- An audit of the [`/receipts`](/receipts) coverage table found 21 of 73 watched pages showing no
+  archive — including `trumpaccounts.gov`, which Daylight had in fact archived. Four distinct
+  problems, all now fixed. The archive link is the load-bearing part of a removal ledger: it is the
+  independent copy that makes &ldquo;this was here on that date&rdquo; checkable by someone else.
+- **A failed save no longer hides an archive we hold.** The table read only the newest snapshot per
+  page, and the archive URL was written once at capture time and never revisited — so a single
+  failed save blanked the column for a page archived perfectly well a week earlier. The coverage
+  view now carries the most recent archive on file forward, **dated to the capture it belongs to**
+  (&ldquo;Archived Jul 2&rdquo;). An archive from an earlier capture is real evidence of *that*
+  day&rsquo;s page, never presented as covering today&rsquo;s.
+- **No more un-timestamped &ldquo;archives.&rdquo;** When a capture wasn&rsquo;t confirmed within
+  90s, the old code stored `web.archive.org/web/<url>` — no timestamp. It rendered identically to a
+  real archive but resolves to whatever the Internet Archive captured **most recently**, showing the
+  page&rsquo;s current state rather than the state we snapshotted. On a removal ledger that is
+  exactly backwards: the proof a tracker was present would show the page without it. 21 such links
+  existed; a non-confirming capture is now a plain failure, and `pnpm receipts:unpin-archives`
+  clears the bad rows so the retry path can re-archive them properly.
+- **A capture of a block page is no longer recorded as an archive.** Several watched hosts sit
+  behind bot protection that refuses the Internet Archive&rsquo;s crawler; a &ldquo;successful&rdquo;
+  capture of that refusal is a copy of a 403, not of the site. Those are now rejected outright.
+- **Failed saves retry, and stop being invisible.** An unchanged re-capture used to short-circuit
+  before the archive step, making a failed save permanent until the page&rsquo;s content changed.
+  It now retries the missing archive — and only attaches a fresh capture to an existing snapshot
+  when the content hash *proves* the page hasn&rsquo;t changed since. The Internet Archive account
+  allows only 3 concurrent capture sessions, so the sweep now waits for a free slot instead of
+  burning the attempt, and every failure is counted and logged with its actual reason rather than
+  swallowed.
+
 ## Made legible to search engines and AI — 2026-07-06
 
 - A full SEO/AIO pass so the record is discoverable and citable. None of it changes what Daylight
