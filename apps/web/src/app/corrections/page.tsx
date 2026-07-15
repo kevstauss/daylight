@@ -10,6 +10,10 @@ export const metadata = pageMetadata({
 });
 export const dynamic = "force-dynamic";
 
+/** corrections.domain is NOT NULL, but a correction can be about the instrument rather than any
+ *  one site. This sentinel says so instead of naming an arbitrary victim. */
+const SITE_WIDE = "*";
+
 export default function CorrectionsPage() {
   const rows = safe(() => correctionsRows(200), [] as CorrectionRow[]);
 
@@ -47,12 +51,19 @@ export default function CorrectionsPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-ink">{c.reason}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                    <Link
-                      href={`/domain/${encodeURIComponent(c.domain)}`}
-                      className="font-mono text-xs text-muted underline decoration-edgeStrong underline-offset-2 hover:text-ink"
-                    >
-                      {c.domain}
-                    </Link>
+                    {c.domain === SITE_WIDE ? (
+                      // A defect in how Daylight measured, rather than a claim about one site —
+                      // there is no domain page to send the reader to, and picking one of the
+                      // affected sites would imply the mistake was about that site.
+                      <span className="font-mono text-xs text-muted">site-wide</span>
+                    ) : (
+                      <Link
+                        href={`/domain/${encodeURIComponent(c.domain)}`}
+                        className="font-mono text-xs text-muted underline decoration-edgeStrong underline-offset-2 hover:text-ink"
+                      >
+                        {c.domain}
+                      </Link>
+                    )}
                     <span className="font-mono text-xs text-faint">{c.module}</span>
                     <Timestamp iso={c.created_at} />
                   </div>
