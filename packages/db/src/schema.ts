@@ -116,6 +116,9 @@ CREATE TABLE IF NOT EXISTS snapshots (
   screenshot_ref TEXT,                -- raw-store path; never served publicly
   tracker_snapshot_json TEXT,         -- JSON array of tracker keys
   privacy_text_hash TEXT,             -- null = no privacy notice present
+  privacy_hash_kind TEXT,             -- 'url' | 'text': WHICH measurement the hash holds. A URL
+                                      -- hash and a text hash always differ; comparing them across
+                                      -- captures published 38 false "notice text changed" events.
   form_fields_json TEXT,              -- JSON array of PII field kinds
   seal_present INTEGER,               -- 0/1
   redirect_target TEXT,               -- off-domain final URL if the page redirected elsewhere (else NULL)

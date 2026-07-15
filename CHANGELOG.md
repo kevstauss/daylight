@@ -28,6 +28,12 @@ bot's contact, and the observational-only scope.
   full host is still on the scorecard — only the diff key is coarsened, and coarsening it is what
   makes a change mean something. First-party-proxied stays in the key: a vendor moving behind a
   first-party endpoint is the flagship finding and must still read as a change.
+- **A hash is only comparable to a hash of the same thing.** The capture hashes the privacy
+  notice&rsquo;s URL, then upgrades to a hash of the policy&rsquo;s **text** when it can fetch it —
+  and that fetch fails on exactly the bot-protected hosts we watch. So one unchanged page flipped
+  between two unrelated hashes and published &ldquo;privacy notice text changed&rdquo; **38 times**.
+  The snapshot now records *which* measurement the hash holds, and the diff compares like with
+  like.
 - The ledger is empty now. That is the honest state: **nothing has been observed changing on a
   watched page that we can stand behind.** It will refill only with changes seen by two complete
   captures.

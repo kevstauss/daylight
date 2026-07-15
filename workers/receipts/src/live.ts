@@ -132,7 +132,12 @@ export async function captureAndSnapshot(
   const pUrl = live.capture.dom.privacyNoticeUrl;
   if (pUrl) {
     const h = await privacyTextHash(pUrl, opts.allowPrivate);
-    if (h) snapshot.privacyTextHash = h;
+    // Upgrading to the policy's TEXT changes what the hash MEANS, so relabel it. Without the
+    // label a failed fetch silently downgrades to the URL hash and the diff calls it an edit.
+    if (h) {
+      snapshot.privacyTextHash = h;
+      snapshot.privacyHashKind = "text";
+    }
   }
   const r = await runReceiptsSnapshot({ db, snapshot, now: capturedAt, waybackSave: opts.waybackSave });
   return {

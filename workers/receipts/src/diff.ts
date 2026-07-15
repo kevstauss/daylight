@@ -66,7 +66,14 @@ export function diffSnapshots(prev: Snapshot, curr: Snapshot, now: string): Chan
     }
   } else if (!prev.privacyTextHash && curr.privacyTextHash) {
     if (absenceIsMeaningful) emit("added", "privacy_notice", null, curr.privacyTextHash, "info", `privacy notice added on ${url}`);
-  } else if (prev.privacyTextHash && curr.privacyTextHash && prev.privacyTextHash !== curr.privacyTextHash) {
+  } else if (
+    prev.privacyTextHash &&
+    curr.privacyTextHash &&
+    prev.privacyTextHash !== curr.privacyTextHash &&
+    // Only comparable if both hashes measure the SAME thing. A URL hash and a text hash always
+    // differ, and that difference says nothing about the notice.
+    prev.privacyHashKind === curr.privacyHashKind
+  ) {
     emit("modified", "privacy_notice", prev.privacyTextHash, curr.privacyTextHash, "notable", `privacy notice text changed on ${url}`);
   }
 

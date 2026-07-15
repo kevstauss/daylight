@@ -98,6 +98,9 @@ export interface SnapshotRow {
   screenshot_ref: string | null;
   tracker_snapshot_json: string | null;
   privacy_text_hash: string | null;
+  /** 'url' | 'text' — which measurement privacy_text_hash holds. Hashes of different things
+   *  are not comparable; NULL means unknown (pre-dates the label) and blocks the comparison. */
+  privacy_hash_kind: string | null;
   form_fields_json: string | null;
   seal_present: number | null;
   redirect_target: string | null; // off-domain final URL if the page redirected elsewhere

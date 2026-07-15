@@ -128,6 +128,38 @@ describe("absence is only evidence when the capture actually finished loading", 
   });
 });
 
+describe("a privacy hash is only comparable to a hash of the same thing", () => {
+  // The capture hashes the notice's URL, then upgrades to a hash of the policy TEXT when it can
+  // fetch it. That fetch fails on exactly the bot-protected hosts we watch, so the field flipped
+  // between two unrelated values for an unchanged page — 38 published "privacy notice text
+  // changed" events. The same conflation as everywhere else: two measurements, one field.
+  const base = (hash: string, kind: "url" | "text"): Snapshot => ({
+    ...snapshotFromHtml(URL_, read("before.html"), T0),
+    privacyTextHash: hash,
+    privacyHashKind: kind,
+  });
+
+  it("does NOT call it an edit when the hashes measure different things", () => {
+    const urlHashed = base("aaa", "url"); // text fetch failed that run
+    const textHashed = { ...base("bbb", "text"), capturedAt: T1 }; // and succeeded this run
+    const ch = diffSnapshots(urlHashed, textHashed, T1);
+    expect(ch.filter((c) => c.field === "privacy_notice" && c.kind === "modified")).toHaveLength(0);
+  });
+
+  it("DOES report a real edit when both are text hashes", () => {
+    const before = base("aaa", "text");
+    const after = { ...base("bbb", "text"), capturedAt: T1 };
+    const ch = diffSnapshots(before, after, T1);
+    expect(ch.filter((c) => c.field === "privacy_notice" && c.kind === "modified")).toHaveLength(1);
+  });
+
+  it("reports nothing when the notice is unchanged", () => {
+    const before = base("aaa", "text");
+    const after = { ...base("aaa", "text"), capturedAt: T1 };
+    expect(diffSnapshots(before, after, T1).filter((c) => c.field === "privacy_notice")).toHaveLength(0);
+  });
+});
+
 describe("tracker identity is the vendor, not the endpoint it happened to use", () => {
   it("shards and per-account hosts collapse to one stable key", () => {
     // Microsoft Clarity answers from a-z.clarity.ms; the letter is noise. Keying on the host made
@@ -986,6 +1018,7 @@ describe("§7.4 redact runs on captured text before persistence", () => {
       domHash: "abc",
       trackers: [],
       privacyTextHash: "h",
+      privacyHashKind: "text",
       privacyText: "Questions? email privacy-officer@passports.gov or call 202-555-0142",
       formFields: ["email"],
       sealPresent: true,

@@ -57,6 +57,7 @@ export function snapshotFromLiveCapture(
     domHash: sha256(live.html.replace(/\s+/g, " ").trim()),
     trackers: scorecard.trackers.map(trackerKey).sort(),
     privacyTextHash: privacyUrl ? sha256(privacyUrl.toLowerCase()) : null,
+    privacyHashKind: privacyUrl ? "url" : null,
     privacyText: privacyUrl,
     formFields: [...live.capture.dom.formFields].sort(),
     sealPresent: live.capture.dom.hasSeal,

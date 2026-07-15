@@ -48,4 +48,5 @@ function applyAdditiveColumns(db: Sqlite): void {
   ensure("gaps", "agent_recommendation", "TEXT");
   ensure("snapshots", "redirect_target", "TEXT");
   ensure("snapshots", "settled", "INTEGER");
+  ensure("snapshots", "privacy_hash_kind", "TEXT");
 }

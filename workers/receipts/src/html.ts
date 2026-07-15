@@ -58,6 +58,7 @@ export function snapshotFromHtml(url: string, html: string, capturedAt: string):
     domHash: sha256(normalized),
     trackers: extractTrackers(html),
     privacyTextHash: privacy.hash,
+    privacyHashKind: privacy.hash ? "url" : null,
     privacyText: privacy.text,
     formFields: extractFormFields(html),
     sealPresent: SEAL_RE.test(html),
