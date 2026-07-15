@@ -417,7 +417,9 @@ export async function captureAndScore(
   // sweep loop and abort every remaining host AND the retry pass. Report it as a failed host so
   // the caller continues (and the retry pass gives it another go).
   try {
-    const result = runFloodlightScan(db, live.capture);
+    // Pass the load outcome through: a half-loaded page must not have its missing trackers
+    // published as the site removing them.
+    const result = runFloodlightScan(db, live.capture, { settled: live.settled });
     return {
       ok: true,
       gated: false,

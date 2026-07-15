@@ -4,6 +4,18 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## The ledgers were measuring the crawler, not the sites — 2026-07-15
+
+An audit of every published change found the same defect in both page-watching modules, in five
+costumes. All of it traces to one confusion: **&ldquo;we didn&rsquo;t see it&rdquo; being
+published as &ldquo;it isn&rsquo;t there.&rdquo;** Everything below is retracted and fixed.
+
+- **Floodlight** claimed `sba.gov` added Microsoft Clarity three times — `c.clarity.ms`, then
+  `t.clarity.ms`, then `scripts.clarity.ms`. The shard rotated; the agency did nothing. **85 of
+  its 274 changes** named a rotating or conditional endpoint, and those changes are featured on
+  the front page. Floodlight now uses the same vendor-level identity and the same rule: no claim
+  about something being gone from a page that never finished loading.
+
 ## Receipts: the removal ledger was measuring itself — 2026-07-15
 
 - **All 45 published removals were retracted.** An audit found 20 provably false (the thing said

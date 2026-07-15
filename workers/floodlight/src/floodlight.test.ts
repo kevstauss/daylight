@@ -129,11 +129,35 @@ describe("§7 rescan diff + redaction", () => {
   it("a tracker present then gone emits a `removed` change", () => {
     const withTracker = VENDOR;
     const withoutTracker = capture("https://realfood.gov/", [], dom({ privacyNoticeUrl: "https://realfood.gov/privacy" }));
-    runFloodlightScan(db, withTracker, NOW);
-    const second = runFloodlightScan(db, withoutTracker, NOW);
+    runFloodlightScan(db, withTracker, { now: NOW, settled: true });
+    const second = runFloodlightScan(db, withoutTracker, { now: NOW, settled: true });
     expect(second.removed.some((k) => k.includes("Google Analytics"))).toBe(true);
     const removedChange = db.listChanges({ module: "floodlight" }).find((c) => c.kind === "removed");
     expect(removedChange).toBeTruthy();
+  });
+
+  // Floodlight published "sba.gov added Microsoft Clarity@c.clarity.ms", then t., then
+  // scripts. — the shard rotating, not the agency doing anything. 85 of its 274 changes named a
+  // rotating or conditional endpoint. Two defences: vendor-level identity (see trackerKey) and
+  // never inferring absence from a load that didn't finish.
+  it("does NOT emit a tracker change when the scan never settled", () => {
+    const withTracker = VENDOR;
+    const withoutTracker = capture("https://realfood.gov/", [], dom({ privacyNoticeUrl: "https://realfood.gov/privacy" }));
+    runFloodlightScan(db, withTracker, { now: NOW, settled: true });
+    const second = runFloodlightScan(db, withoutTracker, { now: NOW, settled: false });
+    // It still records what it saw…
+    expect(second.removed.some((k) => k.includes("Google Analytics"))).toBe(true);
+    // …but publishes no claim the page can't support.
+    expect(db.listChanges({ module: "floodlight" }).some((c) => c.kind === "removed")).toBe(false);
+  });
+
+  it("a rotating shard is the same tracker, so nothing is added or removed", () => {
+    const clarity = (host: string) =>
+      capture("https://sba.gov/", [{ url: `https://${host}/collect`, method: "GET", resourceType: "script" }], dom({}));
+    runFloodlightScan(db, clarity("c.clarity.ms"), { now: NOW, settled: true });
+    const second = runFloodlightScan(db, clarity("t.clarity.ms"), { now: NOW, settled: true });
+    expect(second.added).toHaveLength(0);
+    expect(second.removed).toHaveLength(0);
   });
 
   it("redact strips PII reflected in a captured request URL before persistence", () => {
@@ -142,7 +166,7 @@ describe("§7 rescan diff + redaction", () => {
       [{ url: "https://www.google-analytics.com/collect?uid=leak@example.com", method: "GET", resourceType: "image" }],
       dom({ privacyNoticeUrl: "https://realfood.gov/privacy" }),
     );
-    runFloodlightScan(db, leak, NOW);
+    runFloodlightScan(db, leak, { now: NOW, settled: true });
     const obs = db
       .latestObservation("floodlight", "realfood.gov");
     expect(obs).not.toBeNull();
@@ -156,7 +180,7 @@ describe("§7 rescan diff + redaction", () => {
       [{ url: "https://www.google-analytics.com/collect", method: "GET", resourceType: "image" }],
       dom({ privacyNoticeUrl: "https://realfood.gov/privacy" }),
     );
-    const res = runFloodlightScan(db, leak, NOW);
+    const res = runFloodlightScan(db, leak, { now: NOW, settled: true });
     expect(res.scorecard.url).not.toContain("leak@example.com");
     const cards = db.scorecardsByDomain("realfood.gov");
     expect(cards.length).toBeGreaterThan(0);

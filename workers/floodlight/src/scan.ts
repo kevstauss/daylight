@@ -19,9 +19,30 @@ const rt = (s: string): string => redactText(s).value;
  * vs the previous scan to emit added/removed change events (Receipts consumes these in
  * Phase 4). All page-derived text passes through the redact seam before persistence.
  */
-export function runFloodlightScan(db: DaylightDb, capture: PageCapture, now?: string): RunFloodlightResult {
-  const scannedAt = now ?? nowIso();
+export interface FloodlightScanOptions {
+  now?: string;
+  /**
+   * Did the page finish loading before it was inventoried? Absence is only evidence when it did.
+   *
+   * Same defect Receipts had: a capture that timed out waiting for the page to go quiet has a
+   * partial request log, so a tracker it "didn't see" may simply not have fired. Diffing that
+   * against a complete scan publishes the race — "sba.gov added Microsoft Clarity@c.clarity.ms",
+   * then t., then scripts., forever. Undefined means unknown, which is treated as unsettled.
+   */
+  settled?: boolean;
+}
+
+export function runFloodlightScan(
+  db: DaylightDb,
+  capture: PageCapture,
+  opts: FloodlightScanOptions | string = {},
+): RunFloodlightResult {
+  // Back-compat: this used to take `now` positionally.
+  const o: FloodlightScanOptions = typeof opts === "string" ? { now: opts } : opts;
+  const scannedAt = o.now ?? nowIso();
   const scorecard = analyzeCapture(capture);
+  // A scan can only testify to what it saw. Without a settled load, "gone" means "not yet".
+  const absenceIsMeaningful = o.settled === true;
 
   // Redact the page URL ONCE and use it everywhere the URL is stored or shown — the scorecard
   // row (its PK), the observation, the content hash, and change reasons. A scanned URL can
@@ -87,13 +108,17 @@ export function runFloodlightScan(db: DaylightDb, capture: PageCapture, now?: st
         const k = trackerKey(t);
         if (!prevKeys.has(k)) {
           added.push(k);
-          if (prev) emit("added", t.firstPartyProxied ? "high" : "notable", `tracker added on ${redactedUrl}: ${k}`);
+          // "Added" rests on the PREVIOUS scan's absence — only trustworthy if that scan settled.
+          if (prev && absenceIsMeaningful) {
+            emit("added", t.firstPartyProxied ? "high" : "notable", `tracker added on ${redactedUrl}: ${k}`);
+          }
         }
       }
       for (const k of prevKeys) {
         if (!currKeys.has(k)) {
           removed.push(k);
-          emit("removed", "notable", `tracker removed on ${redactedUrl}: ${k}`);
+          // The claim is "this vendor is gone". A partial load cannot support it.
+          if (absenceIsMeaningful) emit("removed", "notable", `tracker removed on ${redactedUrl}: ${k}`);
         }
       }
       if (!prev && scorecard.severity === "high") {
