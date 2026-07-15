@@ -266,6 +266,19 @@ export interface ArchiverRefusal {
   refusedUrl?: string;
 }
 
+export interface UncapturedHost {
+  host: string;
+  kind: string;
+  status: string | null;
+  observedAt: string;
+}
+
+/** Watched pages Daylight swept but has never been able to load — surfaced so a blind spot
+ *  doesn't read as coverage. */
+export function uncapturedHostRows(): UncapturedHost[] {
+  return getDb().uncapturedHosts();
+}
+
 /** What we last measured about each host turning the Internet Archive away, keyed by host. */
 export function archiverRefusalMap(): Map<string, ArchiverRefusal> {
   return getDb().archiverRefusals();

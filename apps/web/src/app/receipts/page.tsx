@@ -6,6 +6,7 @@ import {
   coverageSnapshotRows,
   removalLedgerRows,
   snapshotCount,
+  uncapturedHostRows,
   type ArchiverRefusal,
   type CoverageRow,
   type SnapshotRow,
@@ -39,6 +40,7 @@ export default function ReceiptsPage() {
   const coverage = safe(() => coverageSnapshotRows(500), []);
   const snaps = safe(() => snapshotCount(), 0);
   const refusals = safe(() => archiverRefusalMap(), new Map<string, ArchiverRefusal>());
+  const uncaptured = safe(() => uncapturedHostRows(), []);
 
   return (
     <div className="space-y-8">
@@ -56,8 +58,9 @@ export default function ReceiptsPage() {
           when it vanished.
         </p>
         <p className="mt-2 font-mono text-xs text-faint">
-          {coverage.length.toLocaleString()} pages watched · {snaps.toLocaleString()} snapshots on
-          file · {ledger.length.toLocaleString()} removals recorded
+          {coverage.length.toLocaleString()} pages with a baseline · {snaps.toLocaleString()} snapshots
+          on file · {ledger.length.toLocaleString()} removals recorded
+          {uncaptured.length > 0 ? ` · ${uncaptured.length.toLocaleString()} watched but never capturable` : ""}
         </p>
       </div>
 
@@ -100,6 +103,44 @@ export default function ReceiptsPage() {
           </Link>
         </p>
       </section>
+
+      {/* ── Watched, but nothing to diff: pages we cannot see at all ── */}
+      {uncaptured.length > 0 ? (
+        <section className="space-y-3">
+          <Eyebrow>receipts · watched, never captured</Eyebrow>
+          <Panel>
+            <p className="border-b border-edge px-4 py-2.5 text-xs text-muted">
+              Daylight sweeps these pages but has never been able to load one. They have no baseline
+              below, and nothing to diff — so a removal on these pages would pass unrecorded. Listed
+              here rather than omitted: a page we cannot see is a gap in the record, not an absence
+              of one.
+            </p>
+            <ul className="divide-y divide-edge">
+              {uncaptured.map((u) => (
+                <li key={u.host} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5">
+                  <Link href={`/domain/${encodeURIComponent(u.host)}`} className="link font-mono text-xs">
+                    {u.host}
+                  </Link>
+                  <span className="text-xs text-muted">
+                    {u.kind === "refused"
+                      ? `server returns HTTP ${u.status ?? "4xx"} to Daylight’s crawler`
+                      : "the page did not load"}
+                  </span>
+                  <Timestamp iso={u.observedAt} prefix="last tried" />
+                  <a
+                    href={`https://web.archive.org/web/*/https://${u.host}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="whitespace-nowrap text-xs text-faint underline decoration-dotted underline-offset-2 hover:text-muted"
+                  >
+                    what the Archive holds ↗
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        </section>
+      ) : null}
 
       {/* ── What we're watching now: the coverage baseline ── */}
       <section className="space-y-3">

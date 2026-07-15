@@ -21,7 +21,7 @@ export {
   type NearbyCapture,
 } from "./cdx.js";
 export { makeArchiver, type ArchiverOptions } from "./archive.js";
-export { recordArchiverRefusal, checkArchiverPolicy, type ArchiverPolicyResult, type ArchiverPolicyOptions } from "./policy.js";
+export { recordCaptureOutcome, classifyCaptureFailure, recordArchiverRefusal, checkArchiverPolicy, type ArchiverPolicyResult, type ArchiverPolicyOptions } from "./policy.js";
 export {
   declaredBlocks,
   describeDeclaredBlock,

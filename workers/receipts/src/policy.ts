@@ -136,6 +136,45 @@ export async function checkArchiverPolicy(
   return { blocks, changeIds, robotsUrl: robots.url };
 }
 
+const captureKey = (host: string): string => `${host}#capture-status`;
+
+/** Why a capture produced nothing. Coarse on purpose: the exact wording of a browser error is
+ *  noise, but "the origin turned us away" and "the page never loaded" are different facts. */
+export type CaptureFailureKind = "refused" | "unreachable";
+
+export function classifyCaptureFailure(error: string): CaptureFailureKind {
+  return /HTTP (4\d\d|5\d\d)/.test(error) ? "refused" : "unreachable";
+}
+
+/**
+ * Record whether a watched page could be captured at all.
+ *
+ * Without this, a host we cannot see simply has no snapshot, and a page built from snapshots
+ * renders that as absence — the site quietly disappears from "what we're watching" and the reader
+ * is never told. Eleven federal sites were in exactly that position: not unwatched, not
+ * uninteresting, just invisible. Silence read as coverage.
+ *
+ * Idempotent on the outcome, so a host that has been refusing us for weeks writes one row, not
+ * one per sweep.
+ */
+export function recordCaptureOutcome(
+  db: DaylightDb,
+  host: string,
+  outcome: { ok: boolean; error?: string; now?: string },
+): void {
+  const now = outcome.now ?? nowIso();
+  const kind = outcome.ok ? "ok" : classifyCaptureFailure(outcome.error ?? "");
+  const status = /HTTP (\d{3})/.exec(outcome.error ?? "")?.[1] ?? null;
+  db.insertObservation({
+    module: "receipts",
+    domain: captureKey(host),
+    observedAt: now,
+    sourceUrl: `https://${host}/`,
+    contentHash: sha256(JSON.stringify([kind, status])),
+    payload: { host, ok: outcome.ok, kind, status, error: outcome.error ?? null },
+  });
+}
+
 export interface RefusalOptions {
   now?: string;
   /** Did our own BROWSER capture succeed this run? Deliberately not used in the published copy —

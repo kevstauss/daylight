@@ -1,6 +1,6 @@
 import type { DaylightDb } from "@daylight/db";
 import { captureAndSnapshot } from "./live.js";
-import { checkArchiverPolicy, recordArchiverRefusal } from "./policy.js";
+import { checkArchiverPolicy, recordArchiverRefusal, recordCaptureOutcome } from "./policy.js";
 import type { WaybackSaver } from "./wayback.js";
 
 export interface ReceiptsSweepResult {
@@ -65,6 +65,18 @@ export async function runReceiptsSweep(
     if (r.gated) out.gated++;
     else if (r.ok) out.captured++;
     out.removals += r.removed?.length ?? 0;
+
+    // Record whether we could see the page at all. A host we cannot capture has no snapshot, and
+    // a coverage view built from snapshots would render that as "not watched" — the reader would
+    // never learn the site is unobservable. Gated pages are excluded: those are recorded as
+    // existing and deliberately never entered, which is a different fact.
+    if (!r.gated) {
+      try {
+        recordCaptureOutcome(db, host, { ok: r.ok, error: r.error });
+      } catch {
+        /* never let bookkeeping sink the sweep */
+      }
+    }
     // Counts this run's archive ATTEMPTS. A page that short-circuited with an archive already
     // on file is neither — nothing was tried and nothing is missing.
     if (r.archiveAttempted) {

@@ -745,6 +745,44 @@ export class DaylightDb {
   }
 
   /**
+   * Watched pages Daylight swept but could not capture, and therefore has no baseline for.
+   *
+   * These would otherwise be invisible: the coverage view is built from snapshots, so a page we
+   * cannot see has no row and silently reads as "not watched". Eleven federal sites sat in that
+   * gap. A watchdog that drops what it cannot observe is reporting its own blind spot as
+   * coverage, so the read path surfaces them explicitly.
+   *
+   * Only hosts with NO snapshot at all: once a real capture exists, the normal coverage row is
+   * the better answer.
+   */
+  uncapturedHosts(): { host: string; kind: string; status: string | null; observedAt: string }[] {
+    const rows = this.sql
+      .prepare(
+        `SELECT domain, payload_json, observed_at FROM (
+           SELECT *, ROW_NUMBER() OVER (PARTITION BY domain ORDER BY observed_at DESC, id DESC) AS rn
+           FROM observations WHERE module = 'receipts' AND domain LIKE '%#capture-status'
+         ) WHERE rn = 1`,
+      )
+      .all() as { domain: string; payload_json: string; observed_at: string }[];
+    const out: { host: string; kind: string; status: string | null; observedAt: string }[] = [];
+    for (const r of rows) {
+      const host = r.domain.replace(/#capture-status$/, "");
+      try {
+        const p = JSON.parse(r.payload_json) as { ok?: boolean; kind?: string; status?: string | null };
+        if (p.ok !== false) continue;
+        const has = this.sql
+          .prepare(`SELECT 1 FROM snapshots WHERE domain = ? LIMIT 1`)
+          .get(host) as unknown;
+        if (has) continue; // a real capture exists — the coverage row says more than this would
+        out.push({ host, kind: p.kind ?? "unreachable", status: p.status ?? null, observedAt: r.observed_at });
+      } catch {
+        /* skip unparseable */
+      }
+    }
+    return out.sort((a, b) => a.host.localeCompare(b.host));
+  }
+
+  /**
    * What we last observed about each host turning the Internet Archive away, keyed by host.
    *
    * Reads the `<host>#archiver-refusal` observations Receipts writes. The read path uses this to

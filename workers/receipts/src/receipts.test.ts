@@ -11,6 +11,8 @@ import {
   captureStatus,
   type CdxOptions,
   checkArchiverPolicy,
+  classifyCaptureFailure,
+  recordCaptureOutcome,
   recordArchiverRefusal,
   declaredBlocks,
   describeDeclaredBlock,
@@ -638,6 +640,61 @@ describe("recordArchiverRefusal — write it down only when the Archive says the
       expect(await recordArchiverRefusal(db, HOST, REFUSED, { now: T1, probe: async () => 403 })).toBeNull();
     });
     expect(db.listChanges({ module: "receipts" })).toHaveLength(1);
+  });
+});
+
+describe("uncaptured hosts — a blind spot must not read as coverage", () => {
+  it("classifies a refusal apart from an unreachable page", () => {
+    expect(classifyCaptureFailure("page returned HTTP 403 — not a capture of the page")).toBe("refused");
+    expect(classifyCaptureFailure("page returned HTTP 503 — not a capture of the page")).toBe("refused");
+    expect(classifyCaptureFailure("navigation failed (ended at chrome-error://chromewebdata/)")).toBe("unreachable");
+    expect(classifyCaptureFailure("Timeout 30000ms exceeded")).toBe("unreachable");
+  });
+
+  it("surfaces a swept host we have never been able to load", () => {
+    recordCaptureOutcome(db, "hhs.gov", {
+      ok: false,
+      error: "page returned HTTP 403 — not a capture of the page",
+      now: T0,
+    });
+    const out = db.uncapturedHosts();
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ host: "hhs.gov", kind: "refused", status: "403" });
+  });
+
+  it("says nothing about a host that captures fine", () => {
+    recordCaptureOutcome(db, "irs.gov", { ok: true, now: T0 });
+    expect(db.uncapturedHosts()).toHaveLength(0);
+  });
+
+  // The important one: once a real capture exists, the coverage row is the better answer. A
+  // single bad sweep must not drag a well-covered site into "never captured".
+  it("drops out once the host has any real snapshot", () => {
+    recordCaptureOutcome(db, "passports.gov", { ok: false, error: "Timeout 30000ms exceeded", now: T0 });
+    expect(db.uncapturedHosts().map((u) => u.host)).toEqual(["passports.gov"]);
+    const snap = snapshotFromHtml("https://passports.gov/", read("before.html"), T1);
+    db.insertSnapshot({
+      url: snap.url,
+      domain: snap.domain,
+      capturedAt: T1,
+      domHash: snap.domHash,
+      trackerSnapshotJson: JSON.stringify(snap.trackers),
+      privacyTextHash: snap.privacyTextHash,
+      formFieldsJson: JSON.stringify(snap.formFields),
+      sealPresent: snap.sealPresent,
+      redirectTarget: null,
+      screenshotRef: null,
+      waybackUrl: null,
+    });
+    expect(db.uncapturedHosts()).toHaveLength(0);
+  });
+
+  it("reports a standing failure once, not once per sweep", () => {
+    const err = "page returned HTTP 403 — not a capture of the page";
+    recordCaptureOutcome(db, "hhs.gov", { ok: false, error: err, now: T0 });
+    recordCaptureOutcome(db, "hhs.gov", { ok: false, error: err, now: T1 });
+    expect(db.uncapturedHosts()).toHaveLength(1);
+    expect(db.latestObservation("receipts", "hhs.gov#capture-status")?.observed_at).toBe(T0);
   });
 });
 

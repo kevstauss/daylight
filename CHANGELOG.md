@@ -31,6 +31,14 @@ bot's contact, and the observational-only scope.
 - Capture now surfaces the main document&rsquo;s HTTP status, and Receipts records a snapshot only
   for a **2xx** document that ended on a real web URL. Anything else is a failed observation to
   retry, never a fact to publish.
+- **&ldquo;Watched, never captured&rdquo; is now on the page.** Removing those false baselines left
+  eleven federal sites with no row at all — which is honest about the data and dishonest about the
+  coverage: Daylight sweeps them every time, and their absence read as though they weren&rsquo;t
+  watched. A watchdog that silently drops what it cannot see is publishing its own blind spot as
+  coverage. Receipts now records whether each swept page could be loaded, and [`/receipts`](/receipts)
+  lists the ones that can&rsquo;t, with the reason (`server returns HTTP 403 to Daylight's crawler`)
+  and a link to whatever the Internet Archive holds. These pages have no baseline, so a removal on
+  them would pass unrecorded — that gap is the finding, and it is now stated rather than hidden.
 
 ## Receipts: fall back to the Archive's own copy, and name a declared block — 2026-07-15
 
