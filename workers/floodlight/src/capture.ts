@@ -36,6 +36,9 @@ function userAgent(): string {
 
 export interface CaptureOptions {
   timeoutMs?: number;
+  /** How long to wait for the page to stop fetching before inventorying it. Generous by design:
+   *  a short budget silently yields a half-loaded page whose missing trackers read as removals. */
+  settleMs?: number;
   /** Tests only: permit localhost/private fixtures. */
   allowPrivate?: boolean;
   /** 'chrome' to use system Chrome locally; unset ⇒ bundled Chromium (Docker). */
@@ -152,6 +155,19 @@ export interface LiveCapture {
   gated: boolean;
   finalUrl: string;
   /**
+   * Did the page actually go quiet before we inventoried it?
+   *
+   * This decides whether ABSENCE means anything. The request log is only complete once the page
+   * stops fetching; capture waits for networkidle and, if the wait times out, proceeds with
+   * whatever has loaded so far. That partial inventory is fine for "we saw X" and worthless for
+   * "X is gone" — and the diff engine could not tell the difference, so it published the race as
+   * findings: healthcare.gov's tracker count read 3, 1, 3, 3, 3, 12, 3 across seven captures and
+   * emitted twelve dated "tracker removed" claims. Nothing was ever removed.
+   *
+   * Presence is evidence either way. Absence is evidence only when settled is true.
+   */
+  settled: boolean;
+  /**
    * The MAIN DOCUMENT's HTTP status (null if the navigation produced no response).
    *
    * A browser renders a 403 block page as happily as it renders the site, and until this was
@@ -267,7 +283,14 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
     const navResponse = await page
       .goto(url, { waitUntil: "domcontentloaded", timeout: opts.timeoutMs ?? 20000 })
       .catch(() => null);
-    await page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
+    // Wait for the page to stop fetching, and REMEMBER whether it did. 8s was not enough for a
+    // heavy federal homepage, and the timeout was swallowed — so a half-loaded page was
+    // inventoried as if complete and its missing trackers published as removals. The budget is
+    // now generous, and the outcome is recorded either way rather than assumed.
+    const settled = await page
+      .waitForLoadState("networkidle", { timeout: opts.settleMs ?? 25000 })
+      .then(() => true)
+      .catch(() => false);
 
     const finalUrl = page.url();
 
@@ -341,6 +364,7 @@ export async function capturePage(url: string, opts: CaptureOptions = {}): Promi
       screenshotPng: screenshotPng ?? null,
       gated,
       finalUrl,
+      settled,
       status: navResponse?.status() ?? null,
     };
       })(),

@@ -4,6 +4,34 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Receipts: the removal ledger was measuring itself — 2026-07-15
+
+- **All 45 published removals were retracted.** An audit found 20 provably false (the thing said
+  to be gone is present in a later capture) and the remaining 25 each resting on a single
+  observation. `healthcare.gov`&rsquo;s tracker count read **3, 1, 3, 3, 3, 12, 3** across seven
+  captures and published twelve dated &ldquo;tracker removed&rdquo; findings. Nothing was ever
+  removed. Two root causes, both fixed.
+- **The capture was a race, and the race was published.** Capture waited 8 seconds for the page to
+  stop fetching and *swallowed the timeout* — so a heavy federal homepage was inventoried
+  half-loaded, and the trackers that hadn&rsquo;t fired yet became removals. The wait is now
+  generous, and the outcome is **recorded** rather than assumed: a snapshot knows whether it
+  settled, and the diff will not infer ABSENCE from a capture that never finished loading.
+  Presence still counts either way — seeing a tracker proves it is there; not seeing one proves
+  nothing. Snapshots taken before this flag existed are treated as unsettled, so they withhold
+  claims rather than invent them.
+- **A tracker is a vendor, not a hostname.** Identity was `vendor@host`, and hosts rotate for
+  reasons that mean nothing: Microsoft Clarity answers from `a-z.clarity.ms`, Google Ads uses
+  per-account hosts, Qualtrics a random subdomain, and Google Analytics reaches
+  `stats.g.doubleclick.net` only on some loads. Every rotation published a &ldquo;removed&rdquo;
+  and an &ldquo;added&rdquo;. 55 of 109 tracker changes came from this alone. The defensible claim
+  is &ldquo;this page sends data to Microsoft Clarity&rdquo;; which shard answered is noise. The
+  full host is still on the scorecard — only the diff key is coarsened, and coarsening it is what
+  makes a change mean something. First-party-proxied stays in the key: a vendor moving behind a
+  first-party endpoint is the flagship finding and must still read as a change.
+- The ledger is empty now. That is the honest state: **nothing has been observed changing on a
+  watched page that we can stand behind.** It will refill only with changes seen by two complete
+  captures.
+
 ## Receipts: only a real capture counts as an observation — 2026-07-15
 
 - A page Daylight never actually saw was being published as a baseline. Two ways, both now closed

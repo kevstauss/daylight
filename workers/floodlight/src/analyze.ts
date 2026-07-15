@@ -112,7 +112,27 @@ export function analyzeCapture(capture: PageCapture): Scorecard {
   };
 }
 
-/** Tracker identity for diffing scorecards across scans. */
+/**
+ * Tracker identity for diffing across scans — the VENDOR, not the endpoint it happened to use.
+ *
+ * Keying on the host looked more precise and was in fact unusable. A tracker's hostname varies
+ * per page load in ways that mean nothing:
+ *   - Microsoft Clarity shards across a-z.clarity.ms, so consecutive captures see d., then h.,
+ *     then j. — each one "removing" the last.
+ *   - Google Ads uses per-account hosts (8966771.fls.doubleclick.net).
+ *   - Qualtrics uses a random per-site subdomain (znbabnroqffo1d7xq-cemgsa.gov1...).
+ *   - Google Analytics reaches analytics.google.com or stats.g.doubleclick.net only on some
+ *     loads, depending on consent and ad features.
+ * Every one of those produced dated "tracker removed" findings against federal agencies for
+ * changes that never happened. 55 of Receipts' 109 tracker changes came from this alone.
+ *
+ * The defensible claim is "this page sends data to Microsoft Clarity" — which shard answered is
+ * an implementation detail. The full host is still on the Tracker itself and on the scorecard;
+ * only the DIFF key is coarsened, and coarsening it is what makes a change mean something.
+ *
+ * first-party-proxied stays in the key on purpose: a vendor moving behind a first-party endpoint
+ * is the flagship finding, and it must still read as a change.
+ */
 export function trackerKey(t: Tracker): string {
-  return `${t.vendor}@${t.host}${t.firstPartyProxied ? " (first-party-proxied)" : ""}`;
+  return `${t.vendor}${t.firstPartyProxied ? " (first-party-proxied)" : ""}`;
 }

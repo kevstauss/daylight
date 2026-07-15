@@ -40,6 +40,9 @@ function rowToSnapshot(row: SnapshotRow): Snapshot {
     redirectTarget: row.redirect_target,
     screenshotRef: row.screenshot_ref,
     waybackUrl: row.wayback_url,
+    // NULL = captured before we tracked this, so we cannot claim the page had finished loading.
+    // Unknown must read as unsettled: it withholds absence claims rather than inventing them.
+    settled: row.settled === 1,
   };
 }
 
@@ -105,6 +108,7 @@ export async function runReceiptsSnapshot(opts: RunReceiptsOptions): Promise<Run
         sealPresent: snapshot.sealPresent,
         redirectTarget: snapshot.redirectTarget,
         waybackUrl,
+        settled: snapshot.settled,
       });
 
       const changeIds: number[] = [];

@@ -63,5 +63,6 @@ export function snapshotFromLiveCapture(
     redirectTarget: redirected ? live.finalUrl : null,
     screenshotRef,
     waybackUrl: null,
+    settled: live.settled,
   };
 }

@@ -6,19 +6,16 @@ const URL_RE = /(?:src|href)\s*=\s*["']([^"']+)["']/gi;
 const SEAL_RE = /<img\b[^>]*(?:alt|src)\s*=\s*["'][^"']*seal[^"']*["'][^>]*>/i;
 const PRIVACY_LINK_RE = /<a\b[^>]*href\s*=\s*["']([^"']*)["'][^>]*>([^<]*)<\/a>/gi;
 
+/** Keys must match trackerKey() in @daylight/floodlight exactly — the fixture path and the live
+ *  path feed the same diff, so a different shape here would read as a wholesale change of
+ *  trackers. Vendor-only, for the reasons documented on trackerKey. */
 function extractTrackers(html: string): string[] {
   const keys = new Set<string>();
   for (const m of html.matchAll(URL_RE)) {
     const raw = m[1] ?? "";
     if (!/^https?:\/\//i.test(raw)) continue; // relative URLs are same-origin, not trackers
     const fp = classifyUrl(raw);
-    if (fp) {
-      try {
-        keys.add(`${fp.vendor}@${new URL(raw).host.toLowerCase()}`);
-      } catch {
-        /* skip */
-      }
-    }
+    if (fp) keys.add(fp.vendor);
   }
   return [...keys].sort();
 }
@@ -67,6 +64,7 @@ export function snapshotFromHtml(url: string, html: string, capturedAt: string):
     redirectTarget: null, // fixture HTML has no navigation; the live capture sets this
     screenshotRef: null,
     waybackUrl: null,
+    settled: true, // static HTML: nothing left to load, so absence is meaningful
   };
 }
 

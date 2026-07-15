@@ -704,10 +704,10 @@ export class DaylightDb {
       .prepare(
         `INSERT INTO snapshots
            (url, domain, captured_at, dom_hash, screenshot_ref, tracker_snapshot_json,
-            privacy_text_hash, form_fields_json, seal_present, redirect_target, wayback_url)
+            privacy_text_hash, form_fields_json, seal_present, redirect_target, wayback_url, settled)
          VALUES
            (@url, @domain, @capturedAt, @domHash, @screenshotRef, @trackerSnapshotJson,
-            @privacyTextHash, @formFieldsJson, @sealPresent, @redirectTarget, @waybackUrl)`,
+            @privacyTextHash, @formFieldsJson, @sealPresent, @redirectTarget, @waybackUrl, @settled)`,
       )
       .run({
         url: snap.url,
@@ -721,6 +721,7 @@ export class DaylightDb {
         sealPresent: snap.sealPresent ? 1 : 0,
         redirectTarget: snap.redirectTarget ?? null,
         waybackUrl: snap.waybackUrl ?? null,
+        settled: snap.settled ? 1 : 0,
       });
     return Number(info.lastInsertRowid);
   }
@@ -1314,6 +1315,8 @@ export interface SnapshotInput {
   sealPresent?: boolean;
   redirectTarget?: string | null;
   waybackUrl?: string | null;
+  /** Did the page finish loading before inventory? Absence is only evidence when true. */
+  settled?: boolean;
 }
 
 export interface ScorecardInput {

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createDb, type DaylightDb } from "@daylight/db";
 import type { LiveCapture } from "@daylight/floodlight/capture";
+import { trackerKey } from "@daylight/floodlight";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   archiveDriftMinutes,
@@ -74,6 +75,73 @@ describe("§7.1 diff — removals of tracker, privacy clause, seal → 3 removed
     const tracker = removed.find((c) => c.field === "tracker");
     expect(tracker?.oldValue).toContain("Google Analytics");
     expect(tracker?.newValue).toBeNull();
+  });
+});
+
+// The single most expensive lesson in this module. Receipts published 45 dated removals against
+// federal agencies; 20 were provably false (the thing reappeared) and the rest rested on one
+// observation each. Root cause: capture waited 8s for the page to go quiet, swallowed the timeout,
+// and inventoried whatever had loaded — so healthcare.gov's tracker count read 3,1,3,3,3,12,3 and
+// each dip published as "tracker removed". "We didn't see it" was being sold as "it isn't there".
+describe("absence is only evidence when the capture actually finished loading", () => {
+  const settled = (html: string, at: string): Snapshot => snapshotFromHtml(URL_, html, at);
+  const partial = (html: string, at: string): Snapshot => ({ ...snapshotFromHtml(URL_, html, at), settled: false });
+
+  it("does NOT report a removal when the newer capture never settled", () => {
+    // The page still has everything; we just stopped watching before it finished loading.
+    const before = settled(read("before.html"), T0);
+    const half = partial(read("after.html"), T1);
+    expect(diffSnapshots(before, half, T1).filter((c) => c.kind === "removed")).toHaveLength(0);
+  });
+
+  it("does NOT report a removal when the OLDER capture never settled", () => {
+    const half = partial(read("before.html"), T0);
+    const after = settled(read("after.html"), T1);
+    expect(diffSnapshots(half, after, T1).filter((c) => c.kind === "removed")).toHaveLength(0);
+  });
+
+  it("does NOT report an addition against an unsettled baseline", () => {
+    // Otherwise "we missed it last time" publishes as "the agency just added a tracker".
+    const half = partial(read("after.html"), T0); // no trackers seen
+    const full = settled(read("before.html"), T1); // tracker present
+    expect(diffSnapshots(half, full, T1).filter((c) => c.kind === "added" && c.field === "tracker")).toHaveLength(0);
+  });
+
+  it("DOES report the change when both captures settled", () => {
+    const before = settled(read("before.html"), T0);
+    const after = settled(read("after.html"), T1);
+    expect(diffSnapshots(before, after, T1).filter((c) => c.kind === "removed")).toHaveLength(3);
+  });
+
+  it("treats a pre-flag snapshot (settled unknown) as unsettled", () => {
+    // Rows captured before the flag existed cannot vouch for their own completeness.
+    const legacy = { ...snapshotFromHtml(URL_, read("before.html"), T0), settled: false };
+    const after = settled(read("after.html"), T1);
+    expect(diffSnapshots(legacy, after, T1).filter((c) => c.kind === "removed")).toHaveLength(0);
+  });
+
+  it("still reports a redirect change — that fact does not depend on the load settling", () => {
+    const a = { ...settled(read("before.html"), T0), settled: false };
+    const b = { ...partial(read("before.html"), T1), redirectTarget: "https://elsewhere.example/" };
+    const ch = diffSnapshots(a, b, T1);
+    expect(ch.some((c) => c.field === "redirect_target" && c.kind === "added")).toBe(true);
+  });
+});
+
+describe("tracker identity is the vendor, not the endpoint it happened to use", () => {
+  it("shards and per-account hosts collapse to one stable key", () => {
+    // Microsoft Clarity answers from a-z.clarity.ms; the letter is noise. Keying on the host made
+    // every capture 'remove' the previous shard and 'add' a new one, forever.
+    const t = (host: string) => ({ vendor: "Microsoft Clarity", host, firstPartyProxied: false }) as never;
+    expect(trackerKey(t("d.clarity.ms"))).toBe(trackerKey(t("h.clarity.ms")));
+    expect(trackerKey(t("d.clarity.ms"))).toBe("Microsoft Clarity");
+  });
+
+  it("keeps first-party-proxied distinct — the flagship finding must still read as a change", () => {
+    const direct = { vendor: "AutoMonitor", host: "analytics.example.com", firstPartyProxied: false } as never;
+    const proxied = { vendor: "AutoMonitor", host: "analytics.infra.ndstudio.gov", firstPartyProxied: true } as never;
+    expect(trackerKey(direct)).not.toBe(trackerKey(proxied));
+    expect(trackerKey(proxied)).toContain("first-party-proxied");
   });
 });
 
@@ -826,6 +894,8 @@ describe("a dead navigation is a failed capture, not a redirect and not a baseli
   const deadCapture: LiveCapture = {
     finalUrl: "chrome-error://chromewebdata/",
     gated: false,
+    settled: false,
+    status: null,
     html: "",
     screenshotPng: null,
     capture: {
@@ -894,6 +964,7 @@ describe("snapshotFromLiveCapture — maps a live capture to a Snapshot", () => 
       gated: false,
       finalUrl: "https://ndstudio.gov/",
       status: 200,
+      settled: true,
     };
     const snap = snapshotFromLiveCapture("https://ndstudio.gov/", live, T0, "/raw/x.png");
     expect(snap.domain).toBe("ndstudio.gov");
@@ -921,6 +992,7 @@ describe("§7.4 redact runs on captured text before persistence", () => {
       redirectTarget: null,
       screenshotRef: "/raw/passports-apply-T0.png",
       waybackUrl: null,
+      settled: true,
     };
     await runReceiptsSnapshot({ db, snapshot: snap });
     const obs = db.latestObservation("receipts", "passports.gov");

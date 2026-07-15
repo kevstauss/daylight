@@ -102,6 +102,8 @@ export interface SnapshotRow {
   seal_present: number | null;
   redirect_target: string | null; // off-domain final URL if the page redirected elsewhere
   wayback_url: string | null;
+  /** 1 = the page finished loading before inventory. Only then does ABSENCE mean anything. */
+  settled: number | null;
 }
 
 /**

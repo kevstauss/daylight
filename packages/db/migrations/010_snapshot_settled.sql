@@ -1,0 +1,11 @@
+-- Did the capture finish loading before we inventoried the page?
+--
+-- Without this, a capture that timed out waiting for the page to go quiet was indistinguishable
+-- from a complete one, so the trackers it had not yet seen were published as removals.
+-- healthcare.gov's tracker count read 3, 1, 3, 3, 3, 12, 3 across seven captures and emitted
+-- twelve dated "tracker removed" findings; nothing was ever removed.
+--
+-- NULL on existing rows is correct and deliberate: those captures pre-date the flag, so whether
+-- they were complete is UNKNOWN. The diff treats unknown as unsettled and withholds every
+-- absence-based claim rather than inventing one.
+ALTER TABLE snapshots ADD COLUMN settled INTEGER;

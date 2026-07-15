@@ -12,4 +12,8 @@ export interface Snapshot {
   redirectTarget: string | null; // off-domain final URL if the page redirected elsewhere (else null)
   screenshotRef: string | null; // raw-store path; never served publicly
   waybackUrl: string | null;
+  /** Did the page stop fetching before we inventoried it? Decides whether ABSENCE in this
+   *  snapshot means anything (see LiveCapture.settled). Older rows predate the flag and are
+   *  treated as unsettled — unknown, so no absence is inferred from them. */
+  settled: boolean;
 }
