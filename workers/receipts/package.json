@@ -17,7 +17,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "snapshot": "tsx src/cli.ts",
-    "unpin-archives": "tsx src/unpin-archives-cli.ts"
+    "audit-archives": "tsx src/audit-archives-cli.ts"
   },
   "dependencies": {
     "@daylight/core": "workspace:*",

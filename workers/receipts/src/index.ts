@@ -12,6 +12,13 @@ export {
   type WaybackOptions,
 } from "./wayback.js";
 export {
+  captureStatus,
+  isPageCapture,
+  isDefinitelyNotPageCapture,
+  type CaptureStatus,
+  type CdxOptions,
+} from "./cdx.js";
+export {
   runReceiptsSnapshot,
   type RunReceiptsOptions,
   type RunReceiptsResult,

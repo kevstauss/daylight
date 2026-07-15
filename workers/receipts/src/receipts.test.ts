@@ -4,7 +4,11 @@ import { createDb, type DaylightDb } from "@daylight/db";
 import type { LiveCapture } from "@daylight/floodlight/capture";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  captureStatus,
+  type CdxOptions,
   diffSnapshots,
+  isDefinitelyNotPageCapture,
+  isPageCapture,
   isTimestampedArchiveUrl,
   runReceiptsSnapshot,
   saveToWayback,
@@ -256,6 +260,67 @@ describe("saveToWayback — never fabricates an archive URL", () => {
 
 const json = (body: unknown): Response =>
   new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+
+describe("cdx — is a stored archive actually a capture of the page?", () => {
+  const cdx = (body: unknown, status = 200): CdxOptions => ({
+    fetchImpl: async () =>
+      new Response(typeof body === "string" ? body : JSON.stringify(body), { status }),
+  });
+
+  it("reports the captured status when the index has that exact capture", async () => {
+    // The real trumpaccounts.gov case: the pinned capture is of a 403 block page.
+    const s = await captureStatus("https://trumpaccounts.gov/", "20260702181455", cdx([
+      ["timestamp", "statuscode"],
+      ["20260702181455", "403"],
+    ]));
+    expect(s).toEqual({ known: true, statusCode: "403" });
+    expect(isDefinitelyNotPageCapture(s)).toBe(true);
+    expect(isPageCapture(s)).toBe(false);
+  });
+
+  it("recognises a real capture of the page", async () => {
+    const s = await captureStatus("https://sec.gov/", "20260713043028", cdx([
+      ["timestamp", "statuscode"],
+      ["20260713043028", "200"],
+    ]));
+    expect(isPageCapture(s)).toBe(true);
+    expect(isDefinitelyNotPageCapture(s)).toBe(false);
+  });
+
+  // The next four are the "never act without positive evidence" rule. A redirecting host
+  // (cdc.gov → www.cdc.gov) indexes under the redirect target, so an empty CDX answer is NOT
+  // evidence the archive is bad — clearing on it would destroy good links.
+  it("an empty index answer is unknown, never 'bad'", async () => {
+    const s = await captureStatus("https://cdc.gov/", "20260709041058", cdx(""));
+    expect(s.known).toBe(false);
+    expect(isDefinitelyNotPageCapture(s)).toBe(false);
+  });
+
+  it("a network failure is unknown, never 'bad'", async () => {
+    const s = await captureStatus("https://va.gov/", "20260706040605", {
+      fetchImpl: async () => {
+        throw new Error("fetch failed");
+      },
+    });
+    expect(s).toEqual({ known: false, reason: "fetch failed" });
+    expect(isDefinitelyNotPageCapture(s)).toBe(false);
+  });
+
+  it("a CDX error response is unknown, never 'bad'", async () => {
+    const s = await captureStatus("https://va.gov/", "20260706040605", cdx("", 429));
+    expect(s.known).toBe(false);
+    expect(isDefinitelyNotPageCapture(s)).toBe(false);
+  });
+
+  it("a revisit record ('-') is a real capture, not a block page", async () => {
+    // IA writes "-" when a capture is byte-identical to a previous one. That is the page.
+    const s = await captureStatus("https://trumpaccounts.gov/", "20260602013316", cdx([
+      ["timestamp", "statuscode"],
+      ["20260602013316", "-"],
+    ]));
+    expect(isDefinitelyNotPageCapture(s)).toBe(false);
+  });
+});
 
 describe("snapshotFromLiveCapture — maps a live capture to a Snapshot", () => {
   it("takes trackers from network analysis + DOM facts, keeping the screenshot in the raw store", () => {

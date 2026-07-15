@@ -21,11 +21,16 @@ bot's contact, and the observational-only scope.
   real archive but resolves to whatever the Internet Archive captured **most recently**, showing the
   page&rsquo;s current state rather than the state we snapshotted. On a removal ledger that is
   exactly backwards: the proof a tracker was present would show the page without it. 21 such links
-  existed; a non-confirming capture is now a plain failure, and `pnpm receipts:unpin-archives`
+  existed; a non-confirming capture is now a plain failure, and `pnpm receipts:audit-archives`
   clears the bad rows so the retry path can re-archive them properly.
-- **A capture of a block page is no longer recorded as an archive.** Several watched hosts sit
-  behind bot protection that refuses the Internet Archive&rsquo;s crawler; a &ldquo;successful&rdquo;
-  capture of that refusal is a copy of a 403, not of the site. Those are now rejected outright.
+- **Archive links are now checked against the public CDX index, not just trusted.** Several watched
+  hosts sit behind bot protection that refuses the Internet Archive&rsquo;s crawler, and Save Page
+  Now deduplicates against recent captures — so a &ldquo;successful&rdquo; save can hand back
+  another crawler&rsquo;s capture of a **403 block page** and we would file it as a receipt.
+  `trumpaccounts.gov`&rsquo;s stored archive was exactly this. `pnpm receipts:audit-archives
+  --verify` re-checks every link against the index and clears the ones that aren&rsquo;t a capture
+  of the page — and only ever acts on positive evidence, since a page that redirects (`cdc.gov` →
+  `www.cdc.gov`) is indexed under the redirect target and an unanswered query proves nothing.
 - **Failed saves retry, and stop being invisible.** An unchanged re-capture used to short-circuit
   before the archive step, making a failed save permanent until the page&rsquo;s content changed.
   It now retries the missing archive — and only attaches a fresh capture to an existing snapshot
