@@ -55,7 +55,10 @@ export function snapshotFromLiveCapture(
     domain: redirected ? requestedDomain : scorecard.domain,
     capturedAt,
     domHash: sha256(live.html.replace(/\s+/g, " ").trim()),
-    trackers: scorecard.trackers.map(trackerKey).sort(),
+    // Deduped: the scorecard keeps one Tracker per vendor+HOST (it shows that detail), while
+    // the key is per vendor — so 4 Qualtrics hosts are 4 Trackers but one tracker key. Matches
+    // extractTrackers() in html.ts, which must produce identical keys for the same page.
+    trackers: [...new Set(scorecard.trackers.map(trackerKey))].sort(),
     privacyTextHash: privacyUrl ? sha256(privacyUrl.toLowerCase()) : null,
     privacyHashKind: privacyUrl ? "url" : null,
     privacyText: privacyUrl,

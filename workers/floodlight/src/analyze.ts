@@ -52,9 +52,10 @@ export function analyzeCapture(capture: PageCapture): Scorecard {
       if (proxied.matched) {
         firstPartyProxied = true;
         if (proxied.sessionReplay || isSessionReplayPath(path)) sessionReplay = true;
-        // Dedup on vendor+host (the granularity trackerKey diffs on). An analytics endpoint
-        // fires many beacons per load; without this, one finding becomes N duplicate
-        // high-severity "tracker added" changes flooding the Receipts review feed.
+        // Dedup on vendor+host: an analytics endpoint fires many beacons per load, and the
+        // scorecard deliberately keeps the per-host detail ("Clarity, on 4 hosts"). NOTE this is
+        // COARSER at the key level — trackerKey() is per vendor — so several Trackers can share
+        // one key and callers that build a key list must dedupe (see snapshot-map).
         const key = `fp|${proxied.vendor}|${host}`;
         if (!seen.has(key)) {
           seen.add(key);

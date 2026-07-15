@@ -107,9 +107,12 @@ export function runFloodlightScan(
         );
       };
 
+      const emitted = new Set<string>();
       for (const t of scorecard.trackers) {
         const k = trackerKey(t);
-        if (!prevKeys.has(k)) {
+        // Several Trackers (one per host) can share one vendor key — report the vendor once.
+        if (!prevKeys.has(k) && !emitted.has(k)) {
+          emitted.add(k);
           added.push(k);
           // "Added" rests on the PREVIOUS scan's absence — only trustworthy if that scan settled.
           if (prev && absenceIsMeaningful) {

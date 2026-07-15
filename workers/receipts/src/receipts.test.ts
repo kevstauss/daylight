@@ -160,6 +160,33 @@ describe("a privacy hash is only comparable to a hash of the same thing", () => 
   });
 });
 
+describe("one vendor on many hosts is one tracker", () => {
+  it("collapses several hosts of the same vendor into a single key", () => {
+    // Coarsening the key made the scorecard's vendor+host dedup finer than the key, so cms.gov's
+    // four Qualtrics endpoints read as four trackers: '9 trackers' for 5 vendors.
+    const live = {
+      finalUrl: "https://cms.gov/",
+      gated: false,
+      settled: true,
+      status: 200,
+      html: "<html></html>",
+      screenshotPng: null,
+      capture: {
+        url: "https://cms.gov/",
+        requests: [
+          { url: "https://gov1.siteintercept.qualtrics.com/a", method: "GET", resourceType: "script" },
+          { url: "https://gov1.sr.qualtrics.com/b", method: "GET", resourceType: "script" },
+          { url: "https://zn9.gov1.siteintercept.qualtrics.com/c", method: "GET", resourceType: "script" },
+        ],
+        dom: { privacyNoticeUrl: null, hasSeal: false, formFields: [] },
+      },
+    } as unknown as LiveCapture;
+    const snap = snapshotFromLiveCapture("https://cms.gov/", live, T0, null);
+    expect(snap.trackers.filter((t) => t === "Qualtrics")).toHaveLength(1);
+    expect(new Set(snap.trackers).size).toBe(snap.trackers.length); // no duplicate keys at all
+  });
+});
+
 describe("tracker identity is the vendor, not the endpoint it happened to use", () => {
   it("shards and per-account hosts collapse to one stable key", () => {
     // Microsoft Clarity answers from a-z.clarity.ms; the letter is noise. Keying on the host made
