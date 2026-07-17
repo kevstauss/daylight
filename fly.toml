@@ -30,6 +30,7 @@ swap_size_mb = 512
   DAYLIGHT_REDTAPE_CRON = "0 5 * * 1,4"    # Mon+Thu 05:00 — after Floodlight; idempotent + re-checks published gaps
   DAYLIGHT_FOUNDRY_CRON = "55 1 * * *"     # daily 01:55 — a beat after Lookout (reads its fresh CT certs)
   DAYLIGHT_SITESCANNING_CRON = "10 2 * * *" # daily 02:10 — GSA's dump refreshes ~daily; free 02:00 slot
+  DAYLIGHT_GITHUB_CRON = "30 2 * * *"       # daily 02:30 — new federal repos/commits; free 02:00 slot
   # Ledger increments — live as of v0.2.
   FLAG_LEDGER_REGISTRY = "1"
   FLAG_LEDGER_FEED = "1"
@@ -68,6 +69,10 @@ swap_size_mb = 512
   #   fly secrets set GSA_SITE_SCANNING_API_KEY=... -a daylight-watchdog
   # The DAYLIGHT_SITESCANNING_CRON above only does anything once that key is set (skips otherwise).
   FLAG_SITESCANNING = "1"
+  # GitHub org monitoring: polls watched federal orgs (watchlist github_orgs) for new repos + first
+  # commits; findings surface as Lookout events (module='lookout'). Not a module/tile. A read-only
+  # GITHUB_TOKEN (fly secret, optional) raises the rate limit but isn't required for public reads.
+  FLAG_GITHUB = "1"
   # First-party, aggregate-only analytics shown on /privacy. Records a per-day count per route +
   # coarse referrer class (with the .gov apex when a federal site links in). Stores NO IP / user-
   # agent / cookie / session — the /privacy page publishes the exact retained schema. Unset in dev

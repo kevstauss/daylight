@@ -19,6 +19,7 @@
     "@daylight/foundry": "workspace:*",
     "@daylight/ledger": "workspace:*",
     "@daylight/lookout": "workspace:*",
+    "@daylight/github": "workspace:*",
     "@daylight/receipts": "workspace:*",
     "@daylight/redtape": "workspace:*",
     "@daylight/sitescanning": "workspace:*",

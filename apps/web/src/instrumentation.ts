@@ -40,13 +40,14 @@ export async function register(): Promise<void> {
   const redtapeCron = process.env.DAYLIGHT_REDTAPE_CRON?.trim();
   const foundryCron = process.env.DAYLIGHT_FOUNDRY_CRON?.trim();
   const sitescanningCron = process.env.DAYLIGHT_SITESCANNING_CRON?.trim();
+  const githubCron = process.env.DAYLIGHT_GITHUB_CRON?.trim();
   if (
     !ledgerCron && !lookoutCron && !floodlightCron && !receiptsCron && !redtapeCron &&
-    !foundryCron && !sitescanningCron
+    !foundryCron && !sitescanningCron && !githubCron
   )
     return;
 
-  const [{ default: cron }, core, db, ledger, lookout, floodlight, receipts, receiptsSweep, redtape, foundry, sitescanning, repo] =
+  const [{ default: cron }, core, db, ledger, lookout, floodlight, receipts, receiptsSweep, redtape, foundry, sitescanning, github, repo] =
     await Promise.all([
       import("node-cron"),
       import("@daylight/core"),
@@ -59,6 +60,7 @@ export async function register(): Promise<void> {
       import("@daylight/redtape"),
       import("@daylight/foundry"),
       import("@daylight/sitescanning"),
+      import("@daylight/github"),
       import("./lib/repoFile"),
     ]);
 
@@ -331,6 +333,55 @@ export async function register(): Promise<void> {
       console.log(`[sitescanning:cron] scheduled '${sitescanningCron}' (UTC)`);
     } else {
       console.warn(`[sitescanning] invalid DAYLIGHT_SITESCANNING_CRON: ${sitescanningCron}`);
+    }
+  }
+
+  // ---- GitHub org monitoring (new repos + first commits under watched federal orgs → Lookout events) ----
+  // Findings surface as module='lookout' changes; the poll records its own 'github' /status heartbeat.
+  // FLAG_GITHUB is a kill switch. A GITHUB_TOKEN (optional) raises the API rate limit but needs no scopes.
+  const runGithub = async (emitChanges: boolean): Promise<void> => {
+    if (!core.flag("FLAG_GITHUB")) {
+      console.warn("[github:cron] skipped — FLAG_GITHUB off");
+      return;
+    }
+    const wl = loadWl();
+    if (!wl) return;
+    if (wl.githubOrgs.length === 0) {
+      console.warn("[github:cron] skipped — no github_orgs in the watchlist");
+      return;
+    }
+    const database = db.createDb(db.resolveDbPath());
+    try {
+      const r = await github.runGithubWatch({ db: database, orgs: wl.githubOrgs, emitChanges });
+      console.log(
+        `[github:${emitChanges ? "cron" : "seed"}] ${r.orgsPolled} orgs, ${r.reposSeen} repos, ` +
+          `${r.newRepos} new, ${r.firstCommits} first-commit` + (r.ok ? "" : ` — ERROR: ${r.error}`),
+      );
+    } catch (err) {
+      console.error("[github] run error", err);
+    } finally {
+      database.close();
+    }
+  };
+
+  if (githubCron) {
+    // First boot with an empty github_repos table → silent baseline, so the ~2,700 repos that
+    // already exist under the watched orgs don't hit the feed as 'added' the first time the poll
+    // runs. Mirrors Ledger's empty-registry auto-seed. runGithub(false) re-checks the flag itself.
+    try {
+      const database = db.createDb(db.resolveDbPath());
+      const empty =
+        (database.sql.prepare("SELECT COUNT(*) AS n FROM github_repos").get() as { n: number }).n === 0;
+      database.close();
+      if (empty) void runGithub(false);
+    } catch (err) {
+      console.error("[github] seed check failed", err);
+    }
+    if (cron.validate(githubCron)) {
+      cron.schedule(githubCron, () => void runGithub(true), { timezone: "UTC" });
+      console.log(`[github:cron] scheduled '${githubCron}' (UTC)`);
+    } else {
+      console.warn(`[github] invalid DAYLIGHT_GITHUB_CRON: ${githubCron}`);
     }
   }
 }

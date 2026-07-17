@@ -17,6 +17,9 @@ const CADENCE: Record<string, { maxHours: number; expected: string; flag: keyof 
   // breadth infrastructure feeding Floodlight, not a module — but a silently-dead ingest still
   // needs to surface here, the same reason every scheduled job records a scan heartbeat.
   sitescanning: { maxHours: 36, expected: "daily", flag: "siteScanning" },
+  // GitHub org monitoring polls daily; its findings surface as Lookout events, but its own poller
+  // health is tracked separately here so a dead poll doesn't hide behind Lookout's row.
+  github: { maxHours: 36, expected: "daily", flag: "github" },
 };
 
 export type ModuleState = "ok" | "overdue" | "error" | "running" | "not-scanned" | "deferred";

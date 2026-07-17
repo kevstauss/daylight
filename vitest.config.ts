@@ -19,6 +19,7 @@ export default defineConfig({
       "@daylight/receipts": r("./workers/receipts/src/index.ts"),
       "@daylight/redtape": r("./workers/redtape/src/index.ts"),
       "@daylight/sitescanning": r("./workers/sitescanning/src/index.ts"),
+      "@daylight/github": r("./workers/github/src/index.ts"),
       // apps/web's "@/..." path alias. Only matches "@/…" (not "@daylight/…"), so it composes with
       // the package aliases above and lets web unit tests import server helpers by their real path.
       "@": r("./apps/web/src"),

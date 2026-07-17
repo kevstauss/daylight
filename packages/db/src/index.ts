@@ -8,6 +8,7 @@ import type {
   CoverageRow,
   DomainRow,
   GapRow,
+  GithubRepoRow,
   ObservationRow,
   PromotionCandidateRow,
   ScanRow,
@@ -1398,6 +1399,56 @@ export class DaylightDb {
       .all() as PromotionCandidateRow[];
   }
 
+  // ---- github_repos (federal GitHub org monitoring — a Lookout signal) ----
+
+  /** Upsert a repo keyed on GitHub's immutable id (rename-safe). Returns inserted=false on a repo we
+   *  already knew — that's the "new repo?" signal — and advances last_seen + activity fields. */
+  upsertGithubRepo(r: GithubRepoInput, seenAt: string): { inserted: boolean } {
+    const existed = this.sql
+      .prepare(`SELECT 1 FROM github_repos WHERE repo_id = ?`)
+      .get(r.repoId) as unknown;
+    this.sql
+      .prepare(
+        `INSERT INTO github_repos
+           (repo_id, org, name, full_name, html_url, is_fork, created_at, pushed_at, has_commits, first_seen, last_seen)
+         VALUES
+           (@repoId, @org, @name, @fullName, @htmlUrl, @isFork, @createdAt, @pushedAt, @hasCommits, @seenAt, @seenAt)
+         ON CONFLICT(repo_id) DO UPDATE SET
+           org = excluded.org, name = excluded.name, full_name = excluded.full_name,
+           html_url = excluded.html_url, is_fork = excluded.is_fork,
+           created_at = excluded.created_at, pushed_at = excluded.pushed_at,
+           has_commits = excluded.has_commits, last_seen = excluded.last_seen`,
+      )
+      .run({
+        repoId: r.repoId,
+        org: r.org,
+        name: r.name,
+        fullName: r.fullName,
+        htmlUrl: r.htmlUrl,
+        isFork: r.isFork ? 1 : 0,
+        createdAt: r.createdAt ?? null,
+        pushedAt: r.pushedAt ?? null,
+        hasCommits: r.hasCommits ? 1 : 0,
+        seenAt,
+      });
+    return { inserted: !existed };
+  }
+
+  /** Every known repo (uncapped) — the ingest's prior-state snapshot for diffing, loaded before
+   *  the run's writes. */
+  allGithubRepos(): GithubRepoRow[] {
+    return this.sql
+      .prepare(`SELECT * FROM github_repos ORDER BY repo_id ASC`)
+      .all() as GithubRepoRow[];
+  }
+
+  /** Repos under one watched org, newest-created first — for a status/debug read. */
+  githubReposByOrg(org: string): GithubRepoRow[] {
+    return this.sql
+      .prepare(`SELECT * FROM github_repos WHERE org = ? ORDER BY created_at DESC, repo_id DESC`)
+      .all(org) as GithubRepoRow[];
+  }
+
   close(): void {
     this.sql.close();
   }
@@ -1484,6 +1535,18 @@ export interface PromotionInput {
   domain: string;
   reason: string;
   sourceUrl: string;
+}
+
+export interface GithubRepoInput {
+  repoId: number;
+  org: string;
+  name: string;
+  fullName: string;
+  htmlUrl: string;
+  isFork?: boolean;
+  createdAt?: string | null;
+  pushedAt?: string | null;
+  hasCommits?: boolean;
 }
 
 // ---- singleton + convenience free functions (the §3.4 surface) -------------

@@ -192,6 +192,21 @@ export interface PromotionCandidateRow {
   last_seen: string;
 }
 
+/** A repo observed under a watched federal GitHub org (see schema.ts). Keyed on repo_id. */
+export interface GithubRepoRow {
+  repo_id: number;
+  org: string;
+  name: string;
+  full_name: string;
+  html_url: string;
+  is_fork: number | null;
+  created_at: string | null;
+  pushed_at: string | null;
+  has_commits: number | null;
+  first_seen: string;
+  last_seen: string;
+}
+
 /** Map a persisted domains row back to the normalized DomainRecord contract. */
 export function rowToDomainRecord(row: DomainRow): DomainRecord {
   return {

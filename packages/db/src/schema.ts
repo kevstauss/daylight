@@ -226,4 +226,25 @@ CREATE TABLE IF NOT EXISTS promotion_candidates (
   last_seen TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_promotion_last ON promotion_candidates(last_seen DESC);
+
+-- Federal GitHub org monitoring — a Lookout signal (its changes carry module='lookout'). A new repo
+-- or first commit under a watched federal org is a leading indicator: code often lands before the
+-- site. Existence-only, public-API reads. Keyed on GitHub's immutable numeric repo id so a RENAME is
+-- never a spurious remove+add. We record but deliberately do NOT emit 'removed': a repo missing from
+-- one poll can be a transient API/pagination miss, not a deletion (the false-positive discipline the
+-- page-watching ledgers were rebuilt around).
+CREATE TABLE IF NOT EXISTS github_repos (
+  repo_id INTEGER PRIMARY KEY,        -- GitHub's immutable id (the rename-safe diff key)
+  org TEXT NOT NULL,                  -- watched org login
+  name TEXT NOT NULL,
+  full_name TEXT NOT NULL,
+  html_url TEXT NOT NULL,             -- the re-verifiable public artifact (Change.sourceUrl)
+  is_fork INTEGER,                    -- 0/1 — forks are not original work and never emit a change
+  created_at TEXT,                    -- repo creation time (GitHub); << first_seen ⇒ likely made public
+  pushed_at TEXT,                     -- last push (activity proxy)
+  has_commits INTEGER,                -- 0/1 first-commit gate (size>0); a 0→1 transition emits "first commit"
+  first_seen TEXT NOT NULL,           -- when Daylight first observed the repo
+  last_seen TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_github_org ON github_repos(org, created_at DESC);
 `;

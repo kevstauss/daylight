@@ -44,6 +44,9 @@ importers:
       '@daylight/foundry':
         specifier: workspace:*
         version: link:../../workers/foundry
+      '@daylight/github':
+        specifier: workspace:*
+        version: link:../../workers/github
       '@daylight/ledger':
         specifier: workspace:*
         version: link:../../workers/ledger
@@ -165,6 +168,15 @@ importers:
       '@daylight/enrich':
         specifier: workspace:*
         version: link:../../packages/enrich
+
+  workers/github:
+    dependencies:
+      '@daylight/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@daylight/db':
+        specifier: workspace:*
+        version: link:../../packages/db
 
   workers/ledger:
     dependencies:

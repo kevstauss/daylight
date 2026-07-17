@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { load } from "js-yaml";
-import type { Watchlist, WatchSubscription } from "./types.js";
+import type { GithubOrgWatch, Watchlist, WatchSubscription } from "./types.js";
 
 // Raw shape of config/watchlist.yaml (snake_case), before normalization.
 interface RawWatchlist {
@@ -13,6 +13,7 @@ interface RawWatchlist {
   central_security_allowlist?: string[];
   subdomain_flags?: { high?: string[]; notable?: string[] };
   known_subdomains_seen?: string[];
+  github_orgs?: { org?: string; apex?: string; high_signal?: boolean }[];
 }
 
 const lc = (xs: string[] | undefined): string[] =>
@@ -42,7 +43,18 @@ export function parseWatchlist(yamlText: string): Watchlist {
       notable: lc(raw.subdomain_flags?.notable),
     },
     knownSubdomainsSeen: lc(raw.known_subdomains_seen),
+    githubOrgs: parseGithubOrgs(raw.github_orgs),
   };
+}
+
+function parseGithubOrgs(raw: RawWatchlist["github_orgs"]): GithubOrgWatch[] {
+  return (raw ?? [])
+    .map((o) => ({
+      org: String(o?.org ?? "").trim(),
+      apex: o?.apex ? String(o.apex).trim().toLowerCase() : null,
+      highSignal: !!o?.high_signal,
+    }))
+    .filter((o) => o.org.length > 0);
 }
 
 /** Load and normalize the watchlist from a file path. */

@@ -4,6 +4,31 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Watching the federal build before it ships: GitHub repos as a Lookout signal — 2026-07-16
+
+Federal teams build much of the public web in the open, and a new code repository — or the first
+commit to an empty one — usually appears *before* the site it powers. Daylight now watches a short
+list of federal GitHub orgs for exactly that, as a new **Lookout** signal (it isn't a new tile —
+findings surface in Lookout's feed alongside new certificates and subdomains).
+
+- **What it watches.** The public GitHub repositories of `GSA`, `18F`, `cisagov`, `uswds`, and the
+  National Design Studio's `nationaldesignstudio` (a config list — [`/watchlist`](/watchlist)'s
+  `github_orgs`, easy to extend). A new repo, or a first commit landing on a known-empty one,
+  becomes a dated Lookout event linked to the repo. NDS has exactly one public repo today
+  (`rampart`), so a second one is genuinely newsworthy — and flagged accordingly.
+- **Existence-only, public API.** Read-only polling of GitHub's public REST API. An optional token
+  only raises the rate limit and needs no permissions; we never touch anything private.
+- **Built for low noise, on purpose.** We key on GitHub's immutable numeric repo id, so a
+  **rename** is never mistaken for a new repo. **Forks** and **archived** repos never emit. And we
+  deliberately do **not** report a repo *disappearing*: a repo missing from one poll can be a
+  transient API or pagination hiccup, not a deletion — the same "don't publish what you merely
+  didn't see" discipline the page-watching ledgers were rebuilt around. A repo that surfaces with an
+  old creation date is reported as *made public*, a distinct, higher-signal event from a fresh
+  create.
+- Off until `FLAG_GITHUB` + `DAYLIGHT_GITHUB_CRON` are set; a first run seeds a silent baseline so
+  the existing ~2,700 federal repos don't flood the feed. Like every scheduled job it reports its
+  own health to [`/status`](/status), so a dead poller can't hide behind Lookout's row.
+
 ## Site Scanning: a wide net that feeds Floodlight, never a verdict of its own — 2026-07-16
 
 The government scans its own public websites every day and publishes the results. Daylight now reads

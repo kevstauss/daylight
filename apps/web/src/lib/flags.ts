@@ -23,6 +23,9 @@ export interface Flags {
   /** Site Scanning breadth net — GSA daily scan ingest that promotes candidates into Floodlight.
    *  Not a module/tile; this flag gates the scheduled ingest + its /status row. */
   siteScanning: boolean;
+  /** Federal GitHub org monitoring — new repos / first commits surface as Lookout events. Not a
+   *  module/tile; this flag gates the scheduled poll + its 'github' /status row. */
+  github: boolean;
 }
 
 export function flags(): Flags {
@@ -37,5 +40,6 @@ export function flags(): Flags {
     redtape: flag("FLAG_REDTAPE"),
     foundry: flag("FLAG_FOUNDRY"),
     siteScanning: flag("FLAG_SITESCANNING"),
+    github: flag("FLAG_GITHUB"),
   };
 }

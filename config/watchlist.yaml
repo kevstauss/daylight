@@ -106,3 +106,15 @@ known_subdomains_seen:
   - rec.previews.ndstudio.gov                   # -> rec.gov (USDA / Forest Service)
   - early-careers.previews.ndstudio.gov         # -> earlycareers.gov (EOP / White House Office)
   - vote-gov-ndstudio.previews.ndstudio.gov     # second vote.gov build variant (-> vote.gov, EAC)
+
+# Federal GitHub orgs — a new repo / first commit is a leading indicator (code lands before the
+# site). Surfaced as Lookout events (module='lookout'). `apex` is the associated .gov (the event's
+# domain, for the /domain join); `high_signal: true` raises severity for a rare/newsworthy org.
+# Existence-only: public GitHub API reads, never authenticated past anything private. Org logins
+# verified live on github.com 2026-07-16.
+github_orgs:
+  - { org: nationaldesignstudio, apex: ndstudio.gov, high_signal: true }  # NDS (1 public repo — any new one is newsworthy)
+  - { org: cisagov, apex: cisa.gov }
+  - { org: GSA, apex: gsa.gov }
+  - { org: "18F", apex: gsa.gov }   # a GSA office; org + repos persist despite its 2025 wind-down
+  - { org: uswds, apex: gsa.gov }   # U.S. Web Design System (GSA/TTS)

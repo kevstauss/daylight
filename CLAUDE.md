@@ -179,6 +179,8 @@ pnpm ledger:backfill-first-seen  # one-time: rewrite domains.first_seen from ear
 pnpm redtape:assess   # turn Floodlight collection evidence into queued gaps
 pnpm sitescanning     # ingest GSA's daily federal-web scan; promote new-tracker sites into Floodlight
 pnpm sitescanning:seed  # silent baseline (populate site_scans, queue no promotions)
+pnpm github           # poll watched federal GitHub orgs for new repos/first commits (→ Lookout events)
+pnpm github:seed      # silent baseline (populate github_repos, emit no changes)
 pnpm analytics:reset  # wipe first-party analytics counts (--yes to confirm)
 ```
 

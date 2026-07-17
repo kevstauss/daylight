@@ -50,6 +50,13 @@ export interface WatchSubscription {
   target?: string;
 }
 
+/** A watched federal GitHub org (leading indicator: code often lands before the site). */
+export interface GithubOrgWatch {
+  org: string; // GitHub org login, e.g. "nationaldesignstudio"
+  apex: string | null; // associated federal .gov apex — the Change's domain, for the /domain join
+  highSignal: boolean; // rare/newsworthy org (a new repo there is a bigger event than in a busy org)
+}
+
 /** Parsed `config/watchlist.yaml` (camelCased, normalized). */
 export interface Watchlist {
   apexDomains: string[];
@@ -61,4 +68,5 @@ export interface Watchlist {
   centralSecurityAllowlist: string[];
   subdomainFlags: { high: string[]; notable: string[] };
   knownSubdomainsSeen: string[];
+  githubOrgs: GithubOrgWatch[];
 }

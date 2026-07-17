@@ -112,6 +112,14 @@ export const DATA_SOURCES: {
     phase: "Lookout (backfill live)",
   },
   {
+    name: "Federal GitHub organizations",
+    url: "https://docs.github.com/rest",
+    use: "Federal teams build a lot of their sites in the open on GitHub. A brand-new code repository — or the first commit to an empty one — often appears before the website it powers does, so we watch a short list of federal orgs and note when something new shows up.",
+    technical: "We poll the public GitHub REST API for the repositories of watched federal orgs (config/watchlist.yaml `github_orgs`: GSA, 18F, cisagov, uswds, nationaldesignstudio…), newest-created first, and diff against what we've seen. A new repo or a first commit becomes a Lookout event. We key on GitHub's immutable numeric repo id, so a rename is never mistaken for a new repo; forks never emit; and because a repo missing from one poll can be a transient API/pagination miss, we do not report removals. Existence-only: a public, read-only API (an optional token only lifts the rate limit and needs no scopes) — we never touch anything private.",
+    cadence: "Daily poll.",
+    phase: "Lookout (GitHub signal)",
+  },
+  {
     name: "Live public page source (Playwright)",
     url: "https://playwright.dev/",
     use: "We load a public government page the way your browser would, once, and write down what it loaded on its own — which trackers ran, whether it records your clicks, and whether it links a privacy notice. We never fill in or submit anything.",
