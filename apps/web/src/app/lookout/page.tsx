@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import type { SubdomainRow } from "@/lib/data";
-import { searchSubdomains, subdomainCount } from "@/lib/data";
+import type { ChangeRow, SubdomainRow } from "@/lib/data";
+import { githubActivity, githubRepoStats, searchSubdomains, subdomainCount } from "@/lib/data";
 import { flags } from "@/lib/flags";
-import { EmptyState, Panel, SeverityBadge, Timestamp } from "@/components/ui";
+import { EmptyState, Eyebrow, JumpRow, Panel, SeverityBadge, Timestamp } from "@/components/ui";
 import { ModuleIcon } from "@/components/module-icon";
 import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
 import { JsonLd } from "@/components/json-ld";
@@ -33,13 +33,16 @@ export default async function LookoutPage({
 }: {
   searchParams: Promise<{ [k: string]: string | string[] | undefined }>;
 }) {
-  if (!flags().lookout) notFound();
+  const f = flags();
+  if (!f.lookout) notFound();
   const sp = await searchParams;
   const q = str(sp.q);
   const severity = ["high", "notable", "info"].includes(str(sp.severity)) ? str(sp.severity) : undefined;
 
   const rows = safe(() => searchSubdomains({ q: q || undefined, severity, limit: 200 }), []);
   const total = safe(() => subdomainCount(), 0);
+  const ghEvents = f.github ? safe(() => githubActivity(30), [] as ChangeRow[]) : [];
+  const ghStats = f.github ? safe(() => githubRepoStats(), { repos: 0, orgs: 0 }) : { repos: 0, orgs: 0 };
 
   return (
     <div className="space-y-6">
@@ -51,10 +54,22 @@ export default async function LookoutPage({
           New <code className="font-mono text-ink">.gov</code> subdomains as they appear in public
           Certificate Transparency logs — flagged when a name looks like a preview/staging/infra
           host or mimics another agency&rsquo;s function. Existence-only: we note that a cert exists;
-          we never connect to the host. Watching {total.toLocaleString()} known subdomains.
+          we never connect to the host. Watching {total.toLocaleString()} known subdomains
+          {f.github ? ", plus new public repositories under watched federal GitHub orgs" : ""}.
         </p>
       </div>
 
+      {f.github ? (
+        <JumpRow
+          links={[
+            { href: "#subdomains", label: "new subdomains" },
+            { href: "#github", label: "federal GitHub activity" },
+          ]}
+        />
+      ) : null}
+
+      <section id="subdomains" className="scroll-mt-4 space-y-4">
+      {f.github ? <Eyebrow>lookout · new subdomains (certificate transparency)</Eyebrow> : null}
       <form action="/lookout" method="get" className="flex gap-2">
         {severity ? <input type="hidden" name="severity" value={severity} /> : null}
         <input
@@ -125,6 +140,52 @@ export default async function LookoutPage({
           </ul>
         </Panel>
       )}
+      </section>
+
+      {/* ── Federal GitHub activity — the same "existence, never access" watch, aimed at code ── */}
+      {f.github ? (
+        <section id="github" className="scroll-mt-4 space-y-3">
+          <Eyebrow>lookout · federal GitHub activity</Eyebrow>
+          <p className="max-w-2xl text-sm text-muted">
+            New public repositories and first commits under watched federal GitHub organizations,
+            from the public GitHub API. A repo appearing here is often the first public trace of a
+            project — sometimes before its <code className="font-mono text-ink">.gov</code> exists.
+            {ghStats.repos > 0
+              ? ` Tracking ${ghStats.repos.toLocaleString()} public repos across ${ghStats.orgs} org${ghStats.orgs === 1 ? "" : "s"}.`
+              : ""}
+          </p>
+          {ghEvents.length === 0 ? (
+            <EmptyState
+              title="No new repos observed yet."
+              hint="The watched orgs' existing repositories were baselined silently; an event lands here the first time a new repo or a first commit appears after that baseline."
+            />
+          ) : (
+            <Panel>
+              <ul className="divide-y divide-edge">
+                {ghEvents.map((c) => (
+                  <li key={c.id} className="flex items-start gap-3 px-4 py-3">
+                    <SeverityBadge severity={c.severity} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-ink">{c.reason}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-faint">
+                        <Link href={`/domain/${encodeURIComponent(c.domain)}`} className="link">
+                          {c.domain}
+                        </Link>
+                        <Timestamp iso={c.detected_at} prefix="observed" />
+                        {c.source_url ? (
+                          <a href={c.source_url} className="link" rel="nofollow noopener">
+                            source →
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }

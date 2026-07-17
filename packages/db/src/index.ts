@@ -1460,6 +1460,28 @@ export class DaylightDb {
       .all(org) as GithubRepoRow[];
   }
 
+  /** GitHub-sourced Lookout events (new repo / first commit). They share module='lookout' with the
+   *  CT subdomain events; the repo URL in source_url is what tells them apart — every GitHub event
+   *  carries the repo as its provenance link, and no CT event points at github.com. */
+  githubActivity(limit = 30): ChangeRow[] {
+    const n = Math.max(1, Math.min(200, Math.floor(limit)));
+    return this.sql
+      .prepare(
+        `SELECT * FROM changes
+          WHERE module = 'lookout' AND source_url LIKE 'https://github.com/%'
+          ORDER BY detected_at DESC, id DESC LIMIT ${n}`,
+      )
+      .all() as ChangeRow[];
+  }
+
+  /** How much of federal GitHub the watch covers — honest "we ARE watching" copy for a page that
+   *  may have zero events (the baseline seeds silently). */
+  githubRepoStats(): { repos: number; orgs: number } {
+    return this.sql
+      .prepare(`SELECT COUNT(*) AS repos, COUNT(DISTINCT org) AS orgs FROM github_repos`)
+      .get() as { repos: number; orgs: number };
+  }
+
   // ---- ads (Broadside — module 7; federal ad buys from a public ad library) --------------------
 
   /** Upsert an observed ad keyed on ad_key ('<platform>:<id>'). On repeat, advance last_seen and

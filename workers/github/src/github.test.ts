@@ -215,6 +215,32 @@ describe("runGithubWatch", () => {
     expect(lookoutChanges(d).length).toBe(n); // no duplicates on re-poll
   });
 
+  it("githubActivity returns only GitHub-sourced lookout events, not CT subdomain events", async () => {
+    const d = db();
+    await baseline(d);
+    await runGithubWatch({
+      db: d,
+      orgs: ORGS,
+      now: NOW,
+      fetchRepos: fetcher({ nationaldesignstudio: [repo(1)] }),
+    });
+    // A CT-sourced lookout event shares the module but points at crt.sh, not github.com.
+    d.insertChange({
+      module: "lookout",
+      domain: "ndstudio.gov",
+      detectedAt: NOW,
+      kind: "added",
+      severity: "notable",
+      reason: "new subdomain previews.ndstudio.gov",
+      sourceUrl: "https://crt.sh/?q=previews.ndstudio.gov",
+    });
+    expect(lookoutChanges(d)).toHaveLength(2); // both live under module='lookout'
+    const gh = d.githubActivity();
+    expect(gh).toHaveLength(1);
+    expect(gh[0]?.source_url).toBe("https://github.com/org/r1");
+    expect(d.githubRepoStats()).toEqual({ repos: 1, orgs: 1 });
+  });
+
   it("records a failed poll to /status without throwing", async () => {
     const d = db();
     const r = await runGithubWatch({

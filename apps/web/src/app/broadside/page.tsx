@@ -9,7 +9,7 @@ import {
   broadsideSpendByCategory,
 } from "@/lib/data";
 import { flags } from "@/lib/flags";
-import { EmptyState, Panel, SeverityBadge, Timestamp } from "@/components/ui";
+import { EmptyState, JumpRow, Panel, SeverityBadge, Timestamp } from "@/components/ui";
 import { ModuleIcon } from "@/components/module-icon";
 import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
 import { JsonLd } from "@/components/json-ld";
@@ -63,8 +63,17 @@ export default function BroadsidePage() {
         </p>
       </div>
 
+      <JumpRow
+        links={[
+          { href: "#spend", label: "spend by category" },
+          { href: "#activity", label: "recent activity" },
+          { href: "#new-ads", label: "new ads" },
+          ...(pulled.length > 0 ? [{ href: "#pulled", label: "quietly pulled" }] : []),
+        ]}
+      />
+
       {/* Estimated spend by category — summed as a range. */}
-      <section className="space-y-2">
+      <section id="spend" className="scroll-mt-4 space-y-2">
         <h2 className="text-sm font-semibold text-ink">Estimated spend by category</h2>
         {categories.length === 0 ? (
           <EmptyState title="No ad spend observed yet." hint="Watched advertisers' ads will appear here once the archive is polled." />
@@ -97,7 +106,7 @@ export default function BroadsidePage() {
       </section>
 
       {/* Changes in spend + new-ad events. */}
-      <section className="space-y-2">
+      <section id="activity" className="scroll-mt-4 space-y-2">
         <h2 className="text-sm font-semibold text-ink">Recent activity</h2>
         {recent.length === 0 ? (
           <EmptyState title="No ad activity recorded yet." hint="New ads and spend-range increases will be logged here as they're observed." />
@@ -123,7 +132,7 @@ export default function BroadsidePage() {
       </section>
 
       {/* New ads. */}
-      <section className="space-y-2">
+      <section id="new-ads" className="scroll-mt-4 space-y-2">
         <h2 className="text-sm font-semibold text-ink">New ads (last 90 days)</h2>
         {fresh.length === 0 ? (
           <EmptyState title="No new ads observed." />
@@ -156,7 +165,7 @@ export default function BroadsidePage() {
 
       {/* Quietly pulled — still declared running, no longer seen. */}
       {pulled.length > 0 ? (
-        <section className="space-y-2">
+        <section id="pulled" className="scroll-mt-4 space-y-2">
           <h2 className="text-sm font-semibold text-ink">Quietly pulled</h2>
           <p className="text-xs text-muted">
             Ads still declared running by the advertiser that we have stopped seeing in the archive —

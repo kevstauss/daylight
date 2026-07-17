@@ -12,7 +12,7 @@ import {
   type SnapshotRow,
 } from "@/lib/data";
 import { flags } from "@/lib/flags";
-import { EmptyState, Eyebrow, Panel, SeverityBadge, Timestamp } from "@/components/ui";
+import { EmptyState, Eyebrow, JumpRow, Panel, SeverityBadge, Timestamp } from "@/components/ui";
 import { ModuleIcon } from "@/components/module-icon";
 import { pageMetadata, PAGE_DESCRIPTIONS } from "@/lib/seo";
 import { JsonLd } from "@/components/json-ld";
@@ -64,8 +64,16 @@ export default function ReceiptsPage() {
         </p>
       </div>
 
+      <JumpRow
+        links={[
+          { href: "#removals", label: "what quietly changed" },
+          ...(uncaptured.length > 0 ? [{ href: "#uncaptured", label: "never captured" }] : []),
+          { href: "#watching", label: "what we're watching" },
+        ]}
+      />
+
       {/* ── What quietly changed: the removal ledger ── */}
-      <section className="space-y-3">
+      <section id="removals" className="scroll-mt-4 space-y-3">
         <Eyebrow>receipts · what quietly changed</Eyebrow>
         {ledger.length === 0 ? (
           <EmptyState
@@ -106,7 +114,7 @@ export default function ReceiptsPage() {
 
       {/* ── Watched, but nothing to diff: pages we cannot see at all ── */}
       {uncaptured.length > 0 ? (
-        <section className="space-y-3">
+        <section id="uncaptured" className="scroll-mt-4 space-y-3">
           <Eyebrow>receipts · watched, never captured</Eyebrow>
           <Panel>
             <p className="border-b border-edge px-4 py-2.5 text-xs text-muted">
@@ -143,7 +151,7 @@ export default function ReceiptsPage() {
       ) : null}
 
       {/* ── What we're watching now: the coverage baseline ── */}
-      <section className="space-y-3">
+      <section id="watching" className="scroll-mt-4 space-y-3">
         <Eyebrow>receipts · what we&rsquo;re watching</Eyebrow>
         {coverage.length === 0 ? (
           <EmptyState

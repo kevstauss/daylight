@@ -4,6 +4,23 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Federal GitHub activity is now visible on the Lookout page — 2026-07-17
+
+The GitHub watch shipped as a feed signal: a new federal repo landed in Lookout's RSS and the
+homepage activity stream, but a visitor browsing [`/lookout`](/lookout) itself would never see it.
+Now the page shows both of Lookout's watches.
+
+- **A "Federal GitHub activity" section on `/lookout`** lists new public repositories and first
+  commits under the watched federal orgs, each linked to the repo and the owning agency's domain
+  page — alongside the honest coverage line (how many public repos, across how many orgs, are being
+  watched), so an empty event list reads as "watching, nothing new" rather than "not looking."
+- **The Lookout feed says what it carries.** Its self-description predated the GitHub signal and
+  still said "new .gov subdomains" — literally under-true. It now names both sources.
+- **Jump links on stacked pages.** Pages that stack more than one long list ([`/receipts`](/receipts)'
+  removal ledger, never-captured pages, and coverage baseline; now `/lookout`'s two watches) have an
+  "on this page" row of anchor links, so the list below the fold is discoverable — the same pattern
+  as the per-domain answer strip.
+
 ## Floodlight now records which Meta pixel is on the page, not just that one is — 2026-07-17
 
 Groundwork for an upcoming module (Broadside) that watches federal ad spending. Detecting the Meta

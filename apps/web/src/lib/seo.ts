@@ -95,7 +95,7 @@ export const PAGE_DESCRIPTIONS = {
   ledger:
     "A timestamped, source-linked record of every change to who owns each federal .gov domain and who its security contact is — diffed daily from CISA's public registry.",
   lookout:
-    "New federal .gov subdomains the day their TLS certificate first appears in public Certificate Transparency logs — existence only, never probed.",
+    "New federal .gov subdomains the day their TLS certificate first appears in public Certificate Transparency logs, plus new public repos under watched federal GitHub orgs — existence only, never probed.",
   floodlight:
     "Which trackers, session-replay tools, and analytics run on federal .gov pages — observed by loading each public page once, the way a browser would.",
   receipts:

@@ -20,9 +20,9 @@ export function GET(req: Request): Response {
     rows = [];
   }
   const feed = renderJsonFeed(toFeedEntries(rows), {
-    title: `${SITE_NAME} — new subdomains${severity ? ` (${severity})` : ""}`,
+    title: `${SITE_NAME} — Lookout activity${severity ? ` (${severity})` : ""}`,
     description:
-      "New .gov subdomains as they appear in public Certificate Transparency logs, flagged and enriched with the apex owner.",
+      "New .gov subdomains as they appear in public Certificate Transparency logs, plus new public repositories under watched federal GitHub orgs — flagged and enriched with the apex owner.",
     siteUrl: origin,
     feedUrl: `${origin}/lookout/feed.json${severity ? `?severity=${severity}` : ""}`,
   });

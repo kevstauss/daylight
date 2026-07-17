@@ -181,6 +181,15 @@ export function lookoutChanges(opts: { severity?: string; limit?: number } = {})
   return getDb().listChanges({ module: "lookout", severity: opts.severity, limit: opts.limit ?? 50 });
 }
 
+/** GitHub-sourced Lookout events (new repo / first commit under a watched federal org). */
+export function githubActivity(limit = 30): ChangeRow[] {
+  return getDb().githubActivity(limit);
+}
+
+export function githubRepoStats(): { repos: number; orgs: number } {
+  return getDb().githubRepoStats();
+}
+
 export function subdomainsForApex(apex: string): SubdomainRow[] {
   return getDb().subdomainsByApex(apex);
 }

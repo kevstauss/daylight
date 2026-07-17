@@ -100,6 +100,29 @@ export function InternalLink({ href, children }: { href: string; children: React
   );
 }
 
+/** In-page anchor links for a page that stacks more than one long list — the second list is easy
+ *  to miss below the first's fold. Pair each link with a section carrying that id + scroll-mt-4
+ *  (the /domain answer strip is the original of this pattern). */
+export function JumpRow({ links }: { links: { href: string; label: string }[] }) {
+  return (
+    <nav
+      aria-label="Sections on this page"
+      className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs"
+    >
+      <span className="text-faint">on this page:</span>
+      {links.map((l) => (
+        <a
+          key={l.href}
+          href={l.href}
+          className="text-muted underline decoration-dotted underline-offset-2 hover:text-ink"
+        >
+          {l.label}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
 /** Graceful empty state — an invitation, in the interface's voice (never an apology). */
 export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
