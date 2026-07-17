@@ -9,8 +9,10 @@ import type {
   DomainRow,
   GapRow,
   ObservationRow,
+  PromotionCandidateRow,
   ScanRow,
   ScorecardRow,
+  SiteScanRow,
   SnapshotRow,
   SubdomainRow,
 } from "./rows.js";
@@ -1283,6 +1285,119 @@ export class DaylightDb {
     return this.sql.prepare(`DELETE FROM analytics_hits`).run().changes;
   }
 
+  // ---- site_scans + promotion queue (Site Scanning breadth net) -----------
+  // Breadth infrastructure that feeds Floodlight; writes NO changes and has no tile/feed.
+
+  /** Upsert the latest GSA scan row for a URL. On repeat, advance the timestamps + refresh the
+   *  scanned fields. Returns changed=false when the row is byte-identical to what we already hold
+   *  (content_hash match) so the caller can skip diffing an unchanged row. */
+  upsertSiteScan(s: SiteScanInput, observedAt: string): { changed: boolean } {
+    const prior = this.sql
+      .prepare(`SELECT content_hash FROM site_scans WHERE url = ?`)
+      .get(s.url) as { content_hash: string } | undefined;
+    const changed = !prior || prior.content_hash !== s.contentHash;
+    this.sql
+      .prepare(
+        `INSERT INTO site_scans
+           (url, domain, scanned_at, observed_at, source_url, primary_scan_status, dap, ga_tag_id,
+            third_party_domains_json, third_party_count, content_hash)
+         VALUES
+           (@url, @domain, @scannedAt, @observedAt, @sourceUrl, @primaryScanStatus, @dap, @gaTagId,
+            @thirdPartyDomainsJson, @thirdPartyCount, @contentHash)
+         ON CONFLICT(url) DO UPDATE SET
+           domain = excluded.domain, scanned_at = excluded.scanned_at, observed_at = excluded.observed_at,
+           source_url = excluded.source_url, primary_scan_status = excluded.primary_scan_status,
+           dap = excluded.dap, ga_tag_id = excluded.ga_tag_id,
+           third_party_domains_json = excluded.third_party_domains_json,
+           third_party_count = excluded.third_party_count, content_hash = excluded.content_hash`,
+      )
+      .run({
+        url: s.url,
+        domain: s.domain,
+        scannedAt: s.scannedAt,
+        observedAt,
+        sourceUrl: s.sourceUrl,
+        primaryScanStatus: s.primaryScanStatus ?? null,
+        dap: s.dap === null || s.dap === undefined ? null : s.dap ? 1 : 0,
+        gaTagId: s.gaTagId ?? null,
+        thirdPartyDomainsJson: JSON.stringify(s.thirdPartyDomains ?? []),
+        thirdPartyCount: s.thirdPartyCount ?? null,
+        contentHash: s.contentHash,
+      });
+    return { changed };
+  }
+
+  getSiteScan(url: string): SiteScanRow | null {
+    const row = this.sql.prepare(`SELECT * FROM site_scans WHERE url = ?`).get(url) as
+      | SiteScanRow
+      | undefined;
+    return row ?? null;
+  }
+
+  /** Every site_scan row (uncapped) — the ingest's "previous state" snapshot for diffing, loaded
+   *  BEFORE the run's writes so a diff never compares against a row this same run just upserted. */
+  allSiteScans(): SiteScanRow[] {
+    return this.sql.prepare(`SELECT * FROM site_scans ORDER BY url ASC`).all() as SiteScanRow[];
+  }
+
+  /** Every Site-Scanning row for an apex (a domain may have several scanned URLs), newest first.
+   *  Powers corroboration: "the government's own scanner also reports these third parties". */
+  siteScansByDomain(domain: string): SiteScanRow[] {
+    return this.sql
+      .prepare(`SELECT * FROM site_scans WHERE domain = ? ORDER BY scanned_at DESC, url ASC`)
+      .all(domain.trim().toLowerCase()) as SiteScanRow[];
+  }
+
+  /** Enqueue (or refresh) a .gov apex for a full Floodlight pass. Idempotent on domain: a repeat
+   *  advances last_seen + refreshes the reason/source, keeping the first_seen. */
+  enqueuePromotion(p: PromotionInput, seenAt: string): { inserted: boolean } {
+    const existed = this.sql
+      .prepare(`SELECT 1 FROM promotion_candidates WHERE domain = ?`)
+      .get(p.domain) as unknown;
+    this.sql
+      .prepare(
+        `INSERT INTO promotion_candidates (domain, reason, source_url, first_seen, last_seen)
+         VALUES (@domain, @reason, @sourceUrl, @seenAt, @seenAt)
+         ON CONFLICT(domain) DO UPDATE SET
+           reason = excluded.reason, source_url = excluded.source_url, last_seen = excluded.last_seen`,
+      )
+      .run({ domain: p.domain, reason: p.reason, sourceUrl: p.sourceUrl, seenAt });
+    return { inserted: !existed };
+  }
+
+  /**
+   * The promoted DYNAMIC watch tier: .gov apexes Site Scanning queued that Floodlight has NOT looked
+   * at SINCE the promotion was (re)queued. sweepTargets() unions this so a flagged site gets one
+   * browser-accurate look. The recency test (scorecard scanned_at >= candidate last_seen) is
+   * deliberate: a domain scanned clean long ago, then re-flagged because a NEW tracker appeared
+   * (which advances last_seen), must be promoted AGAIN — a stale scorecard must not block a fresh
+   * finding. Once Floodlight scans it after the (re)queue, it drops out (retention then handled by
+   * keptWatchDomains if the scan found something). Capped so a backlog of un-loadable (gated/
+   * erroring) hosts, which never earn a scorecard, can't grow the sweep without bound.
+   */
+  promotedWatchDomains(limit = 200): string[] {
+    const n = Math.max(1, Math.min(limit, 1000));
+    return (
+      this.sql
+        .prepare(
+          `SELECT p.domain FROM promotion_candidates p
+             WHERE NOT EXISTS (
+               SELECT 1 FROM scorecards s WHERE s.domain = p.domain AND s.scanned_at >= p.last_seen
+             )
+           ORDER BY p.last_seen DESC, p.domain ASC LIMIT ${n}`,
+        )
+        .all() as { domain: string }[]
+    ).map((r) => r.domain);
+  }
+
+  /** All queued promotion candidates, newest first — for a status/debug read (not a public path). */
+  listPromotionCandidates(limit = 200): PromotionCandidateRow[] {
+    const n = Math.max(1, Math.min(limit, 1000));
+    return this.sql
+      .prepare(`SELECT * FROM promotion_candidates ORDER BY last_seen DESC, id DESC LIMIT ${n}`)
+      .all() as PromotionCandidateRow[];
+  }
+
   close(): void {
     this.sql.close();
   }
@@ -1349,6 +1464,26 @@ export interface SubdomainInput {
   flagReason?: string | null;
   apexOwnerOrg?: string | null;
   apexOwnerSuborg?: string | null;
+}
+
+export interface SiteScanInput {
+  url: string;
+  domain: string;
+  scannedAt: string;
+  sourceUrl: string;
+  primaryScanStatus?: string | null;
+  dap?: boolean | null;
+  gaTagId?: string | null;
+  thirdPartyDomains?: string[];
+  thirdPartyCount?: number | null;
+  /** sha256 of the canonical scan payload — lets upsertSiteScan report an unchanged row. */
+  contentHash: string;
+}
+
+export interface PromotionInput {
+  domain: string;
+  reason: string;
+  sourceUrl: string;
 }
 
 // ---- singleton + convenience free functions (the §3.4 surface) -------------

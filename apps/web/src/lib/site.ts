@@ -120,6 +120,14 @@ export const DATA_SOURCES: {
     phase: "Floodlight (live)",
   },
   {
+    name: "GSA Site Scanning (federal web scan)",
+    url: "https://open.gsa.gov/api/site-scanning-api/",
+    use: "The government scans its own public websites every day and publishes the results. We read that daily list to spot when a new tracker or analytics tag shows up on a federal site — and when we and the government's own scan agree, that's a finding that's much harder to wave off. It's a wide, cheap net; Floodlight is the close-up look.",
+    technical: "We download GSA/TTS's public daily bulk scan of the federal web (~12.6k live sites, one HTTP GET behind a free api.data.gov key) and diff it per URL. When a new, non-benign third-party service or the site's own Google Analytics tag (distinct from the government-wide Digital Analytics Program) appears on a .gov we don't already watch, we QUEUE that apex for a full Floodlight pass rather than trusting the scan — signature scanning is breadth, Floodlight's browser capture is depth. Two limits stated plainly: (1) it detects only KNOWN third parties by domain/tag, so a first-party endpoint on the .gov itself serving an analytics-shaped payload (the reverse-proxy disguise Floodlight exists to catch) is invisible to it by construction — a clean row is never evidence of \"no tracking\"; (2) a scan can time out, and a timeout is not an absence, so we only read a tracker as newly-appeared when the government's scan completed on both the before and after.",
+    cadence: "Daily (GSA refreshes the dump ~daily; one bulk download).",
+    phase: "Site Scanning (breadth net → Floodlight)",
+  },
+  {
     name: "DuckDuckGo Tracker Radar",
     url: "https://github.com/duckduckgo/tracker-radar",
     use: "An open, public catalog of known trackers and what they do. We use it to recognize the trackers we see on a page.",

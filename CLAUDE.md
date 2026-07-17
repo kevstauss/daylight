@@ -177,6 +177,8 @@ pnpm ledger:seed      # silent baseline (populate state, emit no changes)
 pnpm ledger:history   # replay the full CISA git history (dated backfill)
 pnpm ledger:backfill-first-seen  # one-time: rewrite domains.first_seen from earliest `added` date
 pnpm redtape:assess   # turn Floodlight collection evidence into queued gaps
+pnpm sitescanning     # ingest GSA's daily federal-web scan; promote new-tracker sites into Floodlight
+pnpm sitescanning:seed  # silent baseline (populate site_scans, queue no promotions)
 pnpm analytics:reset  # wipe first-party analytics counts (--yes to confirm)
 ```
 

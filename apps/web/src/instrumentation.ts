@@ -22,6 +22,10 @@ function sweepTargets(database: DaylightDb, ...staticTiers: string[]): string[] 
     ...staticTiers,
     ...database.recentlyAddedDomains(cutoff),
     ...database.keptWatchDomains(),
+    // Site Scanning's promotion queue: unwatched .gov apexes where GSA's daily scan saw a new,
+    // non-benign third party. A flagged site gets one browser-accurate Floodlight look rather than
+    // being trusted on the signature scan alone; it drops out once a scorecard exists.
+    ...database.promotedWatchDomains(),
   ];
   return [...new Set(all.map((h) => h.toLowerCase()))].filter((h) => h.endsWith(".gov"));
 }
@@ -35,9 +39,14 @@ export async function register(): Promise<void> {
   const receiptsCron = process.env.DAYLIGHT_RECEIPTS_CRON?.trim();
   const redtapeCron = process.env.DAYLIGHT_REDTAPE_CRON?.trim();
   const foundryCron = process.env.DAYLIGHT_FOUNDRY_CRON?.trim();
-  if (!ledgerCron && !lookoutCron && !floodlightCron && !receiptsCron && !redtapeCron && !foundryCron) return;
+  const sitescanningCron = process.env.DAYLIGHT_SITESCANNING_CRON?.trim();
+  if (
+    !ledgerCron && !lookoutCron && !floodlightCron && !receiptsCron && !redtapeCron &&
+    !foundryCron && !sitescanningCron
+  )
+    return;
 
-  const [{ default: cron }, core, db, ledger, lookout, floodlight, receipts, receiptsSweep, redtape, foundry, repo] =
+  const [{ default: cron }, core, db, ledger, lookout, floodlight, receipts, receiptsSweep, redtape, foundry, sitescanning, repo] =
     await Promise.all([
       import("node-cron"),
       import("@daylight/core"),
@@ -49,6 +58,7 @@ export async function register(): Promise<void> {
       import("@daylight/receipts/sweep"),
       import("@daylight/redtape"),
       import("@daylight/foundry"),
+      import("@daylight/sitescanning"),
       import("./lib/repoFile"),
     ]);
 
@@ -282,6 +292,45 @@ export async function register(): Promise<void> {
       console.log(`[foundry:cron] scheduled '${foundryCron}' (UTC)`);
     } else {
       console.warn(`[foundry] invalid DAYLIGHT_FOUNDRY_CRON: ${foundryCron}`);
+    }
+  }
+
+  // ---- Site Scanning (breadth net: GSA's daily federal-web scan → promote candidates into Floodlight) ----
+  // Not a module — writes no changes. It downloads GSA's public daily dump, diffs it, and queues an
+  // unwatched .gov apex for a full Floodlight pass when a new non-benign third party appears (picked
+  // up by sweepTargets → promotedWatchDomains). Needs the free GSA key; skips cleanly without it.
+  const runSiteScanning = async (): Promise<void> => {
+    // FLAG_SITESCANNING is a real kill switch (its documented job): with it off, the ingest does not
+    // run and /status honestly shows the module as deferred, rather than mutating the Floodlight
+    // sweep while /status claims it's off.
+    if (!core.flag("FLAG_SITESCANNING")) {
+      console.warn("[sitescanning:cron] skipped — FLAG_SITESCANNING off");
+      return;
+    }
+    if (!process.env.GSA_SITE_SCANNING_API_KEY?.trim()) {
+      console.warn("[sitescanning:cron] skipped — GSA_SITE_SCANNING_API_KEY not set");
+      return;
+    }
+    const database = db.createDb(db.resolveDbPath());
+    try {
+      const r = await sitescanning.runSiteScan({ db: database });
+      console.log(
+        `[sitescanning:cron] ${r.itemsSeen} rows, ${r.changed} changed, ${r.promoted} promoted` +
+          (r.ok ? "" : ` — ERROR: ${r.error}`),
+      );
+    } catch (err) {
+      console.error("[sitescanning] run error", err);
+    } finally {
+      database.close();
+    }
+  };
+
+  if (sitescanningCron) {
+    if (cron.validate(sitescanningCron)) {
+      cron.schedule(sitescanningCron, () => void runSiteScanning(), { timezone: "UTC" });
+      console.log(`[sitescanning:cron] scheduled '${sitescanningCron}' (UTC)`);
+    } else {
+      console.warn(`[sitescanning] invalid DAYLIGHT_SITESCANNING_CRON: ${sitescanningCron}`);
     }
   }
 }

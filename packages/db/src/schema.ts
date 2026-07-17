@@ -186,4 +186,44 @@ CREATE TABLE IF NOT EXISTS analytics_hits (
   PRIMARY KEY (day, path, ref_kind, ref_host)
 );
 CREATE INDEX IF NOT EXISTS ix_analytics_day ON analytics_hits(day);
+
+-- Site Scanning (breadth net): the latest row of GSA's daily federal-web scan per scanned URL.
+-- This is BREADTH infrastructure feeding Floodlight (depth) — it is deliberately NOT a module: it
+-- writes NO changes and has no tile/feed. Its two jobs: (1) promote an unwatched .gov into the
+-- Floodlight sweep when a new third party appears (see promotion_candidates); (2) corroborate a
+-- Floodlight finding against the government's own scanner. Signature-based, so it is blind by
+-- construction to the first-party reverse-proxy disguise Floodlight exists to catch — a clean
+-- Site-Scanning row is NEVER evidence of "no tracking". primary_scan_status carries the literal
+-- 'timeout'/error enum: a failed scan is NOT an absence (mirrors the scorecards/snapshots settled rule).
+CREATE TABLE IF NOT EXISTS site_scans (
+  id INTEGER PRIMARY KEY,
+  url TEXT UNIQUE NOT NULL,            -- the scanned final URL (idempotency + upsert key)
+  domain TEXT NOT NULL,               -- registrable .gov apex (base_domain; join key to domains.domain)
+  scanned_at TEXT NOT NULL,           -- scan_date from the dump
+  observed_at TEXT NOT NULL,          -- when Daylight ingested this row
+  source_url TEXT NOT NULL,           -- the GSA bulk-CSV URL this was read from (re-verifiable)
+  primary_scan_status TEXT,           -- 'completed' | 'timeout' | 'unknown_error' | … (absence only when 'completed')
+  dap INTEGER,                        -- 0/1 — Digital Analytics Program (government-wide analytics) present
+  ga_tag_id TEXT,                     -- the site's Google Analytics tag id (may be DAP's; null = none)
+  third_party_domains_json TEXT,      -- JSON array of third-party service hostnames the scan saw
+  third_party_count INTEGER,
+  content_hash TEXT NOT NULL          -- sha256 of the canonical scan payload (cheap unchanged-row skip)
+);
+CREATE INDEX IF NOT EXISTS ix_sitescan_domain ON site_scans(domain, scanned_at DESC);
+
+-- Promotion queue: .gov apexes Site Scanning flagged for a full Floodlight pass because a NEW,
+-- non-benign third party (or the site's own GA, distinct from DAP) appeared. This is the ONLY new
+-- writable "candidate" table (recentlyAddedDomains/keptWatchDomains are derived); sweepTargets unions
+-- promotedWatchDomains() so a flagged site gets browser-accurate inspection rather than being trusted
+-- on the signature scan alone. Self-limiting: a candidate drops out of promotedWatchDomains() once
+-- Floodlight has produced a scorecard for it (retention then handled by keptWatchDomains).
+CREATE TABLE IF NOT EXISTS promotion_candidates (
+  id INTEGER PRIMARY KEY,
+  domain TEXT UNIQUE NOT NULL,        -- registrable .gov apex to add to the sweep
+  reason TEXT NOT NULL,               -- human-readable ("GSA Site Scanning: new third party <host> on <url>")
+  source_url TEXT NOT NULL,           -- the GSA scan URL evidence (re-verifiable)
+  first_seen TEXT NOT NULL,
+  last_seen TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_promotion_last ON promotion_candidates(last_seen DESC);
 `;

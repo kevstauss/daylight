@@ -13,6 +13,10 @@ const CADENCE: Record<string, { maxHours: number; expected: string; flag: keyof 
   receipts: { maxHours: 24 * 5, expected: "twice weekly (Mon & Thu)", flag: "receipts" },
   redtape: { maxHours: 24 * 5, expected: "twice weekly (Mon & Thu)", flag: "redtape" },
   foundry: { maxHours: 36, expected: "daily", flag: "foundry" },
+  // Site Scanning ingests GSA's daily bulk dump (~1-day lag), so a >36h gap is overdue. It is
+  // breadth infrastructure feeding Floodlight, not a module — but a silently-dead ingest still
+  // needs to surface here, the same reason every scheduled job records a scan heartbeat.
+  sitescanning: { maxHours: 36, expected: "daily", flag: "siteScanning" },
 };
 
 export type ModuleState = "ok" | "overdue" | "error" | "running" | "not-scanned" | "deferred";

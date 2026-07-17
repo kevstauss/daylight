@@ -166,6 +166,32 @@ export interface AnalyticsHitRow {
   count: number;
 }
 
+/** The latest GSA Site-Scanning row for one scanned URL (breadth net; see schema.ts). */
+export interface SiteScanRow {
+  id: number;
+  url: string;
+  domain: string;
+  scanned_at: string;
+  observed_at: string;
+  source_url: string;
+  primary_scan_status: string | null; // 'completed' | 'timeout' | … — absence only when 'completed'
+  dap: number | null; // 0/1
+  ga_tag_id: string | null;
+  third_party_domains_json: string | null; // JSON array of hostnames
+  third_party_count: number | null;
+  content_hash: string;
+}
+
+/** A .gov apex Site Scanning flagged for a full Floodlight pass (see schema.ts). */
+export interface PromotionCandidateRow {
+  id: number;
+  domain: string;
+  reason: string;
+  source_url: string;
+  first_seen: string;
+  last_seen: string;
+}
+
 /** Map a persisted domains row back to the normalized DomainRecord contract. */
 export function rowToDomainRecord(row: DomainRow): DomainRecord {
   return {

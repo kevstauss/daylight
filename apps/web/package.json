@@ -21,6 +21,7 @@
     "@daylight/lookout": "workspace:*",
     "@daylight/receipts": "workspace:*",
     "@daylight/redtape": "workspace:*",
+    "@daylight/sitescanning": "workspace:*",
     "marked": "^14.1.4",
     "next": "^15.1.3",
     "node-cron": "^3.0.3",

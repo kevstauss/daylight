@@ -4,6 +4,35 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Site Scanning: a wide net that feeds Floodlight, never a verdict of its own — 2026-07-16
+
+The government scans its own public websites every day and publishes the results. Daylight now reads
+that scan — but as **breadth that makes Floodlight better, not a seventh thing on the homepage.** It
+writes no public changes; it does two quiet jobs.
+
+- **It promotes, it doesn't accuse.** Each day we download GSA's public federal-web scan (~12,600
+  live sites, one HTTP GET) and diff it per URL. When a new, non-benign third party — an ad pixel, a
+  session-replay vendor, a social tracker — appears on a `.gov` we don't already watch, we queue that
+  site for a full **Floodlight** browser pass rather than publishing the scan's word. A promoted site
+  drops out of the queue the moment Floodlight has actually looked at it.
+- **A clean scan is never "no tracking," and we say so.** Site Scanning finds *known* third parties
+  by domain and tag. A first-party endpoint on the `.gov` itself, serving a payload shaped like an
+  analytics beacon — the reverse-proxy disguise that put `trumprx.gov` on the map — is invisible to it
+  by construction: the request never leaves the government domain, so no third party appears. That is
+  the entire reason Floodlight exists and the entire reason this layer can't replace it. It is stated
+  in plain language on [`/methods`](/methods).
+- **A timeout is not an absence.** GSA's scan records failures as a status, not as missing data. We
+  only read a tracker as *newly appeared* when the government's own scan **completed on both the
+  before and the after** — the same settled-both-sides rule already governing Floodlight and Receipts,
+  now applied to a third source so a failed scan can't manufacture a "new tracker."
+- **Corroboration is the point.** When our browser capture and the government's own scanner agree that
+  a tracker is present, that agreement is much harder to wave off. The scan is stored per site for
+  exactly that cross-check.
+- The Digital Analytics Program (the government-wide analytics) and its Google/CDN/font plumbing are
+  expected and never promote; a site's *own* Google Analytics, distinct from DAP, does. Off until a
+  free `GSA_SITE_SCANNING_API_KEY` is set, and — like every scheduled job — it reports to
+  [`/status`](/status) so a silently-dead ingest surfaces.
+
 ## The ledgers were measuring the crawler, not the sites — 2026-07-15
 
 An audit of every published change found the same defect in both page-watching modules, in five

@@ -20,6 +20,9 @@ export interface Flags {
   redtape: boolean;
   /** Phase 6 — /foundry vendor build-graph (CT×registry join). */
   foundry: boolean;
+  /** Site Scanning breadth net — GSA daily scan ingest that promotes candidates into Floodlight.
+   *  Not a module/tile; this flag gates the scheduled ingest + its /status row. */
+  siteScanning: boolean;
 }
 
 export function flags(): Flags {
@@ -33,5 +36,6 @@ export function flags(): Flags {
     receipts: flag("FLAG_RECEIPTS"),
     redtape: flag("FLAG_REDTAPE"),
     foundry: flag("FLAG_FOUNDRY"),
+    siteScanning: flag("FLAG_SITESCANNING"),
   };
 }
