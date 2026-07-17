@@ -76,6 +76,16 @@ export function ModuleIcon({ name, className }: { name: string; className?: stri
           <path d="M8.2 13 L17 18.6" />
         </svg>
       );
+    // Broadside — a megaphone broadcasting outward (paid advertising).
+    case "broadside":
+      return (
+        <svg {...common}>
+          <path d="M3.5 10 h4 l7 -3 v10 l-7 -3 h-4 z" />
+          <line x1="6" y1="14" x2="6" y2="17.5" />
+          <path d="M17.5 9.5 a4.5 4.5 0 0 1 0 5" />
+          <path d="M20 7.5 a8 8 0 0 1 0 9" />
+        </svg>
+      );
     default:
       return null;
   }

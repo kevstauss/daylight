@@ -263,6 +263,7 @@ CREATE TABLE IF NOT EXISTS ads (
   ad_key TEXT UNIQUE NOT NULL,          -- '<platform>:<platform ad id>' — the idempotency key
   platform TEXT NOT NULL,               -- 'meta' | 'google'
   domain TEXT NOT NULL,                 -- associated federal .gov apex (join to /domain), from config
+  category TEXT,                        -- spend-aggregation bucket ('by category'), from config
   advertiser TEXT,                      -- advertiser / page display name
   advertiser_id TEXT,                   -- platform page/advertiser id (Meta page id, Google advertiser id)
   funding_entity TEXT,                  -- 'Paid for by' disclaimer

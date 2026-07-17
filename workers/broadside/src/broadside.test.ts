@@ -14,6 +14,7 @@ function db(): DaylightDb {
 const DHS: BroadsideAdvertiser = {
   agency: "Department of Homeland Security",
   domain: "dhs.gov",
+  category: "Immigration enforcement",
   metaPageId: "179587888720522",
   googleAdvertiserId: null,
   highSignal: true,
@@ -75,14 +76,19 @@ describe("ads storage", () => {
     expect(row?.last_seen).toBe(LATER); // advanced on repeat, first_seen preserved
   });
 
-  it("quietlyPulledAds: still declared running but no longer observed → a query, not a rewrite", () => {
+  it("quietlyPulledAds: still declared running but no longer observed in the latest sweep", () => {
     const d = db();
     d.upsertAd({ adKey: "meta:running", platform: "meta", domain: "dhs.gov", runEnd: null }, "2026-07-01T00:00:00.000Z");
     d.upsertAd({ adKey: "meta:ended", platform: "meta", domain: "dhs.gov", runEnd: "2026-06-01T00:00:00.000Z" }, "2026-07-01T00:00:00.000Z");
-    d.upsertAd({ adKey: "meta:current", platform: "meta", domain: "dhs.gov", runEnd: null }, NOW);
-    // As of NOW: 'running' was last seen 2026-07-01 and is still declared running → pulled.
-    // 'ended' declared an end date → not "pulled". 'current' seen just now → not stale.
-    expect(d.quietlyPulledAds(NOW).map((a) => a.ad_key)).toEqual(["meta:running"]);
+    d.upsertAd({ adKey: "meta:current", platform: "meta", domain: "dhs.gov", runEnd: null }, NOW); // latest sweep = NOW
+    // Cutoff is the latest sweep (MAX last_seen = NOW), NOT wall-clock: 'running' (last seen before
+    // NOW, still declared running) is pulled; 'current' (seen this sweep) is not; 'ended' declared an
+    // end date so it isn't "pulled".
+    expect(d.quietlyPulledAds().map((a) => a.ad_key)).toEqual(["meta:running"]);
+    // With only one sweep, nothing has disappeared yet.
+    const one = db();
+    one.upsertAd({ adKey: "meta:x", platform: "meta", domain: "dhs.gov", runEnd: null }, NOW);
+    expect(one.quietlyPulledAds()).toEqual([]);
   });
 });
 
@@ -131,5 +137,58 @@ describe("runBroadside engine (mock fetcher)", () => {
     // An empty return for an advertiser that HAS a page id is the "went dark" signal.
     const empty = await runBroadside({ db: d, advertisers: [DHS], fetchers: [metaFetcher({})], now: NOW });
     expect(empty.emptyAdvertisers).toEqual(["Department of Homeland Security (meta)"]);
+  });
+
+  it("is seed-safe: the first run baselines silently; later runs emit new-ad + spend-grew changes", async () => {
+    const d = db();
+    // First run: baseline only (no changes), even though ads are new.
+    const base = await runBroadside({ db: d, advertisers: [DHS], fetchers: [metaFetcher({ "179587888720522": [ad("a1")] })], now: NOW });
+    expect(base.seededBaseline).toBe(true);
+    expect(base.changesEmitted).toBe(0);
+    expect(d.listChanges({ module: "broadside" })).toHaveLength(0);
+
+    // Later run: a genuinely new ad → 'added'; and a1's spend bucket grew → 'modified' spend.
+    const r = await runBroadside({
+      db: d,
+      advertisers: [DHS],
+      fetchers: [metaFetcher({ "179587888720522": [ad("a1", { spendMax: 9999 }), ad("a2")] })],
+      now: LATER,
+    });
+    expect(r.seededBaseline).toBe(false);
+    const changes = d.listChanges({ module: "broadside" });
+    const added = changes.find((c) => c.kind === "added");
+    expect(added?.reason).toContain("new ad observed for Department of Homeland Security");
+    expect(added?.reason).toContain("$1,000–$4,999"); // spend rendered as a RANGE, not a midpoint
+    const spend = changes.find((c) => c.field === "spend");
+    expect(spend?.kind).toBe("modified");
+    expect(spend?.new_value).toContain("$1,000–$9,999");
+  });
+});
+
+describe("spend aggregation (ranges as ranges)", () => {
+  it("spendByCategory sums bounds into a range and flags open-ended top buckets", () => {
+    const d = db();
+    d.upsertAd({ adKey: "meta:1", platform: "meta", domain: "dhs.gov", category: "Immigration enforcement", spendMin: 1000, spendMax: 4999, spendCurrency: "USD" }, NOW);
+    d.upsertAd({ adKey: "meta:2", platform: "meta", domain: "dhs.gov", category: "Immigration enforcement", spendMin: 100000, spendMax: null, spendCurrency: "USD" }, NOW); // open-ended "$100k+"
+    d.upsertAd({ adKey: "meta:3", platform: "meta", domain: "dhs.gov", category: "Immigration enforcement" }, NOW); // undisclosed
+    const [row] = d.spendByCategory();
+    expect(row?.category).toBe("Immigration enforcement");
+    expect(row?.ads_total).toBe(3);
+    expect(row?.disclosed_ads).toBe(2);
+    expect(row?.open_ended_ads).toBe(1);
+    expect(row?.spend_min_total).toBe(101000); // Σ of all disclosed mins — a valid FLOOR
+    expect(row?.spend_max_total).toBe(4999); // Σ of CLOSED maxes only — NOT a valid ceiling when open-ended > 0
+    // Honest display: an open-ended top bucket → render a floor "≥ Σmin", never a two-sided range
+    // (which would invert nonsensically: 101,000 > 4,999).
+    const r = row!;
+    const display = r.open_ended_ads > 0 ? `≥ $${r.spend_min_total.toLocaleString("en-US")}` : `$${r.spend_min_total}–$${r.spend_max_total}`;
+    expect(display).toBe("≥ $101,000");
+  });
+
+  it("newAds returns ads first seen on/after the cutoff, newest first", () => {
+    const d = db();
+    d.upsertAd({ adKey: "meta:old", platform: "meta", domain: "dhs.gov" }, "2026-07-01T00:00:00.000Z");
+    d.upsertAd({ adKey: "meta:new", platform: "meta", domain: "dhs.gov" }, LATER);
+    expect(d.newAds(NOW).map((a) => a.ad_key)).toEqual(["meta:new"]);
   });
 });

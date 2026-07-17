@@ -104,6 +104,8 @@ export const PAGE_DESCRIPTIONS = {
     "Federal .gov collections of personal data with no published Privacy Impact Assessment or SORN found — human-reviewed, with the exact searches shown.",
   foundry:
     "Which build vendors quietly serve many federal agencies at once, and what is staged but not yet launched — a CT-and-registry build graph.",
+  broadside:
+    "What the federal government pays to advertise to Americans — new ads, estimated spend by category (as ranges), and the loop where an agency's site tracker meets its ad buy.",
   methods:
     "How Daylight works: every public data source it reads, its bot's identity and politeness, and its observational-only scope and guardrails.",
   faq:

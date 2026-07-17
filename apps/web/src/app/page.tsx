@@ -25,6 +25,7 @@ const MODULES = [
   { key: "floodlight", href: "/floodlight", name: "Floodlight", blurb: "Is this .gov tracking you? Trackers, session replay, and tracking disguised as the site's own traffic." },
   { key: "receipts", href: "/receipts", name: "Receipts", blurb: "What quietly disappeared — a dated, archived removal ledger." },
   { key: "redtape", href: "/redtape", name: "Redtape", blurb: "Sites collecting personal data with no published privacy filing." },
+  { key: "broadside", href: "/broadside", name: "Broadside", blurb: "What the government pays to advertise — new ads, spend by category, and where a tracker meets an ad buy." },
 ] as const;
 
 /** Display metadata for the module that emitted a change — keyed by the `module` value stored on the
@@ -40,6 +41,7 @@ const CHANGE_MODULE_META: Record<
   floodlight: { name: "Floodlight", href: "/floodlight", iconKey: "floodlight", flagKey: "floodlight" },
   receipts: { name: "Receipts", href: "/receipts", iconKey: "receipts", flagKey: "receipts" },
   foundry: { name: "Foundry", href: "/foundry", iconKey: "foundry", flagKey: "foundry" },
+  broadside: { name: "Broadside", href: "/broadside", iconKey: "broadside", flagKey: "broadside" },
 };
 
 export default function Home() {

@@ -15,7 +15,8 @@
 advertisers:
   - agency: "Department of Homeland Security"
     domain: dhs.gov
-    meta_page_id: "179587888720522"   # verified: DHS 'self-deportation' campaign (WaPo/NOTUS/Axios, 2025–26)
+    category: "Immigration enforcement"   # spend-aggregation bucket ('by category'); defaults to agency
+    meta_page_id: "179587888720522"        # verified: DHS 'self-deportation' campaign (WaPo/NOTUS/Axios, 2025–26)
     high_signal: true
 
   # Placeholders — add the verified Page ids as they're confirmed (Kevin adds constantly):

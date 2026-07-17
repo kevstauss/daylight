@@ -3,6 +3,7 @@
 
 import {
   getDb,
+  type AdRow,
   type ChangeRow,
   type CorrectionRow,
   type CoverageRow,
@@ -18,7 +19,7 @@ import { changeToEntry, describeFinding, type FeedEntry } from "@daylight/feeds"
 import { runFoundry, type FoundryReport } from "@daylight/foundry";
 import type { FlagKind } from "@daylight/core";
 
-export type { ChangeRow, CorrectionRow, CoverageRow, DomainRow, GapRow, ScanRow, ScorecardRow, SnapshotRow, SubdomainRow } from "@daylight/db";
+export type { AdRow, ChangeRow, CorrectionRow, CoverageRow, DomainRow, GapRow, ScanRow, ScorecardRow, SnapshotRow, SubdomainRow } from "@daylight/db";
 export type { FlagKind } from "@daylight/core";
 
 export function statusRows(): ScanRow[] {
@@ -387,6 +388,35 @@ export function analyticsSummary(): AnalyticsSummary {
     refKinds,
     govReferrers: db.analyticsGovReferrers(ALL_TIME, 50).map((r) => ({ host: r.ref_host, count: r.count })),
   };
+}
+
+// ---- Broadside (module 7) — federal ad-buy monitor (dark until FLAG_BROADSIDE) -------------
+
+/** Category rows: estimated spend per category AS A RANGE (Σmin…Σmax), with honesty columns. */
+export type SpendByCategory = ReturnType<ReturnType<typeof getDb>["spendByCategory"]>;
+
+export function broadsideSpendByCategory(): SpendByCategory {
+  return getDb().spendByCategory();
+}
+
+export function broadsideNewAds(sinceIso: string, limit = 50): AdRow[] {
+  return getDb().newAds(sinceIso, limit);
+}
+
+/** New-ad + spend-grew events (module='broadside'). */
+export function broadsideChanges(opts: { limit?: number } = {}): ChangeRow[] {
+  return getDb().listChanges({ module: "broadside", limit: opts.limit ?? 50 });
+}
+
+/** Ads still declared running that we've stopped seeing — the "quietly pulled" ledger. The cutoff
+ *  (latest sweep) is computed inside the DB method, so no wall-clock footgun. */
+export function broadsideQuietlyPulled(limit = 50): AdRow[] {
+  return getDb().quietlyPulledAds(limit);
+}
+
+export function adCount(): number {
+  const row = getDb().sql.prepare(`SELECT COUNT(*) AS n FROM ads`).get() as { n: number };
+  return row.n;
 }
 
 export function gapToFeedEntry(g: GapRow): FeedEntry {

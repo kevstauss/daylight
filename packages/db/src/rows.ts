@@ -198,6 +198,7 @@ export interface AdRow {
   ad_key: string;
   platform: string;
   domain: string;
+  category: string | null;
   advertiser: string | null;
   advertiser_id: string | null;
   funding_entity: string | null;

@@ -50,4 +50,5 @@ function applyAdditiveColumns(db: Sqlite): void {
   ensure("snapshots", "settled", "INTEGER");
   ensure("snapshots", "privacy_hash_kind", "TEXT");
   ensure("scorecards", "settled", "INTEGER");
+  ensure("ads", "category", "TEXT");
 }

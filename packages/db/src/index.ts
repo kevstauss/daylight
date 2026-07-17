@@ -1470,15 +1470,16 @@ export class DaylightDb {
     this.sql
       .prepare(
         `INSERT INTO ads
-           (ad_key, platform, domain, advertiser, advertiser_id, funding_entity, spend_min, spend_max,
+           (ad_key, platform, domain, category, advertiser, advertiser_id, funding_entity, spend_min, spend_max,
             spend_currency, impressions_min, impressions_max, run_start, run_end, first_seen, last_seen,
             creative_ref, source_url, landing_url, pixel_ids_json, flag_severity, flag_reason)
          VALUES
-           (@adKey, @platform, @domain, @advertiser, @advertiserId, @fundingEntity, @spendMin, @spendMax,
+           (@adKey, @platform, @domain, @category, @advertiser, @advertiserId, @fundingEntity, @spendMin, @spendMax,
             @spendCurrency, @impressionsMin, @impressionsMax, @runStart, @runEnd, @seenAt, @seenAt,
             @creativeRef, @sourceUrl, @landingUrl, @pixelIdsJson, @flagSeverity, @flagReason)
          ON CONFLICT(ad_key) DO UPDATE SET
-           domain = excluded.domain, advertiser = excluded.advertiser, advertiser_id = excluded.advertiser_id,
+           domain = excluded.domain, category = excluded.category, advertiser = excluded.advertiser,
+           advertiser_id = excluded.advertiser_id,
            funding_entity = excluded.funding_entity, spend_min = excluded.spend_min, spend_max = excluded.spend_max,
            spend_currency = excluded.spend_currency, impressions_min = excluded.impressions_min,
            impressions_max = excluded.impressions_max, run_start = excluded.run_start, run_end = excluded.run_end,
@@ -1490,6 +1491,7 @@ export class DaylightDb {
         adKey: ad.adKey,
         platform: ad.platform,
         domain: ad.domain,
+        category: ad.category ?? null,
         advertiser: ad.advertiser ?? null,
         advertiserId: ad.advertiserId ?? null,
         fundingEntity: ad.fundingEntity ?? null,
@@ -1540,17 +1542,22 @@ export class DaylightDb {
       .all(params) as AdRow[];
   }
 
-  /** The "quietly pulled" ledger: ads still DECLARED running (run_end IS NULL) that we have stopped
-   *  seeing in the archive (last_seen before the given as-of instant). This is Receipts logic applied
-   *  to ads — a disappearance is a query over the observation window, never a rewrite of the record. */
-  quietlyPulledAds(activeAsOf: string, limit = 100): AdRow[] {
+  /** The "quietly pulled" ledger: ads still DECLARED running (run_end IS NULL) that we stopped seeing
+   *  — last observed BEFORE the most recent poll. The cutoff is MAX(last_seen) across ads (= the
+   *  latest sweep, since a poll advances every ad it sees to `now`), NOT wall-clock: a just-observed
+   *  running ad must never read as pulled. Empty until at least two distinct sweeps have run. This is
+   *  Receipts logic applied to ads — a disappearance is a query over the observation window, never a
+   *  rewrite of the record. */
+  quietlyPulledAds(limit = 100): AdRow[] {
     const n = Math.max(1, Math.min(limit, 1000));
+    const latest = (this.sql.prepare(`SELECT MAX(last_seen) AS m FROM ads`).get() as { m: string | null }).m;
+    if (!latest) return [];
     return this.sql
       .prepare(
-        `SELECT * FROM ads WHERE run_end IS NULL AND last_seen < @asOf
+        `SELECT * FROM ads WHERE run_end IS NULL AND last_seen < @cutoff
          ORDER BY last_seen DESC, id DESC LIMIT ${n}`,
       )
-      .all({ asOf: activeAsOf }) as AdRow[];
+      .all({ cutoff: latest }) as AdRow[];
   }
 
   /**
@@ -1576,6 +1583,58 @@ export class DaylightDb {
       }
     }
     return { pixelIds: [...pixelIds].sort(), ads: this.adsByDomain(d) };
+  }
+
+  /** Ads first observed on/after `sinceIso`, newest first — the "new ads" panel. */
+  newAds(sinceIso: string, limit = 100): AdRow[] {
+    const n = Math.max(1, Math.min(limit, 1000));
+    return this.sql
+      .prepare(`SELECT * FROM ads WHERE first_seen >= @since ORDER BY first_seen DESC, id DESC LIMIT ${n}`)
+      .all({ since: sinceIso }) as AdRow[];
+  }
+
+  /**
+   * Estimated spend per category, AS A RANGE — Σ(spend_min) … Σ(spend_max) across the category's
+   * ads, NEVER a midpoint. Honesty columns so a partly-undisclosed total can't be read as exact:
+   * `ads_total` counts every ad; `disclosed_ads` those with a spend bound; `open_ended_ads` those
+   * whose top bucket is open-ended ("$100k+", spend_max NULL). When open_ended_ads>0 the true upper
+   * bound is unknown, so `spend_max_total` is NOT a valid ceiling (it sums only the closed maxes) —
+   * the caller must render "≥ spend_min_total", never a two-sided range. `spend_min_total` is always
+   * a valid floor (sums every disclosed min). Ordered by that floor, biggest first. Always a bucket
+   * sum, so the caller labels it an estimate with the range visible.
+   */
+  spendByCategory(): {
+    category: string;
+    ads_total: number;
+    disclosed_ads: number;
+    open_ended_ads: number;
+    spend_min_total: number;
+    spend_max_total: number;
+    currency: string | null;
+  }[] {
+    return this.sql
+      .prepare(
+        `SELECT
+           COALESCE(category, advertiser, domain) AS category,
+           COUNT(*) AS ads_total,
+           SUM(CASE WHEN spend_min IS NOT NULL THEN 1 ELSE 0 END) AS disclosed_ads,
+           SUM(CASE WHEN spend_min IS NOT NULL AND spend_max IS NULL THEN 1 ELSE 0 END) AS open_ended_ads,
+           COALESCE(SUM(spend_min), 0) AS spend_min_total,
+           COALESCE(SUM(spend_max), 0) AS spend_max_total,
+           MAX(spend_currency) AS currency
+         FROM ads
+         GROUP BY COALESCE(category, advertiser, domain)
+         ORDER BY spend_min_total DESC, spend_max_total DESC, category ASC`,
+      )
+      .all() as {
+      category: string;
+      ads_total: number;
+      disclosed_ads: number;
+      open_ended_ads: number;
+      spend_min_total: number;
+      spend_max_total: number;
+      currency: string | null;
+    }[];
   }
 
   close(): void {
@@ -1682,6 +1741,7 @@ export interface AdInput {
   adKey: string; // '<platform>:<platform ad id>'
   platform: string; // 'meta' | 'google'
   domain: string; // associated federal .gov apex
+  category?: string | null; // spend-aggregation bucket
   advertiser?: string | null;
   advertiserId?: string | null;
   fundingEntity?: string | null;

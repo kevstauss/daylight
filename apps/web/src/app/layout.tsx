@@ -85,6 +85,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     ...(f.floodlight ? [{ href: "/floodlight", label: "Floodlight" }] : []),
     ...(f.receipts ? [{ href: "/receipts", label: "Receipts" }] : []),
     ...(f.redtape ? [{ href: "/redtape", label: "Redtape" }] : []),
+    ...(f.broadside ? [{ href: "/broadside", label: "Broadside" }] : []),
   ];
   const meta = [
     { href: "/watchlist", label: "Watchlist" },
