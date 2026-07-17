@@ -107,6 +107,81 @@ describe("§7 session replay (H2)", () => {
   });
 });
 
+describe("Meta pixel id capture (Broadside join key)", () => {
+  it("captures the pixel id from a facebook.com/tr beacon", () => {
+    const sc = analyzeCapture(
+      capture(
+        "https://trumprx.gov/",
+        [
+          { url: "https://connect.facebook.net/en_US/fbevents.js", method: "GET", resourceType: "script" },
+          { url: "https://www.facebook.com/tr?id=123456789012345&ev=PageView&noscript=1", method: "GET", resourceType: "image" },
+        ],
+        dom({ privacyNoticeUrl: "https://trumprx.gov/privacy" }),
+      ),
+    );
+    const meta = sc.trackers.find((t) => t.vendor === "Meta / Facebook");
+    expect(meta).toBeDefined();
+    expect(meta?.ids).toEqual(["123456789012345"]);
+  });
+
+  it("collects multiple pixel ids across beacons (a site with two pixels), sorted", () => {
+    const sc = analyzeCapture(
+      capture(
+        "https://trumprx.gov/",
+        [
+          { url: "https://www.facebook.com/tr?id=222222222222222&ev=Purchase", method: "GET", resourceType: "image" },
+          { url: "https://www.facebook.com/tr?id=111111111111111&ev=PageView", method: "GET", resourceType: "image" },
+        ],
+        dom({ privacyNoticeUrl: "https://trumprx.gov/privacy" }),
+      ),
+    );
+    expect(sc.trackers.find((t) => t.vendor === "Meta / Facebook")?.ids).toEqual([
+      "111111111111111",
+      "222222222222222",
+    ]);
+  });
+
+  it("Meta present but no beacon id (fbevents.js only) → tracker with no ids", () => {
+    const sc = analyzeCapture(
+      capture(
+        "https://trumprx.gov/",
+        [{ url: "https://connect.facebook.net/en_US/fbevents.js", method: "GET", resourceType: "script" }],
+        dom(),
+      ),
+    );
+    const meta = sc.trackers.find((t) => t.vendor === "Meta / Facebook");
+    expect(meta).toBeDefined();
+    expect(meta?.ids).toBeUndefined();
+  });
+
+  it("reads ONLY the account id, never the beacon's hashed-PII params", () => {
+    const sc = analyzeCapture(
+      capture(
+        "https://realfood.gov/",
+        [{ url: "https://www.facebook.com/tr?id=999888777666555&ev=Lead&ud[em]=2a1b3c4d5e6f", method: "GET", resourceType: "image" }],
+        dom({ privacyNoticeUrl: "https://realfood.gov/privacy" }),
+      ),
+    );
+    expect(sc.trackers.find((t) => t.vendor === "Meta / Facebook")?.ids).toEqual(["999888777666555"]);
+  });
+
+  it("stores the id intact through persistence even when it matches the phone redactor (ids are not redacted)", () => {
+    // 1234567890 matches redactText's phone pattern; surviving intact proves ids are never redacted.
+    const r = runFloodlightScan(
+      db,
+      capture(
+        "https://trumprx.gov/",
+        [{ url: "https://www.facebook.com/tr?id=1234567890&ev=PageView", method: "GET", resourceType: "image" }],
+        dom({ privacyNoticeUrl: "https://trumprx.gov/privacy" }),
+      ),
+      { now: NOW, settled: true },
+    );
+    const persisted = db.getScorecard(r.scorecard.url);
+    const trackers = JSON.parse(persisted?.trackers_json ?? "[]") as { vendor: string; ids?: string[] }[];
+    expect(trackers.find((t) => t.vendor === "Meta / Facebook")?.ids).toEqual(["1234567890"]);
+  });
+});
+
 describe("§7 privacy-notice cross-check (H4)", () => {
   it("PII form + tracker + no privacy link → privacy_notice_url=null, flagged", () => {
     const sc = analyzeCapture(NONOTICE);

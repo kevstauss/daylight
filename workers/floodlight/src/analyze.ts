@@ -3,7 +3,7 @@ import { classifyUrl, registrableDomain } from "@daylight/fingerprints";
 import { looksProxiedAnalytics } from "./shapes.js";
 import type { PageCapture, Scorecard, Tracker } from "./types.js";
 
-export const ENGINE_VERSION = "floodlight/0.4";
+export const ENGINE_VERSION = "floodlight/0.5";
 
 const safeHost = (url: string): string => {
   try {
@@ -27,6 +27,26 @@ const safePath = (url: string): string => {
 const SESSION_REPLAY_PATH = /\/(rrweb|replay|session[-_]?replay|record(?:ing)?s?)\b/i;
 const isSessionReplayPath = (path: string): boolean => SESSION_REPLAY_PATH.test(path);
 
+// A Meta pixel id is a bare numeric account id (historically 15–16 digits). Bounded 8–20 to accept
+// real ids without capturing junk. Only ever read from the `id` param of a facebook.com/tr beacon.
+const META_PIXEL_ID = /^\d{8,20}$/;
+
+/**
+ * Vendor account/property identifiers carried in a beacon's query string. Today: the Meta pixel id
+ * (`facebook.com/tr?id=<pixel id>`) — a PUBLIC advertiser identifier, the join key that links a
+ * tracker on a .gov page to an ad buy by the same account (Broadside). Extensible per vendor. We
+ * read ONLY the account id, never the rest of the beacon (which can carry hashed PII in ud[*] params).
+ */
+function extractVendorIds(vendor: string, url: string): string[] {
+  if (vendor !== "Meta / Facebook") return [];
+  try {
+    const id = new URL(url).searchParams.get("id");
+    return id && META_PIXEL_ID.test(id) ? [id] : [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Analyze a passive page capture into a scorecard (Phase 3 §4). Pure + deterministic —
  * the live Playwright capture is a separate I/O adapter, so this is fully fixture-tested.
@@ -36,6 +56,11 @@ export function analyzeCapture(capture: PageCapture): Scorecard {
   const pageDomain = registrableDomain(safeHost(capture.url));
   const trackers: Tracker[] = [];
   const seen = new Set<string>();
+  // Vendor account ids (e.g. Meta pixel ids), collected across ALL of a vendor's requests keyed by
+  // VENDOR (not host): the id is a vendor-level fact — which account fires on this page — and a
+  // vendor shows up under several hosts (Meta's beacon is www.facebook.com, its script is
+  // connect.facebook.net), so the beacon's id must attach to the vendor, not one host's tracker.
+  const idsByVendor = new Map<string, Set<string>>();
   let sessionReplay = false;
   let firstPartyProxied = false;
   const reasons: string[] = [];
@@ -74,10 +99,23 @@ export function analyzeCapture(capture: PageCapture): Scorecard {
         seen.add(key);
         trackers.push({ vendor: fp.vendor, category: fp.category, host, path, firstPartyProxied: false });
       }
+      for (const id of extractVendorIds(fp.vendor, req.url)) {
+        const set = idsByVendor.get(fp.vendor) ?? new Set<string>();
+        set.add(id);
+        idsByVendor.set(fp.vendor, set);
+      }
       if (fp.sessionReplay || fp.category === "session-replay" || isSessionReplayPath(path)) {
         sessionReplay = true;
       }
     }
+  }
+
+  // Attach the collected account ids to the vendor's third-party trackers (sorted for a stable
+  // payload). A vendor seen under multiple hosts gets the id on each — the join dedupes on read.
+  for (const t of trackers) {
+    if (t.firstPartyProxied) continue;
+    const ids = idsByVendor.get(t.vendor);
+    if (ids && ids.size > 0) t.ids = [...ids].sort();
   }
 
   const thirdPartyCount = trackers.filter((t) => !t.firstPartyProxied).length;

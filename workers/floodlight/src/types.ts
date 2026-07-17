@@ -30,6 +30,14 @@ export interface Tracker {
   host: string;
   path: string;
   firstPartyProxied: boolean;
+  /**
+   * Vendor account/property identifiers carried in the beacon — today the Meta pixel id from
+   * `facebook.com/tr?id=<pixel id>`. These are PUBLIC advertiser identifiers (not PII), so they are
+   * NOT redacted, and they are the join key that links a tracker on a .gov page to an ad buy by the
+   * same account (Broadside). Absent when the vendor exposes none. Not part of the diff key
+   * (trackerKey stays vendor-level), so a changing id never reads as a tracker add/remove.
+   */
+  ids?: string[];
 }
 
 export interface Scorecard {

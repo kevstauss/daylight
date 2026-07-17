@@ -4,6 +4,21 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
+## Floodlight now records which Meta pixel is on the page, not just that one is — 2026-07-17
+
+Groundwork for an upcoming module (Broadside) that watches federal ad spending. Detecting the Meta
+pixel on a `.gov` page told us a tracker was present; it did not tell us *whose* — and the account
+id is exactly the thread that ties a tracker on a government site to an ad buy by the same account.
+
+- Floodlight now extracts the Meta pixel **account id** from its beacon (`facebook.com/tr?id=…`) and
+  records it on the scorecard's tracker detail. It reads only the account id — never the rest of the
+  beacon, which can carry hashed personal data. The id is a public advertiser identifier, so it is
+  stored as-is (not redacted) and is never part of a tracker's diff identity, so which pixel is
+  present can change without reading as a tracker being added or removed.
+- This is capture only. Nothing links a pixel to an ad yet — that arrives with Broadside. On its own
+  it makes the Floodlight scorecard more specific: "Meta / Facebook, pixel 15…" instead of a bare
+  "Meta / Facebook."
+
 ## Watching the federal build before it ships: GitHub repos as a Lookout signal — 2026-07-16
 
 Federal teams build much of the public web in the open, and a new code repository — or the first
