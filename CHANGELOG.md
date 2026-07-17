@@ -4,7 +4,23 @@ What Daylight does, and what's been added or changed along the way. Everything h
 **observational and built on already-public data** — see [`/methods`](/methods) for every source, the
 bot's contact, and the observational-only scope.
 
-## Federal GitHub activity is now visible on the Lookout page — 2026-07-17
+## The detail pages are now first-class citations: SEO pass — 2026-07-17
+
+An audit of how Daylight's record looks to search engines and AI assistants found the core in good
+shape (canonical URLs, per-page social cards, structured data, feeds, `llms.txt`) — with two
+families of pages left out. Fixed:
+
+- **Per-URL tracker scorecards and snapshot histories now carry real metadata.** A Floodlight
+  scorecard page previously titled itself just "Scorecard" — no description, no canonical URL — so
+  a search result or shared link said nothing about *which* page it scored. Both it and the Receipts
+  snapshot-history page now state the page they cover, a factual summary of what was observed
+  (tracker count, session replay, privacy notice, snapshot count), and a canonical URL, with
+  breadcrumb structured data. A URL with no record on file stays out of the index, as elsewhere.
+- **The sitemap lists them.** Every scorecard and snapshot-history page is now enumerated in
+  `/sitemap.xml` (when its module is on), so the per-URL record is discoverable without someone
+  already knowing the address. [`/broadside`](/broadside) joins the sitemap the day its flag flips.
+- **`llms.txt` learns about Broadside** the same way — flag-gated, so the machine-readable site map
+  never advertises a page that would 404.
 
 The GitHub watch shipped as a feed signal: a new federal repo landed in Lookout's RSS and the
 homepage activity stream, but a visitor browsing [`/lookout`](/lookout) itself would never see it.

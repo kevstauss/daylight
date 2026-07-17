@@ -2,11 +2,52 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { type ChangeRow, type SnapshotRow, receiptsSnapshots, receiptsUrlChanges } from "@/lib/data";
 import { flags } from "@/lib/flags";
+import { pageMetadata } from "@/lib/seo";
 import { Eyebrow, InternalLink, Panel, SeverityBadge, Timestamp } from "@/components/ui";
+import { JsonLd } from "@/components/json-ld";
+import { breadcrumbLd } from "@/lib/structured-data";
 import { ModuleIcon } from "@/components/module-icon";
 
-export const metadata: Metadata = { title: "Snapshot history" };
 export const dynamic = "force-dynamic";
+
+// The App Router already URL-decodes the param; decoding again throws URIError on a bare '%'.
+// Idempotent for real URLs and never throws (same rule as /domain/[name]).
+function safeDecode(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
+/** The URL as humans write it — scheme and trailing slash stripped — for titles/breadcrumbs. */
+const shortUrl = (u: string): string => u.replace(/^https?:\/\//, "").replace(/\/$/, "");
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ url: string }>;
+}): Promise<Metadata> {
+  const { url } = await params;
+  const target = safeDecode(url);
+  const snapshots = flags().receipts ? receiptsSnapshots(target) : [];
+  if (snapshots.length === 0) {
+    // Nothing on record — keep the resolution crawlable but out of the index.
+    return pageMetadata({
+      title: "Snapshot history",
+      description: `Daylight has no Receipts snapshots for ${target} yet.`,
+      path: `/receipts/${encodeURIComponent(target)}`,
+      noindex: true,
+    });
+  }
+  const n = snapshots.length;
+  const latest = snapshots[0]?.captured_at.slice(0, 10);
+  return pageMetadata({
+    title: `${shortUrl(target)} — snapshot history`,
+    description: `${n} dated snapshot${n === 1 ? "" : "s"} of ${target}, a public federal .gov page — trackers, privacy notice, agency seal, and form fields over time, with independent archived copies where saved.${latest ? ` Latest capture ${latest}.` : ""}`,
+    path: `/receipts/${encodeURIComponent(target)}`,
+  });
+}
 
 const count = (json: string | null): number => {
   try {
@@ -19,7 +60,7 @@ const count = (json: string | null): number => {
 export default async function ReceiptsUrlPage({ params }: { params: Promise<{ url: string }> }) {
   if (!flags().receipts) notFound();
   const { url } = await params;
-  const target = decodeURIComponent(url);
+  const target = safeDecode(url);
   const snapshots = receiptsSnapshots(target);
   if (snapshots.length === 0) notFound();
   const removals = receiptsUrlChanges(target).filter((c) => c.kind === "removed");
@@ -27,6 +68,13 @@ export default async function ReceiptsUrlPage({ params }: { params: Promise<{ ur
 
   return (
     <div className="space-y-6">
+      <JsonLd
+        data={breadcrumbLd([
+          { name: "Daylight", path: "/" },
+          { name: "Receipts", path: "/receipts" },
+          { name: shortUrl(target), path: `/receipts/${encodeURIComponent(target)}` },
+        ])}
+      />
       <div>
         <div className="flex items-center gap-2.5">
           <ModuleIcon name="receipts" className="h-6 w-6 shrink-0 text-ink" />

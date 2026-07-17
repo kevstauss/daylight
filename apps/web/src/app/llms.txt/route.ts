@@ -36,6 +36,7 @@ export function GET(): Response {
   if (f.receipts) modules.push(`- [Receipts](${u("/receipts")}): A dated, archived removal ledger — what privacy notice, seal, tracker, or form field was present and then vanished.`);
   if (f.redtape) modules.push(`- [Redtape](${u("/redtape")}): Federal .gov collections of personal data with no published Privacy Impact Assessment or SORN found (human-reviewed).`);
   if (f.foundry) modules.push(`- [Foundry](${u("/foundry")}): Which build vendors quietly serve many federal agencies at once, and what is staged but not yet launched.`);
+  if (f.broadside) modules.push(`- [Broadside](${u("/broadside")}): What the federal government pays to advertise to Americans — new ads, estimated spend by category (as ranges), and the loop where an agency's site tracker meets its ad buy.`);
 
   const body = `# Daylight — a public watchdog for federal .gov infrastructure
 

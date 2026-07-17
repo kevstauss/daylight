@@ -1,6 +1,12 @@
 import type { MetadataRoute } from "next";
 import { absolute } from "@/lib/seo";
-import { allChangeStamps, allDomainRows, allSubdomainRows } from "@/lib/data";
+import {
+  allChangeStamps,
+  allDomainRows,
+  allSubdomainRows,
+  coverageSnapshotRows,
+  floodlightScorecards,
+} from "@/lib/data";
 import { flags } from "@/lib/flags";
 
 // A single dynamic sitemap served at /sitemap.xml. Rendered per request against the live DB (which
@@ -48,6 +54,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   if (f.receipts) entries.push({ url: absolute("/receipts"), changeFrequency: "weekly", priority: 0.7 });
   if (f.redtape) entries.push({ url: absolute("/redtape"), changeFrequency: "weekly", priority: 0.7 });
   if (f.foundry) entries.push({ url: absolute("/foundry"), changeFrequency: "weekly", priority: 0.6 });
+  if (f.broadside) entries.push({ url: absolute("/broadside"), changeFrequency: "weekly", priority: 0.7 });
 
   // Every apex domain page (~1,300). lastModified = last time we saw the registry row.
   for (const d of safe(() => allDomainRows(), [])) {
@@ -66,6 +73,30 @@ export default function sitemap(): MetadataRoute.Sitemap {
         url: absolute(`/domain/${s.fqdn}`),
         lastModified: s.last_seen || s.first_seen,
         changeFrequency: "monthly",
+        priority: 0.4,
+      });
+    }
+  }
+
+  // Per-URL tracker scorecards (url is UNIQUE in the scorecards table, so one entry each).
+  if (f.floodlight) {
+    for (const sc of safe(() => floodlightScorecards({ limit: 1000 }), [])) {
+      entries.push({
+        url: absolute(`/floodlight/${encodeURIComponent(sc.url)}`),
+        lastModified: sc.scanned_at,
+        changeFrequency: "weekly",
+        priority: 0.5,
+      });
+    }
+  }
+
+  // Per-URL snapshot histories (coverageSnapshotRows is one row per watched page).
+  if (f.receipts) {
+    for (const s of safe(() => coverageSnapshotRows(2000), [])) {
+      entries.push({
+        url: absolute(`/receipts/${encodeURIComponent(s.url)}`),
+        lastModified: s.captured_at,
+        changeFrequency: "weekly",
         priority: 0.4,
       });
     }

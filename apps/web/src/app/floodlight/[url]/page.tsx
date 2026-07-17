@@ -4,12 +4,59 @@ import { sha256 } from "@daylight/core";
 import { type ChangeRow, floodlightScorecard, floodlightUrlChanges } from "@/lib/data";
 import { flags } from "@/lib/flags";
 import { configuredSiteUrl } from "@/lib/site";
+import { pageMetadata } from "@/lib/seo";
 import { Eyebrow, InternalLink, Panel, SeverityBadge, SourceRef, Timestamp } from "@/components/ui";
 import { CiteBlock } from "@/components/cite-block";
+import { JsonLd } from "@/components/json-ld";
+import { breadcrumbLd } from "@/lib/structured-data";
 import { ModuleIcon } from "@/components/module-icon";
 
-export const metadata: Metadata = { title: "Scorecard" };
 export const dynamic = "force-dynamic";
+
+// The App Router already URL-decodes the param; decoding again throws URIError on a bare '%'.
+// Idempotent for real URLs and never throws (same rule as /domain/[name]).
+function safeDecode(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
+/** The URL as humans write it — scheme and trailing slash stripped — for titles/breadcrumbs. */
+const shortUrl = (u: string): string => u.replace(/^https?:\/\//, "").replace(/\/$/, "");
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ url: string }>;
+}): Promise<Metadata> {
+  const { url } = await params;
+  const target = safeDecode(url);
+  const sc = flags().floodlight ? floodlightScorecard(target) : null;
+  if (!sc) {
+    // No scorecard on record — keep the resolution crawlable but out of the index.
+    return pageMetadata({
+      title: "Scorecard",
+      description: `Daylight has no Floodlight scorecard for ${target} yet.`,
+      path: `/floodlight/${encodeURIComponent(target)}`,
+      noindex: true,
+    });
+  }
+  const n = sc.tracker_count ?? 0;
+  const facts = [
+    `${n} third-party tracker${n === 1 ? "" : "s"}`,
+    ...(sc.first_party_proxied ? ["analytics reverse-proxied through a first-party endpoint"] : []),
+    ...(sc.session_replay ? ["session replay observed"] : []),
+    sc.privacy_notice_url ? "privacy notice linked" : "no privacy notice linked",
+  ];
+  return pageMetadata({
+    title: `${shortUrl(sc.url)} — tracker scorecard`,
+    description: `Floodlight scorecard for ${sc.url}: ${facts.join(", ")} — observed ${sc.scanned_at.slice(0, 10)} by loading the public page once, the way a browser would.`,
+    // Canonicalize on the stored URL, so any variant encoding resolves to one indexed page.
+    path: `/floodlight/${encodeURIComponent(sc.url)}`,
+  });
+}
 
 interface Tracker {
   vendor: string;
@@ -30,7 +77,7 @@ const parseJson = <T,>(s: string | null, fallback: T): T => {
 export default async function FloodlightUrlPage({ params }: { params: Promise<{ url: string }> }) {
   if (!flags().floodlight) notFound();
   const { url } = await params;
-  const target = decodeURIComponent(url);
+  const target = safeDecode(url);
   const sc = floodlightScorecard(target);
   if (!sc) notFound();
 
@@ -42,6 +89,13 @@ export default async function FloodlightUrlPage({ params }: { params: Promise<{ 
 
   return (
     <div className="space-y-6">
+      <JsonLd
+        data={breadcrumbLd([
+          { name: "Daylight", path: "/" },
+          { name: "Floodlight", path: "/floodlight" },
+          { name: shortUrl(sc.url), path: `/floodlight/${encodeURIComponent(sc.url)}` },
+        ])}
+      />
       <div>
         <div className="flex items-center gap-2.5">
           <ModuleIcon name="floodlight" className="h-6 w-6 shrink-0 text-ink" />
