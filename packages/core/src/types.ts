@@ -1,7 +1,7 @@
 // The seam between packages. These contracts are lifted verbatim from the
 // Phase 0-1 build spec §3.2 — changing them ripples across every module.
 
-export type Module = "ledger" | "lookout" | "foundry" | "floodlight" | "receipts" | "redtape";
+export type Module = "ledger" | "lookout" | "foundry" | "floodlight" | "receipts" | "redtape" | "broadside";
 export type ChangeKind = "added" | "removed" | "modified";
 export type Severity = "info" | "notable" | "high";
 

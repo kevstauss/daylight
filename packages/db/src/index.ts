@@ -2,6 +2,7 @@ import type { Change, DomainRecord, FlagKind, Observation } from "@daylight/core
 import { flagSqlPredicate, nowIso } from "@daylight/core";
 import { openConnection, resolveDbPath, type Sqlite } from "./client.js";
 import type {
+  AdRow,
   AlertRow,
   ChangeRow,
   CorrectionRow,
@@ -1459,6 +1460,124 @@ export class DaylightDb {
       .all(org) as GithubRepoRow[];
   }
 
+  // ---- ads (Broadside — module 7; federal ad buys from a public ad library) --------------------
+
+  /** Upsert an observed ad keyed on ad_key ('<platform>:<id>'). On repeat, advance last_seen and
+   *  refresh the ad's declared window + buckets + pixel evidence; first_seen is preserved. Returns
+   *  inserted=false on a repeat. Ranges are stored verbatim (min/max) — never a midpoint. */
+  upsertAd(ad: AdInput, seenAt: string): { inserted: boolean } {
+    const existed = this.sql.prepare(`SELECT 1 FROM ads WHERE ad_key = ?`).get(ad.adKey) as unknown;
+    this.sql
+      .prepare(
+        `INSERT INTO ads
+           (ad_key, platform, domain, advertiser, advertiser_id, funding_entity, spend_min, spend_max,
+            spend_currency, impressions_min, impressions_max, run_start, run_end, first_seen, last_seen,
+            creative_ref, source_url, landing_url, pixel_ids_json, flag_severity, flag_reason)
+         VALUES
+           (@adKey, @platform, @domain, @advertiser, @advertiserId, @fundingEntity, @spendMin, @spendMax,
+            @spendCurrency, @impressionsMin, @impressionsMax, @runStart, @runEnd, @seenAt, @seenAt,
+            @creativeRef, @sourceUrl, @landingUrl, @pixelIdsJson, @flagSeverity, @flagReason)
+         ON CONFLICT(ad_key) DO UPDATE SET
+           domain = excluded.domain, advertiser = excluded.advertiser, advertiser_id = excluded.advertiser_id,
+           funding_entity = excluded.funding_entity, spend_min = excluded.spend_min, spend_max = excluded.spend_max,
+           spend_currency = excluded.spend_currency, impressions_min = excluded.impressions_min,
+           impressions_max = excluded.impressions_max, run_start = excluded.run_start, run_end = excluded.run_end,
+           last_seen = excluded.last_seen, creative_ref = excluded.creative_ref, source_url = excluded.source_url,
+           landing_url = excluded.landing_url, pixel_ids_json = excluded.pixel_ids_json,
+           flag_severity = excluded.flag_severity, flag_reason = excluded.flag_reason`,
+      )
+      .run({
+        adKey: ad.adKey,
+        platform: ad.platform,
+        domain: ad.domain,
+        advertiser: ad.advertiser ?? null,
+        advertiserId: ad.advertiserId ?? null,
+        fundingEntity: ad.fundingEntity ?? null,
+        spendMin: ad.spendMin ?? null,
+        spendMax: ad.spendMax ?? null,
+        spendCurrency: ad.spendCurrency ?? null,
+        impressionsMin: ad.impressionsMin ?? null,
+        impressionsMax: ad.impressionsMax ?? null,
+        runStart: ad.runStart ?? null,
+        runEnd: ad.runEnd ?? null,
+        seenAt,
+        creativeRef: ad.creativeRef ?? null,
+        sourceUrl: ad.sourceUrl ?? null,
+        landingUrl: ad.landingUrl ?? null,
+        pixelIdsJson: JSON.stringify(ad.pixelIds ?? []),
+        flagSeverity: ad.flagSeverity ?? null,
+        flagReason: ad.flagReason ?? null,
+      });
+    return { inserted: !existed };
+  }
+
+  getAd(adKey: string): AdRow | null {
+    const row = this.sql.prepare(`SELECT * FROM ads WHERE ad_key = ?`).get(adKey) as AdRow | undefined;
+    return row ?? null;
+  }
+
+  adsByDomain(domain: string): AdRow[] {
+    return this.sql
+      .prepare(`SELECT * FROM ads WHERE domain = ? ORDER BY last_seen DESC, id DESC`)
+      .all(domain.trim().toLowerCase()) as AdRow[];
+  }
+
+  listAds(f: { platform?: string; severity?: string; limit?: number } = {}): AdRow[] {
+    const clauses: string[] = [];
+    const params: Record<string, string> = {};
+    if (f.platform) {
+      params.platform = f.platform;
+      clauses.push(`platform = @platform`);
+    }
+    if (f.severity) {
+      params.severity = f.severity;
+      clauses.push(`flag_severity = @severity`);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    const limit = Math.max(1, Math.min(f.limit ?? 100, 1000));
+    return this.sql
+      .prepare(`SELECT * FROM ads ${where} ORDER BY last_seen DESC, id DESC LIMIT ${limit}`)
+      .all(params) as AdRow[];
+  }
+
+  /** The "quietly pulled" ledger: ads still DECLARED running (run_end IS NULL) that we have stopped
+   *  seeing in the archive (last_seen before the given as-of instant). This is Receipts logic applied
+   *  to ads — a disappearance is a query over the observation window, never a rewrite of the record. */
+  quietlyPulledAds(activeAsOf: string, limit = 100): AdRow[] {
+    const n = Math.max(1, Math.min(limit, 1000));
+    return this.sql
+      .prepare(
+        `SELECT * FROM ads WHERE run_end IS NULL AND last_seen < @asOf
+         ORDER BY last_seen DESC, id DESC LIMIT ${n}`,
+      )
+      .all({ asOf: activeAsOf }) as AdRow[];
+  }
+
+  /**
+   * The closed-loop record: for one .gov apex, the Meta pixel ids Floodlight observed on it AND the
+   * ad buys attributed to its agency. When both are non-empty the loop is closed — the site that
+   * feeds Meta's audience system is run by the same agency spending on Meta ads. NOTE the join is
+   * AGENCY↔domain (via config), not pixel-id equality: the Ad Library API does not expose an ad's
+   * pixel id, so the pixel id is one-sided .gov evidence, not a value present on both sides. */
+  pixelAdLoop(domain: string): { pixelIds: string[]; ads: AdRow[] } {
+    const d = domain.trim().toLowerCase();
+    const pixelIds = new Set<string>();
+    for (const sc of this.scorecardsByDomain(d)) {
+      if (!sc.trackers_json) continue;
+      try {
+        const trackers = JSON.parse(sc.trackers_json) as { vendor: string; ids?: string[] }[];
+        for (const t of trackers) {
+          if (t.vendor === "Meta / Facebook" && Array.isArray(t.ids)) {
+            for (const id of t.ids) pixelIds.add(id);
+          }
+        }
+      } catch {
+        /* skip an unparseable scorecard rather than fail the join */
+      }
+    }
+    return { pixelIds: [...pixelIds].sort(), ads: this.adsByDomain(d) };
+  }
+
   close(): void {
     this.sql.close();
   }
@@ -1557,6 +1676,30 @@ export interface GithubRepoInput {
   createdAt?: string | null;
   pushedAt?: string | null;
   hasCommits?: boolean;
+}
+
+export interface AdInput {
+  adKey: string; // '<platform>:<platform ad id>'
+  platform: string; // 'meta' | 'google'
+  domain: string; // associated federal .gov apex
+  advertiser?: string | null;
+  advertiserId?: string | null;
+  fundingEntity?: string | null;
+  /** Spend bucket bounds (USD). Stored verbatim — never a midpoint. Null = undisclosed/open-ended. */
+  spendMin?: number | null;
+  spendMax?: number | null;
+  spendCurrency?: string | null;
+  impressionsMin?: number | null;
+  impressionsMax?: number | null;
+  /** The ad's OWN declared window. runEnd null = still declared running. */
+  runStart?: string | null;
+  runEnd?: string | null;
+  creativeRef?: string | null;
+  sourceUrl?: string | null;
+  landingUrl?: string | null;
+  pixelIds?: string[];
+  flagSeverity?: string | null;
+  flagReason?: string | null;
 }
 
 // ---- singleton + convenience free functions (the §3.4 surface) -------------

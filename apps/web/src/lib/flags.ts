@@ -26,6 +26,9 @@ export interface Flags {
   /** Federal GitHub org monitoring — new repos / first commits surface as Lookout events. Not a
    *  module/tile; this flag gates the scheduled poll + its 'github' /status row. */
   github: boolean;
+  /** Module 7 — /broadside federal ad-buy watch (Meta Ad Library / Google political-ads) + the
+   *  pixel↔ad-buy loop. Dark-launched: OFF until the live fetchers + public surfaces are wired. */
+  broadside: boolean;
 }
 
 export function flags(): Flags {
@@ -41,5 +44,6 @@ export function flags(): Flags {
     foundry: flag("FLAG_FOUNDRY"),
     siteScanning: flag("FLAG_SITESCANNING"),
     github: flag("FLAG_GITHUB"),
+    broadside: flag("FLAG_BROADSIDE"),
   };
 }

@@ -192,6 +192,32 @@ export interface PromotionCandidateRow {
   last_seen: string;
 }
 
+/** A federal ad buy observed in a public ad library (Broadside). Ranges are ranges (see schema.ts). */
+export interface AdRow {
+  id: number;
+  ad_key: string;
+  platform: string;
+  domain: string;
+  advertiser: string | null;
+  advertiser_id: string | null;
+  funding_entity: string | null;
+  spend_min: number | null;
+  spend_max: number | null;
+  spend_currency: string | null;
+  impressions_min: number | null;
+  impressions_max: number | null;
+  run_start: string | null;
+  run_end: string | null;
+  first_seen: string;
+  last_seen: string;
+  creative_ref: string | null;
+  source_url: string | null;
+  landing_url: string | null;
+  pixel_ids_json: string | null;
+  flag_severity: string | null;
+  flag_reason: string | null;
+}
+
 /** A repo observed under a watched federal GitHub org (see schema.ts). Keyed on repo_id. */
 export interface GithubRepoRow {
   repo_id: number;

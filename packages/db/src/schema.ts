@@ -247,4 +247,42 @@ CREATE TABLE IF NOT EXISTS github_repos (
   last_seen TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_github_org ON github_repos(org, created_at DESC);
+
+-- Broadside (module 7): federal ad buys observed in a public ad library (Meta Ad Library / Google
+-- political-ads). Read-only, public-archive-only. HARD rule: spend + impressions are BUCKETS, stored
+-- AS RANGES (min/max bounds) — never a computed midpoint, the most common way this data is
+-- misreported; a null bound is an undisclosed/open-ended bucket edge. run_start/run_end = the ad's
+-- OWN declared active window (run_end NULL = still declared running); first_seen/last_seen = OUR
+-- observation window. That split is deliberate: a "quietly pulled" ad (ran, then vanished from the
+-- archive while still declared running) becomes a QUERY (last_seen < now AND run_end IS NULL), not a
+-- rewrite — Receipts logic applied to ads. creative_ref points at the raw store (NEVER served);
+-- only source_url (the public ad-library permalink) is public. pixel_ids = forward-looking join
+-- evidence toward Floodlight; the practical join is agency↔domain (see DaylightDb.pixelAdLoop).
+CREATE TABLE IF NOT EXISTS ads (
+  id INTEGER PRIMARY KEY,
+  ad_key TEXT UNIQUE NOT NULL,          -- '<platform>:<platform ad id>' — the idempotency key
+  platform TEXT NOT NULL,               -- 'meta' | 'google'
+  domain TEXT NOT NULL,                 -- associated federal .gov apex (join to /domain), from config
+  advertiser TEXT,                      -- advertiser / page display name
+  advertiser_id TEXT,                   -- platform page/advertiser id (Meta page id, Google advertiser id)
+  funding_entity TEXT,                  -- 'Paid for by' disclaimer
+  spend_min INTEGER,                    -- spend bucket LOWER bound (USD); NULL = undisclosed
+  spend_max INTEGER,                    -- spend bucket UPPER bound (USD); NULL = open-ended top bucket
+  spend_currency TEXT,
+  impressions_min INTEGER,              -- impression bucket bounds (same range discipline)
+  impressions_max INTEGER,
+  run_start TEXT,                       -- the ad's OWN declared start (delivery start time)
+  run_end TEXT,                         -- ...and declared stop; NULL = still declared running
+  first_seen TEXT NOT NULL,             -- when WE first observed it in the archive
+  last_seen TEXT NOT NULL,              -- ...and most recently
+  creative_ref TEXT,                    -- raw-store path for the creative asset; NEVER served publicly
+  source_url TEXT,                      -- public ad-library permalink (the re-verifiable 'source →')
+  landing_url TEXT,                     -- the ad's landing page (may point at a watched .gov)
+  pixel_ids_json TEXT,                  -- JSON array of Meta pixel ids associated with the ad (usually empty:
+                                        -- the Ad Library API does not expose an ad's pixel id — see module doc)
+  flag_severity TEXT,
+  flag_reason TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_ads_domain ON ads(domain, last_seen DESC);
+CREATE INDEX IF NOT EXISTS ix_ads_advertiser ON ads(advertiser_id);
 `;

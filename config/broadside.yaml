@@ -1,0 +1,25 @@
+# Broadside advertiser seeds — federal advertisers whose ad buys we watch in public ad libraries
+# (Meta Ad Library / Google political-ads). A separate file from watchlist.yaml on purpose: an ad
+# account id is a different object class than a .gov domain watch.
+#
+# Each entry maps an ad account to its agency's .gov apex (the ad's `domain`, for the /domain join)
+# and an optional platform id. `meta_page_id` is the Facebook Page id searched via the Ad Library
+# API; `google_advertiser_id` is the Google political-ads advertiser id. `high_signal: true` raises
+# severity. Entries with no usable platform id are ignored by the loader (leave a placeholder to
+# fill in later). Existence-only: read-only public-archive reads, never a scrape.
+#
+# NOTE (verified 2026-07): US-targeted ads appear in Meta's API only if classified Social-Issue/
+# Electoral/Political (SIEP); that classification has been reversed for DHS ads before. And Google's
+# political dataset largely EXCLUDES federal AGENCY ads by policy — so treat an empty result for a
+# known-active advertiser as an event to log, not a fact of absence.
+advertisers:
+  - agency: "Department of Homeland Security"
+    domain: dhs.gov
+    meta_page_id: "179587888720522"   # verified: DHS 'self-deportation' campaign (WaPo/NOTUS/Axios, 2025–26)
+    high_signal: true
+
+  # Placeholders — add the verified Page ids as they're confirmed (Kevin adds constantly):
+  # - { agency: "Immigration and Customs Enforcement", domain: ice.gov, meta_page_id: "" }
+  # - { agency: "Customs and Border Protection", domain: cbp.gov, meta_page_id: "" }
+  # - { agency: "Centers for Disease Control and Prevention", domain: cdc.gov, meta_page_id: "" }
+  # - { agency: "U.S. Army (recruiting)", domain: army.mil, meta_page_id: "" }

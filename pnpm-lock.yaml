@@ -136,6 +136,15 @@ importers:
 
   packages/redact: {}
 
+  workers/broadside:
+    dependencies:
+      '@daylight/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@daylight/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+
   workers/floodlight:
     dependencies:
       '@daylight/core':
