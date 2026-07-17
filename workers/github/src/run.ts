@@ -21,6 +21,8 @@ export interface RunGithubResult {
   reposSeen: number;
   newRepos: number;
   firstCommits: number;
+  /** True when this run only established the baseline (first-ever run) and emitted nothing. */
+  seededBaseline: boolean;
 }
 
 // A newly-seen repo whose creation is well before now was almost certainly made public (or
@@ -48,6 +50,11 @@ export async function runGithubWatch(opts: RunGithubOptions): Promise<RunGithubR
   const now = opts.now ?? nowIso();
   const emit = opts.emitChanges !== false;
   const fetchRepos: RepoFetcher = opts.fetchRepos ?? ((org) => fetchOrgRepos(org, { token: opts.token }));
+  // Seed-safety invariant: only emit once a prior SUCCESSFUL github scan exists. The first-ever run
+  // (empty table, no baseline) just records what's there and emits nothing — so an empty prior state
+  // can never dump every existing repo as 'added', even if a boot-seed failed or raced the cron.
+  const emitting = emit && db.hasSuccessfulScan("github");
+  const seededBaseline = emit && !emitting; // asked to emit, but this is the first run → baseline only
   const scanId = db.recordScanStart("github");
 
   try {
@@ -78,7 +85,7 @@ export async function runGithubWatch(opts: RunGithubOptions): Promise<RunGithubR
           const hasCommits = repo.size > 0;
           const p = prior.get(repo.id);
 
-          if (emit && !repo.fork && !repo.archived) {
+          if (emitting && !repo.fork && !repo.archived) {
             if (!p) {
               // Severity tracks how newsworthy the ORG is, not made-public-vs-fresh: ordinary orgs
               // (GSA/cisagov/uswds) open-source and transfer repos as routine business, so those must
@@ -136,10 +143,10 @@ export async function runGithubWatch(opts: RunGithubOptions): Promise<RunGithubR
       itemsSeen: reposSeen,
       changesEmitted: out.newRepos + out.firstCommits,
     });
-    return { ok: true, orgsPolled: orgs.length, reposSeen, ...out };
+    return { ok: true, orgsPolled: orgs.length, reposSeen, seededBaseline, ...out };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     db.recordScanFinish(scanId, { ok: false, error, itemsSeen: 0, changesEmitted: 0 });
-    return { ok: false, error, orgsPolled: orgs.length, reposSeen: 0, newRepos: 0, firstCommits: 0 };
+    return { ok: false, error, orgsPolled: orgs.length, reposSeen: 0, newRepos: 0, firstCommits: 0, seededBaseline: false };
   }
 }

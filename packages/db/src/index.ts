@@ -522,6 +522,16 @@ export class DaylightDb {
       });
   }
 
+  /** Has this module ever completed a scan successfully? A seed-safety signal: a module can treat
+   *  its first-ever run as a silent baseline (emit nothing) and only emit once a prior ok scan
+   *  exists, so an empty prior-state table can never flood the feed on first run. */
+  hasSuccessfulScan(module: string): boolean {
+    return (
+      this.sql.prepare(`SELECT 1 FROM scans WHERE module = ? AND ok = 1 LIMIT 1`).get(module) !==
+      undefined
+    );
+  }
+
   /** Most recent scan per module — powers /status. */
   getStatus(): ScanRow[] {
     return this.sql

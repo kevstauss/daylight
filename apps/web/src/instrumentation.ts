@@ -344,6 +344,13 @@ export async function register(): Promise<void> {
       console.warn("[github:cron] skipped — FLAG_GITHUB off");
       return;
     }
+    // A token is REQUIRED in a hosted environment: the unauthenticated GitHub API (60/hr) is per-IP,
+    // and a shared cloud egress IP (Fly) exhausts it across tenants — the first request 403s. Skip
+    // cleanly rather than error every run. (The CLI still works tokenless from a normal dev IP.)
+    if (!process.env.GITHUB_TOKEN?.trim()) {
+      console.warn("[github:cron] skipped — GITHUB_TOKEN not set (unauthenticated GitHub API is rate-limited from shared cloud IPs)");
+      return;
+    }
     const wl = loadWl();
     if (!wl) return;
     if (wl.githubOrgs.length === 0) {

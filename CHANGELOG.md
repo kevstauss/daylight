@@ -25,9 +25,12 @@ findings surface in Lookout's feed alongside new certificates and subdomains).
   didn't see" discipline the page-watching ledgers were rebuilt around. A repo that surfaces with an
   old creation date is reported as *made public*, a distinct, higher-signal event from a fresh
   create.
-- Off until `FLAG_GITHUB` + `DAYLIGHT_GITHUB_CRON` are set; a first run seeds a silent baseline so
-  the existing ~2,700 federal repos don't flood the feed. Like every scheduled job it reports its
-  own health to [`/status`](/status), so a dead poller can't hide behind Lookout's row.
+- Off until `FLAG_GITHUB` + `DAYLIGHT_GITHUB_CRON` + a read-only `GITHUB_TOKEN` are set. The token
+  is required where we host: GitHub's unauthenticated limit is per-IP, and a shared cloud egress IP
+  exhausts it across tenants. The first successful run seeds a silent baseline — and, belt-and-
+  suspenders, the poller emits nothing at all until a prior successful scan exists, so the existing
+  ~2,700 federal repos can never flood the feed even if the seed fails. Like every scheduled job it
+  reports its own health to [`/status`](/status), so a dead poller can't hide behind Lookout's row.
 
 ## Site Scanning: a wide net that feeds Floodlight, never a verdict of its own — 2026-07-16
 

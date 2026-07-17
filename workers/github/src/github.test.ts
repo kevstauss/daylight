@@ -40,9 +40,38 @@ function lookoutChanges(d: DaylightDb) {
   return d.listChanges({ module: "lookout", limit: 1000 });
 }
 
+/** Establish the baseline (a first successful scan) so later polls emit real diffs. */
+async function baseline(d: DaylightDb): Promise<void> {
+  await runGithubWatch({ db: d, orgs: ORGS, now: NOW, fetchRepos: fetcher({}) });
+}
+
 describe("runGithubWatch", () => {
+  it("first-ever run establishes a baseline and emits nothing, even with new repos", async () => {
+    const d = db();
+    const r = await runGithubWatch({
+      db: d,
+      orgs: ORGS,
+      now: NOW,
+      fetchRepos: fetcher({ nationaldesignstudio: [repo(1), repo(2)], cisagov: [repo(3)] }),
+    });
+    expect(r.seededBaseline).toBe(true);
+    expect(r.newRepos).toBe(0);
+    expect(lookoutChanges(d)).toHaveLength(0);
+    expect(d.githubReposByOrg("nationaldesignstudio")).toHaveLength(2); // state IS populated
+    // With a baseline on file, a genuinely new repo now emits.
+    const r2 = await runGithubWatch({
+      db: d,
+      orgs: ORGS,
+      now: NOW,
+      fetchRepos: fetcher({ nationaldesignstudio: [repo(1), repo(2), repo(4)], cisagov: [repo(3)] }),
+    });
+    expect(r2.seededBaseline).toBe(false);
+    expect(r2.newRepos).toBe(1); // only repo(4)
+  });
+
   it("emits a new-repo 'added' change under module='lookout', keyed to the org's apex", async () => {
     const d = db();
+    await baseline(d);
     const r = await runGithubWatch({
       db: d,
       orgs: ORGS,
@@ -65,6 +94,7 @@ describe("runGithubWatch", () => {
 
   it("never emits for a fork or an archived repo", async () => {
     const d = db();
+    await baseline(d);
     const r = await runGithubWatch({
       db: d,
       orgs: ORGS,
@@ -101,14 +131,14 @@ describe("runGithubWatch", () => {
 
   it("emits a first-commit event when a known empty repo gains commits (size 0 → >0)", async () => {
     const d = db();
-    // Baseline: repo exists but is empty (size 0).
+    // Baseline: the first run records the empty repo (size 0) and emits nothing.
     await runGithubWatch({
       db: d,
       orgs: ORGS,
       now: NOW,
       fetchRepos: fetcher({ nationaldesignstudio: [repo(1, { size: 0 })], cisagov: [] }),
     });
-    expect(lookoutChanges(d)).toHaveLength(1); // the 'added' from the baseline (emit was on)
+    expect(lookoutChanges(d)).toHaveLength(0); // baseline emits nothing
     // Next poll: it now has content.
     const r = await runGithubWatch({
       db: d,
@@ -138,6 +168,7 @@ describe("runGithubWatch", () => {
 
   it("dedupes a repo that appears twice in one poll (pagination race) — emits once", async () => {
     const d = db();
+    await baseline(d);
     const r = await runGithubWatch({
       db: d,
       orgs: ORGS,
@@ -173,13 +204,15 @@ describe("runGithubWatch", () => {
 
   it("is idempotent: re-polling the same repos emits no new changes", async () => {
     const d = db();
+    await baseline(d);
     const map = { nationaldesignstudio: [repo(1)], cisagov: [repo(2)] };
-    await runGithubWatch({ db: d, orgs: ORGS, now: NOW, fetchRepos: fetcher(map) });
-    const after1 = lookoutChanges(d).length;
-    const r = await runGithubWatch({ db: d, orgs: ORGS, now: NOW, fetchRepos: fetcher(map) });
-    expect(r.newRepos).toBe(0);
-    expect(r.firstCommits).toBe(0);
-    expect(lookoutChanges(d).length).toBe(after1);
+    const r1 = await runGithubWatch({ db: d, orgs: ORGS, now: NOW, fetchRepos: fetcher(map) });
+    expect(r1.newRepos).toBe(2); // emitted once
+    const n = lookoutChanges(d).length;
+    const r2 = await runGithubWatch({ db: d, orgs: ORGS, now: NOW, fetchRepos: fetcher(map) });
+    expect(r2.newRepos).toBe(0);
+    expect(r2.firstCommits).toBe(0);
+    expect(lookoutChanges(d).length).toBe(n); // no duplicates on re-poll
   });
 
   it("records a failed poll to /status without throwing", async () => {
